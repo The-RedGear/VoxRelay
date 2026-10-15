@@ -1,4 +1,4 @@
-Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System.Xaml
+﻿Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System.Xaml
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Security
@@ -261,7 +261,7 @@ $controlNames = @(
  'VoicesPage','PlaygroundPage','QueuePage','HistoryPage','RulesPage','PronunciationPage','StreamerBotPage','VoiceStudioPage','PollyPage','ElevenLabsPage','AzurePage','GooglePage','WatsonPage','UberDuckPage','TtsMonsterPage','AcapelaPage','CereProcPage','SettingsPage','ActivityPage',
  'AddButton','EditButton','RemoveButton','TestButton','AliasGrid','PlayVoiceList','PlaygroundText','PlaySpeedBox','PlayVolumeBox','PlayStyleBox','CharacterCount','PlayButton','PlayStopButton',
  'QueueGrid','PauseQueueButton','ResumeQueueButton','SkipQueueButton','RemoveQueueButton','QueueUpButton','QueueDownButton','ClearQueueButton',
- 'HistoryGrid','ReplayHistoryButton','SaveHistoryAudioButton','ClearHistoryButton','BlockedWordsBox','ReplacementsBox','BlocklistBox','AllowlistBox','VoiceRulesGrid','VoiceRuleFieldBox','VoiceRuleValueBox','VoiceRuleAliasBox','AddVoiceRuleButton','UpdateVoiceRuleButton','RemoveVoiceRuleButton','TestVoiceRuleButton','MaxQueueBox','UserCooldownBox','GlobalCooldownBox','BlockLinksCheck','StripLinksCheck','BlockCapsCheck','CollapseRepeatsCheck','IgnoreCommandsCheck','IgnoreMentionsCheck','StripNonAsciiCheck','StripEmojiCheck','BlockAsciiArtCheck','SaveRulesButton',
+ 'HistoryGrid','ReplayHistoryButton','SaveHistoryAudioButton','ClearHistoryButton','BlockedWordsBox','ReplacementsBox','BlocklistBox','AllowlistBox','PlaylistGrid','AddPlaylistButton','EditPlaylistButton','RemovePlaylistButton','TestPlaylistButton','VoiceRulesGrid','VoiceRuleFieldBox','VoiceRuleValueBox','VoiceRuleAliasBox','AddVoiceRuleButton','UpdateVoiceRuleButton','RemoveVoiceRuleButton','TestVoiceRuleButton','MaxQueueBox','UserCooldownBox','GlobalCooldownBox','BlockLinksCheck','StripLinksCheck','BlockCapsCheck','CollapseRepeatsCheck','IgnoreCommandsCheck','IgnoreMentionsCheck','StripNonAsciiCheck','StripEmojiCheck','BlockAsciiArtCheck','SaveRulesButton',
  'PronunciationGrid','AddPronunciationButton','EditPronunciationButton','RemovePronunciationButton','PronunciationUpButton','PronunciationDownButton','PronunciationVoiceList','TestPronunciationButton','ActivityList',
  'UrlBox','KeyBox','RequestTimeoutBox','VoiceStudioStatus','SaveVoiceStudioButton','TestVoiceStudioButton',
  'PollyEnabledCheck','PollyRegionBox','PollyProfileBox','PollyAccessKeyBox','PollySecretKeyBox','PollyCredentialStatus','SavePollyButton','TestPollyButton','ClearPollyCredentialsButton',
@@ -440,7 +440,8 @@ function Refresh-Grid([switch]$VoicesOnly) {
                 $profile = ($bits -join (' ' + [char]0x00B7 + ' '))
             }
         } else { $profile = [string]$a.voice_id }
-        $rows.Add([pscustomobject]@{ Name=$property.Name; Provider=$provider; Profile=$profile; Group=[string]$a.group; Model=$a.model; Speed=$a.speed; VoiceId=$a.voice_id; Volume=$a.volume; Language=$a.language; Instruct=$a.instruct; OutputDevice=[string]$a.output_device; Favorite=[bool]$a.favorite })
+        $enabled = if ($null -eq $a.enabled) { $true } else { [bool]$a.enabled }
+        $rows.Add([pscustomobject]@{ Name=$property.Name; Provider=$provider; Profile=$profile; Group=[string]$a.group; Model=$a.model; Speed=$a.speed; VoiceId=$a.voice_id; Volume=$a.volume; Language=$a.language; Instruct=$a.instruct; OutputDevice=[string]$a.output_device; Favorite=[bool]$a.favorite; Enabled=$enabled })
     }
     $AliasGrid.ItemsSource = $rows
     $AliasProviderFilter.Items.Clear()
@@ -456,12 +457,21 @@ function Refresh-Grid([switch]$VoicesOnly) {
     if($PronunciationVoiceList.Items.Contains($selectedPronunciationVoice)){$PronunciationVoiceList.SelectedItem=$selectedPronunciationVoice}
     if ($PlayVoiceList.Items.Count -and $PlayVoiceList.SelectedIndex -lt 0) { $PlayVoiceList.SelectedIndex = 0 }
     if ($PronunciationVoiceList.Items.Count -and $PronunciationVoiceList.SelectedIndex -lt 0) { $PronunciationVoiceList.SelectedIndex = 0 }
-    $RouteAliasBox.ItemsSource = @($rows.Name)
-    $VoiceRuleAliasBox.ItemsSource = @($rows.Name)
+    $script:ExportRandomLabel='Random (enabled voices)'
+    $playlistLabels = @(Get-PlaylistSpeakLabels $settings)
+    $voiceChoices = @($script:ExportRandomLabel) + @($playlistLabels) + @($rows.Name)
+    $RouteAliasBox.ItemsSource = @($playlistLabels) + @($rows.Name)
+    $VoiceRuleAliasBox.ItemsSource = @($playlistLabels) + @($rows.Name)
     $exportAlias=[string]$ExportVoiceAliasBox.SelectedItem
-    $ExportVoiceAliasBox.ItemsSource=@($rows.Name)
-    if($exportAlias){$ExportVoiceAliasBox.SelectedItem=$exportAlias}
+    $ExportVoiceAliasBox.ItemsSource=$voiceChoices
+    if($exportAlias -and $ExportVoiceAliasBox.Items.Contains($exportAlias)){$ExportVoiceAliasBox.SelectedItem=$exportAlias}
+    elseif($exportAlias -eq 'random'){$ExportVoiceAliasBox.SelectedItem=$script:ExportRandomLabel}
+    elseif($exportAlias -like 'playlist:*'){
+        $wanted='Playlist: '+$exportAlias.Substring(9)
+        if($ExportVoiceAliasBox.Items.Contains($wanted)){$ExportVoiceAliasBox.SelectedItem=$wanted}
+    }
     if($ExportVoiceAliasBox.SelectedIndex -lt 0){$ExportVoiceAliasBox.SelectedIndex=0}
+    Refresh-PlaylistGrid $settings
     if ($VoicesOnly) { return }
     $routingRows = New-Object System.Collections.ObjectModel.ObservableCollection[object]
     foreach ($rule in @($settings.routing_rules)) { if ($rule) { $routingRows.Add($rule) } }
@@ -736,8 +746,9 @@ function Speak-Text([string]$alias, [string]$text, [string]$source = 'Playground
 }
 function Save-Alias($oldName, $value) {
     $s = Read-Settings
-    if ($value.Name -match '[\r\n]' -or $value.Name.StartsWith('group:',[StringComparison]::OrdinalIgnoreCase)) {
-        $BottomStatus.Text='Use a single-line alias name that does not begin with group:.'
+    $folded = $value.Name.Trim().ToLowerInvariant()
+    if ($value.Name -match '[\r\n]' -or $folded.StartsWith('group:') -or $folded.StartsWith('playlist:') -or $folded -in @('random','*')) {
+        $BottomStatus.Text='Use a single-line alias name that is not random/* and does not begin with group: or playlist:.'
         return
     }
     if ($value.Name -ne $oldName -and $s.aliases.PSObject.Properties.Name -contains $value.Name) {
@@ -745,15 +756,166 @@ function Save-Alias($oldName, $value) {
         return
     }
     $favorite = if ($oldName) { [bool]$s.aliases.$oldName.favorite } else { $false }
+    $enabled = if ($oldName -and $null -ne $s.aliases.$oldName.enabled) { [bool]$s.aliases.$oldName.enabled } else { $true }
+    if ($null -ne $value.Enabled) { $enabled = [bool]$value.Enabled }
     if ($oldName -and $oldName -ne $value.Name) { $s.aliases.PSObject.Properties.Remove($oldName) }
     $alias = [pscustomobject]@{
         provider = $value.Provider; voice_id = $value.VoiceId; model = $value.Model; speed = [double]$value.Speed
         volume = [double]$value.Volume; language = [string]$value.Language; instruct = [string]$value.Instruct; group = [string]$value.Group
-        output_device = [string]$value.OutputDevice; favorite = $favorite
+        output_device = [string]$value.OutputDevice; favorite = $favorite; enabled = $enabled
     }
     Set-JsonProperty $s.aliases $value.Name $alias
     Write-Settings $s
     Refresh-Grid -VoicesOnly
+}
+function Save-AliasEnabled($row) {
+    if (-not $row -or -not $row.Name) { return }
+    try {
+        $s = Read-Settings
+        if (-not $s.aliases.PSObject.Properties[$row.Name]) { return }
+        Set-JsonProperty $s.aliases.($row.Name) 'enabled' ([bool]$row.Enabled)
+        Write-Settings $s
+        $BottomStatus.Text = if ($row.Enabled) { $row.Name + ' included in random Speak' } else { $row.Name + ' excluded from random Speak' }
+    } catch { $BottomStatus.Text = $_.Exception.Message }
+}
+function Get-ExportSpeakAlias {
+    $selected = [string]$ExportVoiceAliasBox.SelectedItem
+    if (-not $selected) { return '' }
+    if ($selected -eq $script:ExportRandomLabel -or $selected -eq 'random') { return 'random' }
+    if ($selected.StartsWith('Playlist: ',[StringComparison]::OrdinalIgnoreCase)) {
+        return 'playlist:' + $selected.Substring(10).Trim()
+    }
+    if ($selected.StartsWith('playlist:',[StringComparison]::OrdinalIgnoreCase)) { return $selected }
+    return $selected
+}
+function Get-PlaylistSpeakLabels($settings) {
+    $labels = New-Object System.Collections.Generic.List[string]
+    $map = $settings.voice_playlists
+    if (-not $map) { return @() }
+    foreach ($prop in @($map.PSObject.Properties | Sort-Object Name)) {
+        [void]$labels.Add('Playlist: ' + [string]$prop.Name)
+    }
+    return @($labels)
+}
+function Refresh-PlaylistGrid($settings) {
+    if (-not $PlaylistGrid) { return }
+    if (-not $settings) { $settings = Read-Settings }
+    $selected = if ($PlaylistGrid.SelectedItem) { [string]$PlaylistGrid.SelectedItem.Name } else { '' }
+    $rows = New-Object System.Collections.ObjectModel.ObservableCollection[object]
+    $map = $settings.voice_playlists
+    if ($map) {
+        foreach ($prop in @($map.PSObject.Properties | Sort-Object Name)) {
+            $voices = @($prop.Value | ForEach-Object { [string]$_ } | Where-Object { $_ })
+            $summary = if ($voices.Count) { ($voices -join ', ') } else { '(empty)' }
+            $rows.Add([pscustomobject]@{ Name=[string]$prop.Name; Voices=$voices; Summary=$summary; Count=$voices.Count })
+        }
+    }
+    $PlaylistGrid.ItemsSource = $rows
+    if ($selected) {
+        $hit = @($rows | Where-Object { $_.Name -eq $selected })[0]
+        if ($hit) { $PlaylistGrid.SelectedItem = $hit }
+    }
+}
+function Show-PlaylistDialog($existing) {
+    [xml]$playlistXaml = @'
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Width="520" Height="560" WindowStartupLocation="CenterOwner" ResizeMode="NoResize" WindowStyle="None" AllowsTransparency="True" Background="Transparent" Foreground="#F6F3FA">
+ <Border Background="#15131D" BorderBrush="#50485C" BorderThickness="1" CornerRadius="13">
+  <Border.Effect><DropShadowEffect Color="#000000" BlurRadius="24" ShadowDepth="7" Opacity="0.5"/></Border.Effect>
+  <Grid ClipToBounds="True">
+   <Grid.RowDefinitions><RowDefinition Height="48"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+   <Border Name="TitleBar" Background="#1E1A27" BorderBrush="#50485C" BorderThickness="0,0,0,1" CornerRadius="13,13,0,0">
+    <Grid>
+     <TextBlock Name="WindowTitle" Text="New playlist" FontWeight="SemiBold" Margin="18,0,0,0" VerticalAlignment="Center"/>
+     <Button Name="Close" Content="X" HorizontalAlignment="Right" Width="46" Background="Transparent" BorderThickness="0"/>
+    </Grid>
+   </Border>
+   <StackPanel Grid.Row="1" Margin="22,18,22,8">
+    <TextBlock Text="Playlist name" Foreground="#B9B2C2"/>
+    <TextBox Name="NameBox" Margin="0,7,0,14" Padding="12,10"/>
+    <TextBlock Text="Voices in this playlist" Foreground="#B9B2C2" Margin="0,0,0,8"/>
+    <Border Background="#1E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="8" Height="300">
+     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10,8">
+      <StackPanel Name="VoiceChecks"/>
+     </ScrollViewer>
+    </Border>
+    <TextBlock Name="ValidationText" Foreground="#FF8E8E" TextWrapping="Wrap" Margin="0,10,0,0"/>
+   </StackPanel>
+   <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="22,0,22,18">
+    <Button Name="Cancel" Content="Cancel" Width="100" Margin="0,0,10,0"/>
+    <Button Name="Save" Content="Save playlist" Width="130" Background="#B6A3FF" Foreground="#15131D" BorderBrush="#B6A3FF" FontWeight="SemiBold"/>
+   </StackPanel>
+  </Grid>
+ </Border>
+</Window>
+'@
+    $d = [Windows.Markup.XamlReader]::Load([System.Xml.XmlNodeReader]::new($playlistXaml))
+    $d.Owner = $window
+    Apply-AppFont $d
+    $d.Resources.MergedDictionaries.Add($window.Resources)
+    $nameBox = $d.FindName('NameBox')
+    $checks = $d.FindName('VoiceChecks')
+    $validation = $d.FindName('ValidationText')
+    $aliasNames = @($AliasGrid.ItemsSource | ForEach-Object { [string]$_.Name } | Where-Object { $_ } | Sort-Object)
+    if (-not $aliasNames.Count) {
+        $aliasNames = @(Read-Settings).aliases.PSObject.Properties.Name | Sort-Object
+    }
+    $selected = @{}
+    if ($existing) {
+        $d.FindName('WindowTitle').Text = 'Edit playlist'
+        $nameBox.Text = [string]$existing.Name
+        foreach ($v in @($existing.Voices)) { $selected[[string]$v] = $true }
+    }
+    foreach ($aliasName in $aliasNames) {
+        $cb = [System.Windows.Controls.CheckBox]::new()
+        $cb.Content = $aliasName
+        $cb.Margin = [System.Windows.Thickness]::new(0,0,0,8)
+        $cb.IsChecked = [bool]$selected[$aliasName]
+        [void]$checks.Children.Add($cb)
+    }
+    $script:playlistDialogResult = $null
+    $d.FindName('TitleBar').Add_MouseLeftButtonDown({ $d.DragMove() })
+    $d.FindName('Close').Add_Click({ $d.Close() })
+    $d.FindName('Cancel').Add_Click({ $d.Close() })
+    $d.FindName('Save').Add_Click({
+        try {
+            $name = $nameBox.Text.Trim()
+            $folded = $name.ToLowerInvariant()
+            if (-not $name -or $name -match '[\r\n]' -or $folded.StartsWith('group:') -or $folded.StartsWith('playlist:') -or $folded -in @('random','*')) {
+                throw 'Use a simple playlist name (not random/group:/playlist:).'
+            }
+            $picked = New-Object System.Collections.Generic.List[string]
+            foreach ($child in @($checks.Children)) {
+                if ($child -is [System.Windows.Controls.CheckBox] -and $child.IsChecked) {
+                    [void]$picked.Add([string]$child.Content)
+                }
+            }
+            if ($picked.Count -lt 1) { throw 'Check at least one voice.' }
+            $script:playlistDialogResult = [pscustomobject]@{ Name=$name; Voices=@($picked) }
+            $d.DialogResult = $true
+        } catch { $validation.Text = $_.Exception.Message }
+    })
+    [void]$d.ShowDialog()
+    return $script:playlistDialogResult
+}
+function Save-Playlist($oldName, $value) {
+    $s = Read-Settings
+    if (-not $s.voice_playlists) { Set-JsonProperty $s 'voice_playlists' ([pscustomobject]@{}) }
+    $map = $s.voice_playlists
+    $folded = $value.Name.ToLowerInvariant()
+    foreach ($prop in @($map.PSObject.Properties)) {
+        if ($prop.Name -ne $oldName -and $prop.Name.ToLowerInvariant() -eq $folded) {
+            $BottomStatus.Text = 'A playlist with that name already exists.'
+            return
+        }
+    }
+    if ($oldName -and $oldName -ne $value.Name -and $map.PSObject.Properties[$oldName]) {
+        $map.PSObject.Properties.Remove($oldName)
+    }
+    Set-JsonProperty $map $value.Name @($value.Voices)
+    Set-JsonProperty $s 'voice_playlists' $map
+    Write-Settings $s
+    Refresh-Grid
+    $BottomStatus.Text = 'Saved playlist "' + $value.Name + '"'
 }
 function Save-Rules {
     try {
@@ -1599,7 +1761,9 @@ $ExportStreamerBotButton.Add_Click({
     try {
         $s=Read-Settings
         if([int]$UdpBox.Text -ne [int]$s.udp_port){throw 'Save Streamer.bot settings before exporting actions.'}
-        $result=Invoke-BridgePost '/api/maintenance/streamerbot-export' @{alias=[string]$ExportVoiceAliasBox.SelectedItem}
+        $voice = Get-ExportSpeakAlias
+        if (-not $voice) { throw 'Choose a voice or Random (enabled voices).' }
+        $result=Invoke-BridgePost '/api/maintenance/streamerbot-export' @{alias=$voice}
         $BottomStatus.Text='Ready to import: '+$result.result.path
     } catch {$BottomStatus.Text=$_.Exception.Message}
 })
@@ -1668,9 +1832,26 @@ $SetupCereProcButton.Add_Click({ Set-ServicesExpanded $true; Set-Page 'cereproc'
 $SetupOutputButton.Add_Click({ $OutputDeviceBox.BringIntoView(); $OutputDeviceBox.Focus(); $OutputDeviceBox.IsDropDownOpen = $true })
 $SetupVoiceButton.Add_Click({ Set-Page 'voices'; $v = Show-AliasDialog $null; if ($v) { Save-Alias $null $v } })
 $SetupStreamerBotButton.Add_Click({ Set-Page 'streamerbot' })
+function ConvertTo-SpeakVoiceToken([string]$label) {
+    if (-not $label) { return '' }
+    if ($label -eq $script:ExportRandomLabel -or $label -eq 'random') { return 'random' }
+    if ($label.StartsWith('Playlist: ', [StringComparison]::OrdinalIgnoreCase)) {
+        return 'playlist:' + $label.Substring(10).Trim()
+    }
+    return $label
+}
+function ConvertFrom-SpeakVoiceToken([string]$token) {
+    if (-not $token) { return '' }
+    if ($token -eq 'random') { return $script:ExportRandomLabel }
+    if ($token.StartsWith('playlist:', [StringComparison]::OrdinalIgnoreCase)) {
+        return 'Playlist: ' + $token.Substring(9).Trim()
+    }
+    return $token
+}
 function Save-RouteEditor([bool]$replace) {
     if (-not $RouteValueBox.Text.Trim() -or -not $RouteAliasBox.SelectedItem) { $BottomStatus.Text = 'Enter a match and choose a voice.'; return }
-    $rule = [pscustomobject]@{field=[string]$RouteFieldBox.SelectedItem.Tag;value=$RouteValueBox.Text.Trim();alias=[string]$RouteAliasBox.SelectedItem;priority=[int]$RoutePrioritySlider.Value;enabled=$true}
+    $aliasToken = ConvertTo-SpeakVoiceToken ([string]$RouteAliasBox.SelectedItem)
+    $rule = [pscustomobject]@{field=[string]$RouteFieldBox.SelectedItem.Tag;value=$RouteValueBox.Text.Trim();alias=$aliasToken;priority=[int]$RoutePrioritySlider.Value;enabled=$true}
     $index = $RoutingGrid.SelectedIndex
     if ($replace) { if ($index -lt 0) { $BottomStatus.Text = 'Select a routing rule to update.'; return }; $RoutingGrid.ItemsSource[$index] = $rule }
     else { $RoutingGrid.ItemsSource.Add($rule) }
@@ -1681,7 +1862,7 @@ function Get-VoiceRuleDraft([switch]$RequireSelection) {
     $fieldItem = $VoiceRuleFieldBox.SelectedItem
     $field = if ($fieldItem -and $fieldItem.Tag) { [string]$fieldItem.Tag } else { 'user' }
     $value = $VoiceRuleValueBox.Text.Trim()
-    $alias = [string]$VoiceRuleAliasBox.SelectedItem
+    $alias = ConvertTo-SpeakVoiceToken ([string]$VoiceRuleAliasBox.SelectedItem)
     if (-not $value -or -not $alias) { throw 'Enter a match and choose a voice.' }
     return [pscustomobject]@{ field=$field; value=$value; alias=$alias }
 }
@@ -1729,7 +1910,44 @@ $VoiceRulesGrid.Add_SelectionChanged({
         if ($item.Tag -eq $rule.field) { $VoiceRuleFieldBox.SelectedItem = $item; break }
     }
     $VoiceRuleValueBox.Text = [string]$rule.value
-    if ($VoiceRuleAliasBox.Items -contains [string]$rule.alias) { $VoiceRuleAliasBox.SelectedItem = [string]$rule.alias }
+    $voiceLabel = ConvertFrom-SpeakVoiceToken ([string]$rule.alias)
+    if ($VoiceRuleAliasBox.Items -contains $voiceLabel) { $VoiceRuleAliasBox.SelectedItem = $voiceLabel }
+})
+
+$AddPlaylistButton.Add_Click({
+    $v = Show-PlaylistDialog $null
+    if ($v) { Save-Playlist $null $v }
+})
+$EditPlaylistButton.Add_Click({
+    $row = $PlaylistGrid.SelectedItem
+    if (-not $row) { $BottomStatus.Text = 'Select a playlist to edit.'; return }
+    $v = Show-PlaylistDialog $row
+    if ($v) { Save-Playlist $row.Name $v }
+})
+$RemovePlaylistButton.Add_Click({
+    $row = $PlaylistGrid.SelectedItem
+    if (-not $row) { $BottomStatus.Text = 'Select a playlist to remove.'; return }
+    $s = Read-Settings
+    if ($s.voice_playlists -and $s.voice_playlists.PSObject.Properties[$row.Name]) {
+        $s.voice_playlists.PSObject.Properties.Remove($row.Name)
+        Write-Settings $s
+        Refresh-Grid
+        $BottomStatus.Text = 'Removed playlist "' + $row.Name + '"'
+    }
+})
+$TestPlaylistButton.Add_Click({
+    $row = $PlaylistGrid.SelectedItem
+    if (-not $row) { $BottomStatus.Text = 'Select a playlist to test.'; return }
+    $token = 'playlist:' + [string]$row.Name
+    $text = Show-TestDialog $token
+    if ($text) { Speak-Text $token $text 'Playlist test' }
+})
+$PlaylistGrid.Add_MouseDoubleClick({
+    $row = $PlaylistGrid.SelectedItem
+    if ($row) {
+        $v = Show-PlaylistDialog $row
+        if ($v) { Save-Playlist $row.Name $v }
+    }
 })
 
 $AddRouteButton.Add_Click({ Save-RouteEditor $false })
@@ -1739,7 +1957,12 @@ $RouteUpButton.Add_Click({ $index=$RoutingGrid.SelectedIndex;if($index -gt 0){$R
 $RouteDownButton.Add_Click({ $index=$RoutingGrid.SelectedIndex;if($index -ge 0 -and $index -lt $RoutingGrid.Items.Count-1){$RoutingGrid.ItemsSource.Move($index,$index+1);$RoutingGrid.SelectedIndex=$index+1} })
 $RoutingGrid.Add_SelectionChanged({
     $rule=$RoutingGrid.SelectedItem
-    if($rule){foreach($item in $RouteFieldBox.Items){if($item.Tag -eq $rule.field){$RouteFieldBox.SelectedItem=$item;break}};$RouteValueBox.Text=$rule.value;$RouteAliasBox.SelectedItem=$rule.alias;$RoutePrioritySlider.Value=[double]$rule.priority}
+    if($rule){
+        foreach($item in $RouteFieldBox.Items){if($item.Tag -eq $rule.field){$RouteFieldBox.SelectedItem=$item;break}}
+        $RouteValueBox.Text=$rule.value
+        $RouteAliasBox.SelectedItem = ConvertFrom-SpeakVoiceToken ([string]$rule.alias)
+        $RoutePrioritySlider.Value=[double]$rule.priority
+    }
 })
 $FinishSetupButton.Add_Click({
     $s = Read-Settings; Set-JsonProperty $s 'setup_completed' $true; Write-Settings $s
@@ -1773,6 +1996,21 @@ $ToggleFavoriteButton.Add_Click({
 $AliasGrid.Add_SelectionChanged({
     $row=$AliasGrid.SelectedItem;$ToggleFavoriteButton.IsEnabled=$null -ne $row
     $favLabel=$window.FindName('FavoriteButtonLabel'); if($favLabel){ $favLabel.Text=if($row -and $row.Favorite){'Unfavorite'}else{'Favorite'} } elseif($ToggleFavoriteButton){ $ToggleFavoriteButton.Content=if($row -and $row.Favorite){'Unfavorite'}else{'Favorite'} }
+})
+if (-not $script:ExportRandomLabel) { $script:ExportRandomLabel='Random (enabled voices)' }
+$AliasGrid.Add_PreviewMouseLeftButtonUp({
+    param($sender, $e)
+    try {
+        $el = $e.OriginalSource
+        while ($el -and -not ($el -is [System.Windows.Controls.CheckBox])) {
+            $el = [System.Windows.Media.VisualTreeHelper]::GetParent($el)
+        }
+        if (-not $el) { return }
+        $row = $el.DataContext
+        if ($row -and $row.PSObject.Properties['Name'] -and $row.PSObject.Properties['Enabled']) {
+            Save-AliasEnabled $row
+        }
+    } catch {}
 })
 function Refresh-BackupList {
     try { $BackupListBox.ItemsSource = @((Invoke-BridgeGet '/api/backups' 2).backups) } catch {}

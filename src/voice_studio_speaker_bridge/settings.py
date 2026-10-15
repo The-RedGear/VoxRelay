@@ -134,6 +134,8 @@ class Settings:
         self.stream_volume = 1.0
         self.preview_volume = 1.0
         self.routing_rules: list[dict] = []
+        # Named pools for Speak: playlist:Name → random among listed aliases.
+        self.voice_playlists: dict[str, list[str]] = {}
         self.setup_completed = False
         self.check_updates_on_startup = False
         self.obs_ducking_enabled = False
@@ -256,6 +258,19 @@ class Settings:
             for key in ("persist_queue", "normalize_audio", "fade_audio", "setup_completed", "check_updates_on_startup"):
                 setattr(self, key, bool(data.get(key, getattr(self, key))))
             self.routing_rules = [rule for rule in (data.get("routing_rules") or []) if isinstance(rule, dict)]
+            playlists: dict[str, list[str]] = {}
+            raw_playlists = data.get("voice_playlists") or {}
+            if isinstance(raw_playlists, dict):
+                for name, voices in raw_playlists.items():
+                    label = str(name or "").strip()
+                    if not label or "\n" in label or "\r" in label:
+                        continue
+                    folded = label.casefold()
+                    if folded.startswith(("group:", "playlist:")) or folded in {"random", "*"}:
+                        continue
+                    members = self._coerce_string_list(voices)
+                    playlists[label] = members
+            self.voice_playlists = playlists
             self.obs_ducking_enabled = bool(data.get("obs_ducking_enabled", False))
             self.obs_url = str(data.get("obs_url", self.obs_url))
             self.obs_input = str(data.get("obs_input", ""))
@@ -389,7 +404,8 @@ class Settings:
                 "aliases": {name: alias.to_dict() for name, alias in self.aliases.items()},
             }
             for key in ("max_message_age", "duplicate_window", "per_user_queue_limit", "persist_queue",
-                        "normalize_audio", "fade_audio", "stream_volume", "preview_volume", "routing_rules", "setup_completed",
+                        "normalize_audio", "fade_audio", "stream_volume", "preview_volume", "routing_rules",
+                        "voice_playlists", "setup_completed",
                         "obs_ducking_enabled", "obs_url", "obs_input", "obs_password_encrypted", "obs_duck_volume", "check_updates_on_startup"):
                 payload[key] = getattr(self, key)
             for state in ("received", "generating", "generated", "error", "cancelled"):

@@ -798,8 +798,15 @@
         <StackPanel Grid.Column="2" Orientation="Horizontal"><CheckBox Name="FavoritesOnlyCheck" Content="Favorites" VerticalAlignment="Center" Margin="0,0,12,0"/><Button Name="ToggleFavoriteButton" IsEnabled="False" Margin="0"><StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="m8.85 16.825l3.15-1.9l3.15 1.925l-.825-3.6l2.775-2.4l-3.65-.325l-1.45-3.4l-1.45 3.375l-3.65.325l2.775 2.425zm3.15.45l-4.15 2.5q-.275.175-.575.15t-.525-.2t-.35-.437t-.05-.588l1.1-4.725L3.775 10.8q-.25-.225-.312-.513t.037-.562t.3-.45t.55-.225l4.85-.425l1.875-4.45q.125-.3.388-.45t.537-.15t.537.15t.388.45l1.875 4.45l4.85.425q.35.05.55.225t.3.45t.038.563t-.313.512l-3.675 3.175l1.1 4.725q.075.325-.05.588t-.35.437t-.525.2t-.575-.15zm0-5.025" /></Viewbox><TextBlock Name="FavoriteButtonLabel" Text="Favorite" VerticalAlignment="Center" /></StackPanel></Button></StackPanel>
        </Grid>
        <Border Name="AliasGridHost" Grid.Row="2" CornerRadius="11" BorderBrush="#50485C" BorderThickness="1" Background="#15131D" ClipToBounds="True">
-        <DataGrid Name="AliasGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" BorderThickness="0">
+        <DataGrid Name="AliasGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" BorderThickness="0" CanUserAddRows="False" CanUserDeleteRows="False">
          <DataGrid.Columns>
+          <DataGridTemplateColumn Header="ON" Width="52" CanUserSort="True" SortMemberPath="Enabled">
+           <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+             <CheckBox IsChecked="{Binding Enabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" VerticalAlignment="Center" Focusable="False" ToolTip="Include this voice when Speak uses Random" />
+            </DataTemplate>
+           </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
           <DataGridTextColumn Header="ALIAS" Binding="{Binding Name}" Width="*" ElementStyle="{StaticResource GridText}" />
           <DataGridTextColumn Header="VOICE PROFILE" Binding="{Binding Profile}" Width="2*" ElementStyle="{StaticResource GridText}" />
           <DataGridTextColumn Header="GROUP" Binding="{Binding Group}" Width="120" ElementStyle="{StaticResource GridText}" />
@@ -1110,6 +1117,27 @@
          </Expander>
         </Border>
         <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="11" Padding="16,12" Margin="0,14,0,0" HorizontalAlignment="Stretch">
+         <Expander Name="VoicePlaylistsExpander" Header="Voice playlists" IsExpanded="True" Style="{StaticResource SettingsExpander}">
+         <StackPanel Margin="4,8,4,4">
+          <TextBlock TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,0,0,12"
+                     Text="Build named pools (for example Halo). Streamer.bot Speak can use playlist:Halo to pick randomly from that list only. Playlists also appear in the Streamer.bot export voice dropdown." />
+          <DataGrid Name="PlaylistGrid" Height="160" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single">
+           <DataGrid.Columns>
+            <DataGridTextColumn Header="PLAYLIST" Binding="{Binding Name}" Width="160" ElementStyle="{StaticResource GridText}"/>
+            <DataGridTextColumn Header="VOICES" Binding="{Binding Summary}" Width="*" ElementStyle="{StaticResource GridText}"/>
+            <DataGridTextColumn Header="COUNT" Binding="{Binding Count}" Width="70" ElementStyle="{StaticResource GridText}"/>
+           </DataGrid.Columns>
+          </DataGrid>
+          <WrapPanel Margin="0,14,0,0">
+           <Button Name="AddPlaylistButton" Style="{StaticResource PrimaryButton}"><StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M11 13v3q0 .425.288.713T12 17t.713-.288T13 16v-3h3q.425 0 .713-.288T17 12t-.288-.712T16 11h-3V8q0-.425-.288-.712T12 7t-.712.288T11 8v3H8q-.425 0-.712.288T7 12t.288.713T8 13zm1 9q-2.075 0-3.9-.788t-3.175-2.137T2.788 15.9T2 12t.788-3.9t2.137-3.175T8.1 2.788T12 2t3.9.788t3.175 2.137T21.213 8.1T22 12t-.788 3.9t-2.137 3.175t-3.175 2.138T12 22m0-2q3.35 0 5.675-2.325T20 12t-2.325-5.675T12 4T6.325 6.325T4 12t2.325 5.675T12 20m0-8" /></Viewbox><TextBlock Text="New playlist" VerticalAlignment="Center" /></StackPanel></Button>
+           <Button Name="EditPlaylistButton"><StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M5 19h1.425L16.2 9.225L14.775 7.8L5 17.575zm-1 2q-.425 0-.712-.288T3 20v-2.425q0-.4.15-.763t.425-.637L16.2 3.575q.3-.275.663-.425t.762-.15t.775.15t.65.45L20.425 5q.3.275.437.65T21 6.4q0 .4-.138.763t-.437.662l-12.6 12.6q-.275.275-.638.425t-.762.15zM19 6.4L17.6 5zm-3.525 2.125l-.7-.725L16.2 9.225z" /></Viewbox><TextBlock Text="Edit" VerticalAlignment="Center" /></StackPanel></Button>
+           <Button Name="RemovePlaylistButton"><StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M7 21q-.825 0-1.412-.587T5 19V6q-.425 0-.712-.288T4 5t.288-.712T5 4h4q0-.425.288-.712T10 3h4q.425 0 .713.288T15 4h4q.425 0 .713.288T20 5t-.288.713T19 6v13q0 .825-.587 1.413T17 21zM17 6H7v13h10zm-6.287 10.713Q11 16.425 11 16V9q0-.425-.288-.712T10 8t-.712.288T9 9v7q0 .425.288.713T10 17t.713-.288m4 0Q15 16.426 15 16V9q0-.425-.288-.712T14 8t-.712.288T13 9v7q0 .425.288.713T14 17t.713-.288M7 6v13z" /></Viewbox><TextBlock Text="Remove" VerticalAlignment="Center" /></StackPanel></Button>
+           <Button Name="TestPlaylistButton" Margin="0"><StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="m10.65 15.75l4.875-3.125q.35-.225.35-.625t-.35-.625L10.65 8.25q-.375-.25-.763-.038t-.387.663v6.25q0 .45.388.663t.762-.038M12 22q-2.075 0-3.9-.788t-3.175-2.137T2.788 15.9T2 12t.788-3.9t2.137-3.175T8.1 2.788T12 2t3.9.788t3.175 2.137T21.213 8.1T22 12t-.788 3.9t-2.137 3.175t-3.175 2.138T12 22m0-2q3.35 0 5.675-2.325T20 12t-2.325-5.675T12 4T6.325 6.325T4 12t2.325 5.675T12 20m0-8" /></Viewbox><TextBlock Text="Test random" VerticalAlignment="Center" /></StackPanel></Button>
+          </WrapPanel>
+         </StackPanel>
+         </Expander>
+        </Border>
+        <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="11" Padding="16,12" Margin="0,14,0,0" HorizontalAlignment="Stretch">
          <Expander Name="AutoVoiceRulesExpander" Header="Automatic voice rules" IsExpanded="False" Style="{StaticResource SettingsExpander}">
          <StackPanel Margin="4,8,4,4">
           <TextBlock TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,0,0,12"
@@ -1364,10 +1392,11 @@
          <StackPanel>
           <TextBlock Text="Export to Streamer.bot" FontSize="17" FontWeight="SemiBold" />
           <TextBlock Text="Builds a .sb import with Speak and queue actions wired to the ports above." Foreground="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap" />
-          <TextBlock Text="Default voice for Speak" Foreground="{StaticResource Muted}" Margin="0,16,0,0" />
-          <Grid Margin="0,6,0,0">
+          <TextBlock Text="Voice for Speak" Foreground="{StaticResource Muted}" Margin="0,16,0,0" />
+          <TextBlock Text="Pick one alias, or Random to choose among Voices with ON checked." Foreground="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="12" />
+          <Grid Margin="0,8,0,0">
            <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" MaxWidth="320" />
+            <ColumnDefinition Width="*" MaxWidth="360" />
             <ColumnDefinition Width="12" />
             <ColumnDefinition Width="Auto" />
            </Grid.ColumnDefinitions>
@@ -1376,7 +1405,7 @@
             <StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M6 20q-.825 0-1.412-.587T4 18v-2q0-.425.288-.712T5 15t.713.288T6 16v2h12v-2q0-.425.288-.712T19 15t.713.288T20 16v2q0 .825-.587 1.413T18 20zm5-12.15L9.125 9.725q-.3.3-.712.288T7.7 9.7q-.275-.3-.288-.7t.288-.7l3.6-3.6q.15-.15.325-.212T12 4.425t.375.063t.325.212l3.6 3.6q.3.3.288.7t-.288.7q-.3.3-.712.313t-.713-.288L13 7.85V15q0 .425-.288.713T12 16t-.712-.288T11 15z" /></Viewbox><TextBlock Text="Export actions (.sb)" VerticalAlignment="Center" /></StackPanel>
            </Button>
           </Grid>
-          <TextBlock Text="Import the file in Streamer.bot, then attach your triggers." Foreground="{StaticResource Muted}" Margin="0,12,0,0" FontSize="12" />
+          <TextBlock Text="Import the file in Streamer.bot, then attach your triggers. Toggle ON in Voices to control the random pool." Foreground="{StaticResource Muted}" Margin="0,12,0,0" FontSize="12" TextWrapping="Wrap" />
          </StackPanel>
         </Border>
        </StackPanel>

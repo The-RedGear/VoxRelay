@@ -11,6 +11,8 @@ Also in this preview:
 
 - Streamer.bot UDP speak identity handling (display vs login; reject `%user%` JSON blobs)
 - Allowlist / protocol hardening for speak requests
+- Voices **ON** toggles for the global `random` Speak pool; Streamer.bot export can use Random
+- **Rules → Voice playlists** for named pools (`playlist:Name`) usable in Speak, routing, and export
 - Playground multi-line script layout, pill scrollbars, VoiceStudio and Streamer.bot UI cleanup
 - Packaging copies `LICENSE`, notices, `LEGAL.md`, and `docs/` into the Windows zip
 

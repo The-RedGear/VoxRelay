@@ -16,7 +16,7 @@ from .settings import Settings
 from . import __version__
 
 PRESET_KEYS = ("aliases", "pronunciations", "hidden_pronunciations", "routing_rules",
-               "user_voice_rules", "role_voice_rules", "replacements")
+               "voice_playlists", "user_voice_rules", "role_voice_rules", "replacements")
 PROFILE_KEYS = PRESET_KEYS + ("output_device", "preview_output_device", "stream_volume", "preview_volume",
     "max_characters", "max_queue", "max_message_age", "duplicate_window", "per_user_queue_limit",
     "per_user_cooldown", "global_cooldown", "blocked_words", "user_blocklist", "user_allowlist",
@@ -157,10 +157,25 @@ class Maintenance:
     def export_streamerbot(self, alias: str) -> str:
         from .streamerbot_export import export_actions
         self.settings.reload_if_changed()
-        if alias not in self.settings.aliases:
-            raise ValueError("Choose an existing voice alias")
+        voice = str(alias or "").strip()
+        folded = voice.casefold()
+        special = folded in {"random", "*"} or folded.startswith(("group:", "playlist:"))
+        if not special and voice not in self.settings.aliases:
+            raise ValueError("Choose an existing voice, Random, or a playlist")
+        if folded in {"random", "*"}:
+            if not any(a.enabled for a in self.settings.aliases.values()):
+                raise ValueError("Turn on at least one voice in the Voices tab before exporting random Speak")
+        if folded.startswith("playlist:"):
+            wanted = voice.split(":", 1)[1].strip()
+            match = next((n for n in self.settings.voice_playlists if n.casefold() == wanted.casefold()), None)
+            if match is None:
+                raise ValueError(f"Voice playlist not found: {wanted}")
+            members = [m for m in self.settings.voice_playlists[match] if m in self.settings.aliases]
+            if not members:
+                raise ValueError(f"Playlist has no valid voices: {match}")
+            voice = f"playlist:{match}"
         destination = self._folder("exports") / "VoxRelay-actions.sb"
-        destination.write_text(export_actions(self.settings.udp_port, alias), encoding="utf-8")
+        destination.write_text(export_actions(self.settings.udp_port, voice), encoding="utf-8")
         return str(destination)
 
     @staticmethod

@@ -21,11 +21,18 @@ class VoiceAlias:
     group: str = ""
     output_device: str = ""
     favorite: bool = False
+    enabled: bool = True
     ssml: bool = False
 
     def __post_init__(self):
-        if not self.name.strip() or any(char in self.name for char in "\r\n") or self.name.casefold().startswith("group:"):
-            raise ValueError("Use a single-line alias name that does not begin with group:")
+        folded = self.name.strip().casefold()
+        if (
+            not self.name.strip()
+            or any(char in self.name for char in "\r\n")
+            or folded.startswith(("group:", "playlist:"))
+            or folded in {"random", "*"}
+        ):
+            raise ValueError("Use a single-line alias name that is not random/* and does not begin with group: or playlist:")
         if not math.isfinite(self.speed) or not 0.25 <= self.speed <= 4:
             raise ValueError("Voice speed must be between 0.25 and 4")
         if not math.isfinite(self.volume) or not 0 <= self.volume <= 2:
@@ -45,6 +52,7 @@ class VoiceAlias:
             group=str(value.get("group", "")),
             output_device=str(value.get("output_device", "")),
             favorite=bool(value.get("favorite", False)),
+            enabled=bool(value.get("enabled", True)),
             ssml=bool(value.get("ssml", False)),
         )
 
@@ -60,6 +68,7 @@ class VoiceAlias:
             "group": self.group,
             "output_device": self.output_device,
             "favorite": self.favorite,
+            "enabled": self.enabled,
             "ssml": self.ssml,
         }
 

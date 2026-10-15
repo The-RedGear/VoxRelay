@@ -187,6 +187,48 @@ class FeatureTests(unittest.TestCase):
         protocol.execute("Speak", {"message": "hello", "voice": "group:Halo"})
         self.assertIn(engine.enqueue.call_args.args[1].name, {"One", "Two"})
 
+    def test_random_selects_only_enabled_aliases(self):
+        self.settings.aliases = {
+            "OnA": VoiceAlias(name="OnA", enabled=True),
+            "OffB": VoiceAlias(name="OffB", enabled=False),
+            "OnC": VoiceAlias(name="OnC", enabled=True),
+        }
+        engine = Mock()
+        engine.enqueue.return_value = SpeechJob("hello", self.settings.aliases["OnA"])
+        protocol = SpeakerBotProtocol(self.settings, engine)
+        with patch("voice_studio_speaker_bridge.protocol.random.choice", side_effect=lambda choices: choices[0]) as mocked:
+            protocol.execute("Speak", {"message": "hello", "voice": "random"})
+        names = {alias.name for alias in mocked.call_args.args[0]}
+        self.assertEqual(names, {"OnA", "OnC"})
+        self.assertEqual(engine.enqueue.call_args.args[1].name, "OnA")
+
+    def test_group_ignores_disabled_aliases(self):
+        self.settings.aliases = {
+            "One": VoiceAlias(name="One", group="Halo", enabled=False),
+            "Two": VoiceAlias(name="Two", group="Halo", enabled=True),
+        }
+        engine = Mock()
+        engine.enqueue.return_value = SpeechJob("hello", self.settings.aliases["Two"])
+        protocol = SpeakerBotProtocol(self.settings, engine)
+        protocol.execute("Speak", {"message": "hello", "voice": "group:Halo"})
+        self.assertEqual(engine.enqueue.call_args.args[1].name, "Two")
+
+    def test_playlist_selects_only_listed_aliases(self):
+        self.settings.aliases = {
+            "Wallace": VoiceAlias(name="Wallace"),
+            "Chief": VoiceAlias(name="Chief"),
+            "Brian": VoiceAlias(name="Brian"),
+        }
+        self.settings.voice_playlists = {"Halo": ["Wallace", "Chief"]}
+        engine = Mock()
+        engine.enqueue.return_value = SpeechJob("hello", self.settings.aliases["Wallace"])
+        protocol = SpeakerBotProtocol(self.settings, engine)
+        with patch("voice_studio_speaker_bridge.protocol.random.choice", side_effect=lambda choices: choices[-1]) as mocked:
+            protocol.execute("Speak", {"message": "hello", "voice": "playlist:Halo"})
+        names = {alias.name for alias in mocked.call_args.args[0]}
+        self.assertEqual(names, {"Wallace", "Chief"})
+        self.assertEqual(engine.enqueue.call_args.args[1].name, "Chief")
+
     def test_playground_overrides_do_not_modify_saved_alias(self):
         engine = Mock()
         engine.enqueue.return_value = SpeechJob("hello", self.settings.aliases["EventVoice"])

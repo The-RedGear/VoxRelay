@@ -17,6 +17,14 @@ its test button, then add an alias in **Voices** and test it.
 | Amazon Polly | Access key + secret (optional session token or AWS profile) |
 | ElevenLabs, Azure, Google, Watson, UberDuck, TTS.Monster, Acapela, CereProc | Each has its own Services page |
 
+On the **Voices** tab, the **ON** checkbox includes an alias in Streamer.bot
+**Random** Speak selection. Uncheck voices you do not want in that global pool.
+Explicit alias names still speak when requested (Playground / Test), even if OFF.
+
+For smaller custom pools (Wallace + Master Chief + Sgt Johnson only), open
+**Rules → Voice playlists**, create a named playlist, check those voices, then use
+`playlist:YourName` in Streamer.bot (or pick **Playlist: YourName** when exporting).
+
 Saved keys are encrypted for the current Windows account (DPAPI). Moving `data` to
 another PC or account requires entering keys again. Cloud providers bill usage on
 their own accounts — VoxRelay does not sell minutes.

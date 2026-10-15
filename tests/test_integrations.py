@@ -184,6 +184,14 @@ class IntegrationTests(unittest.TestCase):
         self.assertTrue(all(action["actions"][0]["port"] == 6670 for action in actions))
         self.assertIn("VCONTROL\r\nclearall", [action["actions"][0]["payload"] for action in actions])
 
+    def test_streamerbot_export_supports_random_voice(self):
+        encoded = export_actions(6670, "random")
+        envelope = json.loads(gzip.decompress(base64.b64decode(encoded, validate=True)[4:]))
+        self.assertEqual(
+            envelope["data"]["actions"][0]["actions"][0]["payload"],
+            "VSPEAK\r\nrandom\r\n%message%\r\n%displayName%\r\n%userName%",
+        )
+
     def test_extra_error_hook_runs_before_queue_session_finishes(self):
         self.settings.streamerbot_actions_enabled = True
         self.settings.streamerbot_error_action = "message failed"

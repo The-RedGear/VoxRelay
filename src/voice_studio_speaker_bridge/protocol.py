@@ -66,6 +66,58 @@ class SpeakerBotProtocol:
         self.settings = settings
         self.engine = engine
 
+    def resolve_alias(self, alias_name: str):
+        """Resolve a speak voice name to a VoiceAlias.
+
+        Special selectors:
+        - ``random`` / ``*`` — any alias with Voices ON checked
+        - ``group:Name`` — ON aliases in that group field
+        - ``playlist:Name`` — aliases listed in a Rules voice playlist (playlist is the pool)
+        Explicit alias names still work when disabled (for testing).
+        """
+        key = str(alias_name or "").strip()
+        if not key:
+            raise ValueError("Voice alias is required")
+        folded = key.casefold()
+        if folded in {"random", "*"}:
+            choices = [alias for alias in self.settings.aliases.values() if alias.enabled]
+            if not choices:
+                raise ValueError("No enabled voices available for random selection")
+            return random.choice(choices)
+        if folded.startswith("playlist:"):
+            wanted = key.split(":", 1)[1].strip()
+            if not wanted:
+                raise ValueError("Playlist selector needs a name after playlist:")
+            members = None
+            for name, voices in (self.settings.voice_playlists or {}).items():
+                if str(name).casefold() == wanted.casefold():
+                    members = list(voices or [])
+                    break
+            if members is None:
+                raise ValueError(f"Voice playlist not found: {wanted}")
+            choices = []
+            for member in members:
+                alias = self.settings.aliases.get(str(member))
+                if alias is not None:
+                    choices.append(alias)
+            if not choices:
+                raise ValueError(f"Playlist has no valid voices: {wanted}")
+            return random.choice(choices)
+        if folded.startswith("group:"):
+            group = key.split(":", 1)[1].strip().casefold()
+            choices = [
+                alias
+                for alias in self.settings.aliases.values()
+                if alias.enabled and alias.group.casefold() == group
+            ]
+            if not choices:
+                raise ValueError(f"Voice group not found or has no enabled voices: {group}")
+            return random.choice(choices)
+        alias = self.settings.get_alias(key)
+        if alias is None:
+            raise ValueError(f"Voice alias not found: {key}")
+        return alias
+
     def execute(self, request: str, data: dict) -> dict:
         normalized = request.lower()
         if normalized == "speak":
@@ -133,17 +185,8 @@ class SpeakerBotProtocol:
                 rule_alias = self.settings.role_voice_rules.get(role)
             if rule_alias and not routing_matched:
                 alias_name = rule_alias
-            if alias_name.casefold().startswith("group:"):
-                group = alias_name.split(":", 1)[1].strip().casefold()
-                choices = [alias for alias in self.settings.aliases.values() if alias.group.casefold() == group]
-                if not choices:
-                    raise ValueError(f"Voice group not found or empty: {group}")
-                alias = random.choice(choices)
-                alias_name = alias.name
-            else:
-                alias = self.settings.get_alias(alias_name)
-            if alias is None:
-                raise ValueError(f"Voice alias not found: {alias_name}")
+            alias = self.resolve_alias(alias_name)
+            alias_name = alias.name
             overrides = {}
             if "speed" in data:
                 overrides["speed"] = float(data["speed"])

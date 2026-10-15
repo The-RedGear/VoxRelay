@@ -19,7 +19,29 @@ Windows voice
 %userName%
 ```
 
-Line 1 is the command, line 2 is the voice alias, line 3 is the spoken text.
+For a random voice among aliases marked **ON** in the Voices tab, use `random` (or `*`) on line 2:
+
+```text
+VSPEAK
+random
+%message%
+%displayName%
+%userName%
+```
+
+For a custom pool from **Rules → Voice playlists**, use `playlist:Name`:
+
+```text
+VSPEAK
+playlist:Halo
+%message%
+%displayName%
+%userName%
+```
+
+`group:Halo` still picks randomly within that alias **Group** field (ON voices only). Export actions (.sb) can select **Random (enabled voices)** or **Playlist: Name**.
+
+Line 1 is the command, line 2 is the voice alias (or `random` / `group:Name`), line 3 is the spoken text.
 Optional line 4 is the viewer display name (`%displayName%` or `%user%` when it is a
 plain name), line 5 is the Twitch login (`%userName%`), and line 6 can be a role.
 Do not put Streamer.bot's `%user%` object JSON on the identity lines — in current

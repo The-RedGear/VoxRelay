@@ -8,6 +8,8 @@
 - Cloud TTS engines: ElevenLabs, Azure Speech, Google Cloud TTS, IBM Watson, UberDuck, TTS.Monster, Acapela, CereProc (plus VoiceStudio, Windows SAPI, Amazon Polly)
 - Per-provider Services pages with Windows DPAPI-encrypted secrets
 - Streamer.bot speak payload hardened for display vs login (`%displayName%` / `%userName%`)
+- Voices **ON** checkboxes + Speak `random` for the global enabled pool
+- **Rules → Voice playlists** — named pools via `playlist:Name` (also in Streamer.bot export)
 - Playground script box, scrollbar thumbs, VoiceStudio and Streamer.bot page UI polish
 
 ## Download
@@ -39,6 +41,8 @@ YourAlias
 ```
 
 Do **not** put Streamer.bot’s `%user%` object on identity lines — in current builds it often expands to JSON (`badges` / `login`) and breaks voice rules and Helix lookups. Prefer `%displayName%` + `%userName%`.
+
+For random selection, use `random` (Voices marked **ON**) or `playlist:YourPlaylist` from **Rules → Voice playlists**.
 
 Export a starter `.sb` from **Services → Streamer.bot → Export actions**, import it in Streamer.bot, then attach your own triggers.
 
