@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import time
 import ctypes
@@ -8,8 +9,6 @@ from ctypes import wintypes
 from pathlib import Path
 from queue import Empty, Queue
 from threading import Thread
-import tkinter as tk
-from tkinter import messagebox, simpledialog, ttk
 
 from .audio import AudioPlayer
 from .engine import SpeechEngine
@@ -20,6 +19,7 @@ from .server import BridgeServers
 from .settings import Settings, default_config_dir
 from .voicestudio import VoiceStudioClient
 from .streamerbot import StreamerBotActions
+from .obs import ObsDucking
 
 
 def acquire_backend_mutex():
@@ -43,6 +43,32 @@ def release_backend_mutex(handle) -> None:
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
         kernel32.ReleaseMutex(wintypes.HANDLE(handle))
         kernel32.CloseHandle(wintypes.HANDLE(handle))
+
+
+def wait_for_desktop_exit() -> None:
+    """Stop cleanly when the desktop asks, or if its owning process disappears."""
+    if sys.platform != "win32":
+        while True:
+            time.sleep(1)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateEventW.argtypes = (wintypes.LPVOID, wintypes.BOOL, wintypes.BOOL, wintypes.LPCWSTR)
+    kernel32.CreateEventW.restype = wintypes.HANDLE
+    kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    signal = kernel32.CreateEventW(None, True, False, "Local\\VoxRelay.BackendStop")
+    parent_pid = os.environ.get("VOXRELAY_PARENT_PID", "")
+    parent = kernel32.OpenProcess(0x00100000, False, int(parent_pid)) if parent_pid else None
+    try:
+        if parent_pid and not parent:
+            return
+        while kernel32.WaitForSingleObject(wintypes.HANDLE(signal), 500) == 258:
+            if parent and kernel32.WaitForSingleObject(wintypes.HANDLE(parent), 0) == 0:
+                return
+    finally:
+        if signal:
+            kernel32.CloseHandle(wintypes.HANDLE(signal))
+        if parent:
+            kernel32.CloseHandle(wintypes.HANDLE(parent))
 
 
 class BridgeApp:
@@ -452,22 +478,29 @@ def main() -> None:
         protocol = SpeakerBotProtocol(settings, engine)
         servers = BridgeServers(settings, protocol, events)
         streamerbot_actions = StreamerBotActions(settings, events)
+        obs_ducking = ObsDucking(settings, events)
+        obs_ducking.start()
         engine.start()
         servers.start()
         streamerbot_actions.start()
         logging.info("VoxRelay service started in headless mode")
         try:
-            while True:
-                time.sleep(1)
+            wait_for_desktop_exit()
         except KeyboardInterrupt:
             pass
         finally:
             servers.stop()
-            streamerbot_actions.shutdown()
             engine.shutdown()
+            obs_ducking.shutdown()
+            streamerbot_actions.shutdown()
             release_backend_mutex(instance_mutex)
         return
 
+    # The packaged desktop is WPF. Keep legacy source-only UI dependencies out
+    # of the playback service and the Windows distribution.
+    global tk, messagebox, simpledialog, ttk
+    import tkinter as tk
+    from tkinter import messagebox, simpledialog, ttk
     root = tk.Tk()
     BridgeApp(root)
     root.mainloop()

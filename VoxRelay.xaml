@@ -6,6 +6,7 @@
   <SolidColorBrush x:Key="Border" Color="#50485C" />
   <SolidColorBrush x:Key="Muted" Color="#B9B2C2" />
   <SolidColorBrush x:Key="Accent" Color="#B6A3FF" />
+  <Style x:Key="VoxFocusRing" TargetType="Control"><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Control"><Rectangle Stroke="#B6A3FF" StrokeThickness="2" StrokeDashArray="2,2" RadiusX="6" RadiusY="6" Margin="2"/></ControlTemplate></Setter.Value></Setter></Style>
   <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#B6A3FF" />
   <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#15131D" />
   <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#B6A3FF" />
@@ -136,9 +137,10 @@
     <Setter.Value>
      <ControlTemplate TargetType="TextBox">
       <Border x:Name="Field" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7" Padding="{TemplateBinding Padding}">
-       <ScrollViewer x:Name="PART_ContentHost" />
+       <Grid><ScrollViewer x:Name="PART_ContentHost"/><TextBlock x:Name="Watermark" Text="{TemplateBinding Tag}" Foreground="#B9B2C2" VerticalAlignment="Center" IsHitTestVisible="False" Visibility="Collapsed"/></Grid>
       </Border>
       <ControlTemplate.Triggers>
+       <Trigger Property="Text" Value=""><Setter TargetName="Watermark" Property="Visibility" Value="Visible"/></Trigger>
        <Trigger Property="IsKeyboardFocused" Value="True">
         <Setter TargetName="Field" Property="BorderBrush" Value="#B6A3FF" />
        </Trigger>
@@ -193,6 +195,24 @@
       <Track.IncreaseRepeatButton><RepeatButton Command="Slider.IncreaseLarge" Style="{StaticResource SliderTrackEmpty}" /></Track.IncreaseRepeatButton>
      </Track>
     </Grid>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style TargetType="Slider" BasedOn="{StaticResource VoiceSlider}" />
+  <Style TargetType="Expander">
+   <Setter Property="Foreground" Value="#F6F3FA"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Expander">
+    <StackPanel>
+     <ToggleButton IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}}" Content="{TemplateBinding Header}" Foreground="{TemplateBinding Foreground}" FocusVisualStyle="{StaticResource VoxFocusRing}" Cursor="Hand" HorizontalContentAlignment="Left">
+      <ToggleButton.Template><ControlTemplate TargetType="ToggleButton">
+       <Border x:Name="ExpanderHeader" Background="Transparent" CornerRadius="6" Padding="0,6">
+        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="22"/><ColumnDefinition/></Grid.ColumnDefinitions><Path x:Name="ExpanderArrow" Data="M1,1 L5,5 L9,1" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.7" Width="10" Height="6" HorizontalAlignment="Left" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5"><Path.RenderTransform><RotateTransform Angle="-90"/></Path.RenderTransform></Path><ContentPresenter Grid.Column="1" RecognizesAccessKey="True" VerticalAlignment="Center"/></Grid>
+       </Border>
+       <ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="ExpanderArrow" Property="RenderTransform"><Setter.Value><RotateTransform Angle="0"/></Setter.Value></Setter></Trigger><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ExpanderHeader" Property="Background" Value="#33282231"/></Trigger></ControlTemplate.Triggers>
+      </ControlTemplate></ToggleButton.Template>
+     </ToggleButton>
+     <ContentPresenter x:Name="ExpandedContent" ContentSource="Content" Visibility="Collapsed"/>
+    </StackPanel>
+    <ControlTemplate.Triggers><Trigger Property="IsExpanded" Value="True"><Setter TargetName="ExpandedContent" Property="Visibility" Value="Visible"/></Trigger></ControlTemplate.Triggers>
    </ControlTemplate></Setter.Value></Setter>
   </Style>
   <Style TargetType="CheckBox">
@@ -257,7 +277,7 @@
    <Setter Property="Background" Value="#1E1A27" />
    <Setter Property="BorderBrush" Value="#50485C" />
    <Setter Property="Height" Value="42" />
-   <Setter Property="MinWidth" Value="190" />
+   <Setter Property="MinWidth" Value="0" />
    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
    <Setter Property="Template">
     <Setter.Value>
@@ -283,6 +303,9 @@
          </ControlTemplate>
         </ToggleButton.Template>
        </ToggleButton>
+       <TextBox x:Name="PART_EditableTextBox" Visibility="Collapsed" Margin="12,2,38,2" Padding="0" BorderThickness="0" Background="{TemplateBinding Background}" Foreground="#F6F3FA" CaretBrush="#B6A3FF" SelectionBrush="#B6A3FF" SelectionTextBrush="#15131D" VerticalContentAlignment="Center" Text="{Binding Text,RelativeSource={RelativeSource TemplatedParent},Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}">
+        <TextBox.Template><ControlTemplate TargetType="TextBox"><Border Background="{TemplateBinding Background}"><ScrollViewer x:Name="PART_ContentHost"/></Border></ControlTemplate></TextBox.Template>
+       </TextBox>
        <Popup Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False">
         <Border Background="#1E1A27" BorderBrush="#B6A3FF" BorderThickness="1" CornerRadius="8" Margin="0,4,0,0" MinWidth="{Binding ActualWidth,RelativeSource={RelativeSource TemplatedParent}}" MaxHeight="240">
          <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -291,6 +314,7 @@
         </Border>
        </Popup>
       </Grid>
+      <ControlTemplate.Triggers><Trigger Property="IsEditable" Value="True"><Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible"/></Trigger></ControlTemplate.Triggers>
      </ControlTemplate>
     </Setter.Value>
    </Setter>
@@ -655,19 +679,23 @@
         <TextBlock Name="PageTitle" Text="Voices" FontSize="28" FontWeight="SemiBold" />
         <TextBlock Name="PageSubtitle" Text="Friendly names for every provider voice." Foreground="{StaticResource Muted}" Margin="0,5,0,0" FontSize="13" />
        </StackPanel>
-       <Button Name="RefreshButton" Grid.Column="1" Style="{StaticResource PrimaryButton}" VerticalAlignment="Top" Margin="0">
+       <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+       <Button Name="SavePageButton" Content="Save changes" Style="{StaticResource PrimaryButton}" Visibility="Collapsed" Margin="0,0,12,0"/>
+       <Button Name="RefreshButton" VerticalAlignment="Top" Margin="0">
         <StackPanel Orientation="Horizontal">
          <Viewbox Width="15" Height="15" Margin="0,0,8,0">
           <Canvas Width="24" Height="24">
-           <Path Stroke="#15131D" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="Transparent" Data="M20,7 L20,2 L15,2 M20,2 C13,-3 3,2 3,11 C3,19 12,24 19,18 M4,17 L4,22 L9,22" />
+           <Path Style="{StaticResource IconPath}" StrokeThickness="1.8" Data="M20,7 L20,2 L15,2 M20,2 C13,-3 3,2 3,11 C3,19 12,24 19,18 M4,17 L4,22 L9,22" />
           </Canvas>
          </Viewbox>
          <TextBlock Text="Refresh voices" />
         </StackPanel>
        </Button>
+       </StackPanel>
       </Grid>
       <Grid Name="VoicesPage" Grid.Row="1">
        <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
         <RowDefinition Height="Auto" />
         <RowDefinition />
        </Grid.RowDefinitions>
@@ -713,7 +741,13 @@
          </StackPanel>
         </Button>
        </StackPanel>
-       <Border Grid.Row="1" CornerRadius="11" BorderBrush="#50485C" BorderThickness="1" Background="#15131D" ClipToBounds="True">
+       <Grid Grid.Row="1" Margin="0,0,0,14">
+        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="190"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <TextBox Name="AliasSearchBox" Tag="Search voices..." AutomationProperties.Name="Search voices" ToolTip="Search aliases, profiles or groups" Margin="0,0,12,0"/>
+        <ComboBox Name="AliasProviderFilter" Grid.Column="1" AutomationProperties.Name="Filter by engine" Margin="0,0,12,0"/>
+        <StackPanel Grid.Column="2" Orientation="Horizontal"><CheckBox Name="FavoritesOnlyCheck" Content="Favorites" VerticalAlignment="Center" Margin="0,0,12,0"/><Button Name="ToggleFavoriteButton" Content="Favorite" IsEnabled="False" Margin="0"/></StackPanel>
+       </Grid>
+       <Border Grid.Row="2" CornerRadius="11" BorderBrush="#50485C" BorderThickness="1" Background="#15131D" ClipToBounds="True">
         <DataGrid Name="AliasGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" BorderThickness="0">
          <DataGrid.Columns>
           <DataGridTextColumn Header="ALIAS" Binding="{Binding Name}" Width="*" ElementStyle="{StaticResource GridText}" />
@@ -750,6 +784,7 @@
           <RowDefinition Height="Auto" />
          </Grid.RowDefinitions>
          <TextBlock Text="SCRIPT" Foreground="{StaticResource Muted}" FontSize="10" FontWeight="Bold" />
+         <CheckBox Name="PlaySsmlCheck" Content="Advanced SSML" HorizontalAlignment="Right" Margin="0" ToolTip="Polly and Windows voices. Enter a speak document; SSML controls rate and pitch."/>
          <TextBox Name="PlaygroundText" Grid.Row="1" Margin="0,10,0,14" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top" FontSize="16" />
          <Grid Grid.Row="2">
           <Grid.ColumnDefinitions>
@@ -761,11 +796,11 @@
           </Grid.ColumnDefinitions>
           <StackPanel>
            <TextBlock Text="Speed" Foreground="{StaticResource Muted}" />
-           <TextBox Name="PlaySpeedBox" Text="1.0" Margin="0,6,0,0" />
+           <Slider Name="PlaySpeedBox" Minimum="0.5" Maximum="2" Value="1" TickFrequency="0.05" IsSnapToTickEnabled="True" Margin="0,6,0,0" AutomationProperties.Name="Playground speed"/><TextBlock Text="{Binding ElementName=PlaySpeedBox,Path=Value,StringFormat={}{0:0.00}x}" Foreground="{StaticResource Muted}"/>
           </StackPanel>
           <StackPanel Grid.Column="2">
            <TextBlock Text="Volume" Foreground="{StaticResource Muted}" />
-           <TextBox Name="PlayVolumeBox" Text="1.0" Margin="0,6,0,0" />
+           <Slider Name="PlayVolumeBox" Minimum="0" Maximum="2" Value="1" TickFrequency="0.05" IsSnapToTickEnabled="True" Margin="0,6,0,0" AutomationProperties.Name="Playground volume"/><TextBlock Text="{Binding ElementName=PlayVolumeBox,Path=Value,StringFormat={}{0:P0}}" Foreground="{StaticResource Muted}"/>
           </StackPanel>
           <StackPanel Grid.Column="4">
            <TextBlock Text="Style instruction" Foreground="{StaticResource Muted}" />
@@ -787,15 +822,18 @@
         <RowDefinition Height="Auto" />
         <RowDefinition />
        </Grid.RowDefinitions>
-       <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
-        <Button Name="PauseQueueButton" Content="Pause" />
-        <Button Name="ResumeQueueButton" Content="Resume" />
-        <Button Name="SkipQueueButton" Content="Skip current" />
-        <Button Name="RemoveQueueButton" Content="Remove" />
-        <Button Name="QueueUpButton" Content="Move up" />
-        <Button Name="QueueDownButton" Content="Move down" />
-        <Button Name="ClearQueueButton" Content="Clear queue" Margin="0" />
-       </StackPanel>
+       <WrapPanel Margin="0,0,0,14">
+        <Button Name="PauseQueueButton" Content="Pause audio" Margin="0,0,9,8" />
+        <Button Name="PauseAfterQueueButton" Content="Pause after current" Margin="0,0,9,8" />
+        <Button Name="ResumeQueueButton" Content="Resume" Margin="0,0,9,8" />
+        <Button Name="SkipQueueButton" Content="Skip current" Margin="0,0,9,8" />
+        <Button Name="RemoveQueueButton" Content="Remove" Margin="0,0,9,8" />
+        <Button Name="QueueUpButton" Content="Move up" Margin="0,0,9,8" />
+        <Button Name="QueueDownButton" Content="Move down" Margin="0,0,9,8" />
+        <Button Name="ClearQueueButton" Content="Clear waiting" Margin="0,0,9,8" />
+        <Button Name="ClearAllQueueButton" Content="Stop &amp; clear" Margin="0,0,0,8" />
+        <TextBlock Name="QueueSummaryText" Foreground="{StaticResource Muted}" VerticalAlignment="Center" Margin="12,0,0,8"/>
+       </WrapPanel>
        <Border Grid.Row="1" CornerRadius="11" BorderBrush="#50485C" BorderThickness="1" Background="#15131D" ClipToBounds="True">
         <DataGrid Name="QueueGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" BorderThickness="0">
          <DataGrid.Columns>
@@ -1012,6 +1050,22 @@
           </Grid>
          </StackPanel>
         </Border>
+        <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="11" Padding="20" Margin="0,14,0,0">
+         <StackPanel>
+          <TextBlock Text="Routing" FontSize="17" FontWeight="SemiBold"/>
+          <TextBlock Text="The first matching rule chooses the voice and priority." Foreground="{StaticResource Muted}" Margin="0,5,0,14"/>
+          <DataGrid Name="RoutingGrid" Height="185" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single">
+           <DataGrid.Columns><DataGridTextColumn Header="WHEN" Binding="{Binding field}" Width="90" ElementStyle="{StaticResource GridText}"/><DataGridTextColumn Header="MATCHES" Binding="{Binding value}" Width="*" ElementStyle="{StaticResource GridText}"/><DataGridTextColumn Header="VOICE" Binding="{Binding alias}" Width="*" ElementStyle="{StaticResource GridText}"/><DataGridTextColumn Header="PRIORITY" Binding="{Binding priority}" Width="85" ElementStyle="{StaticResource GridText}"/></DataGrid.Columns>
+          </DataGrid>
+          <Grid Margin="0,16,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="110"/><ColumnDefinition Width="12"/><ColumnDefinition/><ColumnDefinition Width="12"/><ColumnDefinition/></Grid.ColumnDefinitions>
+           <StackPanel><TextBlock Text="When"/><ComboBox Name="RouteFieldBox" Margin="0,6,0,0"><ComboBoxItem Content="User" Tag="user"/><ComboBoxItem Content="Role" Tag="role"/><ComboBoxItem Content="Source" Tag="source"/><ComboBoxItem Content="Event" Tag="event"/></ComboBox></StackPanel>
+           <StackPanel Grid.Column="2"><TextBlock Text="Matches exactly"/><TextBox Name="RouteValueBox" Margin="0,6,0,0"/></StackPanel>
+           <StackPanel Grid.Column="4"><TextBlock Text="Use voice"/><ComboBox Name="RouteAliasBox" Margin="0,6,0,0"/></StackPanel>
+          </Grid>
+          <Grid Margin="0,14,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="45"/></Grid.ColumnDefinitions><TextBlock Text="Priority" VerticalAlignment="Center" Margin="0,0,16,0"/><Slider Name="RoutePrioritySlider" Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True" AutomationProperties.Name="Route priority"/><TextBlock Grid.Column="2" Text="{Binding ElementName=RoutePrioritySlider, Path=Value, StringFormat={}{0:0}}" VerticalAlignment="Center" HorizontalAlignment="Right"/></Grid>
+          <WrapPanel Margin="0,14,0,0"><Button Name="AddRouteButton" Content="Add rule"/><Button Name="UpdateRouteButton" Content="Update selected"/><Button Name="RemoveRouteButton" Content="Remove"/><Button Name="RouteUpButton" Content="Move up"/><Button Name="RouteDownButton" Content="Move down" Margin="0"/></WrapPanel>
+         </StackPanel>
+        </Border>
         <Button Name="SaveRulesButton" Content="Save rules" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" Margin="0,16,0,0" />
        </StackPanel>
       </ScrollViewer>
@@ -1142,6 +1196,15 @@
            </Grid>
           </Border>
           <TextBlock Text="Action variables: %ttsState%, %ttsId%, %ttsText%, %ttsAlias%, %ttsVoice%, %ttsSource%, %ttsUser%, %ttsDuration%" Foreground="{StaticResource Muted}" Margin="0,13,0,0" TextWrapping="Wrap" FontSize="11" />
+          <Expander Header="Additional per-message actions" Foreground="#F6F3FA" Margin="0,18,0,0">
+           <StackPanel Margin="0,14,0,0">
+            <TextBlock Text="Received"/><TextBox Name="StreamerReceivedActionBox" Margin="0,6,0,14"/>
+            <TextBlock Text="Generating"/><TextBox Name="StreamerGeneratingActionBox" Margin="0,6,0,14"/>
+            <TextBlock Text="Generated"/><TextBox Name="StreamerGeneratedActionBox" Margin="0,6,0,14"/>
+            <TextBlock Text="Message failed"/><TextBox Name="StreamerErrorActionBox" Margin="0,6,0,14"/>
+            <TextBlock Text="Message cancelled / skipped"/><TextBox Name="StreamerCancelledActionBox" Margin="0,6,0,0"/>
+           </StackPanel>
+          </Expander>
           <Button Name="SaveStreamerBotButton" Content="Save" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" Margin="0,16,0,0" />
          </StackPanel>
         </Border>
@@ -1151,11 +1214,13 @@
           <TextBlock Text="Choose a command, then copy its payload into a Streamer.bot UDP Broadcast action on the port shown above." Foreground="{StaticResource Muted}" Margin="0,4,0,15" TextWrapping="Wrap" />
           <Grid>
            <Grid.ColumnDefinitions><ColumnDefinition Width="210" /><ColumnDefinition Width="14" /><ColumnDefinition /></Grid.ColumnDefinitions>
-           <StackPanel><TextBlock Text="Action" Foreground="{StaticResource Muted}" /><ComboBox Name="QueueControlCommandBox" Margin="0,6,0,0"><ComboBoxItem Content="Pause" Tag="pause" /><ComboBoxItem Content="Resume" Tag="resume" /><ComboBoxItem Content="Skip current" Tag="skip" /><ComboBoxItem Content="Remove item" Tag="remove" /><ComboBoxItem Content="Move item up" Tag="moveup" /><ComboBoxItem Content="Move item down" Tag="movedown" /><ComboBoxItem Content="Clear queue" Tag="clear" /></ComboBox></StackPanel>
+           <StackPanel><TextBlock Text="Action" Foreground="{StaticResource Muted}" /><ComboBox Name="QueueControlCommandBox" Margin="0,6,0,0"><ComboBoxItem Content="Pause audio" Tag="pause" /><ComboBoxItem Content="Pause after current" Tag="pauseaftercurrent" /><ComboBoxItem Content="Resume" Tag="resume" /><ComboBoxItem Content="Skip current" Tag="skip" /><ComboBoxItem Content="Remove item" Tag="remove" /><ComboBoxItem Content="Move item up" Tag="moveup" /><ComboBoxItem Content="Move item down" Tag="movedown" /><ComboBoxItem Content="Clear waiting" Tag="clear" /><ComboBoxItem Content="Stop and clear" Tag="clearall" /></ComboBox></StackPanel>
            <StackPanel Grid.Column="2"><TextBlock Text="UDP payload" Foreground="{StaticResource Muted}" /><TextBox Name="QueueControlPayloadBox" Height="58" Margin="0,6,0,0" AcceptsReturn="True" IsReadOnly="True" FontFamily="Cascadia Mono" VerticalContentAlignment="Center" /></StackPanel>
           </Grid>
           <TextBlock Name="QueueControlHint" Foreground="{StaticResource Muted}" Margin="0,10,0,0" TextWrapping="Wrap" />
           <StackPanel Orientation="Horizontal" Margin="0,14,0,0"><Button Name="CopyQueueControlButton" Content="Copy payload" Style="{StaticResource PrimaryButton}" /><Button Name="TestQueueControlButton" Content="Test action" Margin="0" /></StackPanel>
+          <Grid Margin="0,20,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Voice for the exported Speak action"/><ComboBox Name="ExportVoiceAliasBox" Margin="0,6,0,0"/></StackPanel><Button Name="ExportStreamerBotButton" Grid.Column="1" Content="Export actions (.sb)" Margin="12,22,0,0"/></Grid>
+          <TextBlock Text="Import the file in Streamer.bot, then attach your triggers." Foreground="{StaticResource Muted}" Margin="0,10,0,0"/>
          </StackPanel>
         </Border>
        </StackPanel>
@@ -1217,6 +1282,8 @@
            </StackPanel>
           </Grid>
           <TextBlock Name="PollyCredentialStatus" Text="No keys saved yet" Foreground="{StaticResource Muted}" Margin="0,9,0,0" />
+          <TextBlock Text="Session token (temporary AWS credentials only)" Foreground="{StaticResource Muted}" Margin="0,16,0,0"/>
+          <PasswordBox Name="PollySessionTokenBox" Margin="0,6,0,0" PasswordChar="●"/>
           <TextBlock Text="2. Choose the region where Polly is enabled" FontSize="15" FontWeight="SemiBold" Margin="0,20,0,0" />
           <Grid Margin="0,10,0,0">
            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="16" /><ColumnDefinition /></Grid.ColumnDefinitions>
@@ -1247,9 +1314,25 @@
       </ScrollViewer>
       <ScrollViewer Name="SettingsPage" Grid.Row="1" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
        <StackPanel MaxWidth="800" HorizontalAlignment="Left" Margin="0,0,10,0">
+        <Border Background="#E61E1A27" BorderBrush="#B6A3FF" BorderThickness="1" CornerRadius="12" Padding="20" Margin="0,0,0,14">
+         <StackPanel>
+          <TextBlock Text="Get started" FontSize="17" FontWeight="SemiBold" />
+          <TextBlock Text="Connect an engine, choose your output, then test your first voice." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,6,0,14" />
+          <WrapPanel>
+           <Button Name="SetupWindowsButton" Content="1. Windows voices (free)" Margin="0,0,12,8" />
+           <Button Name="SetupVoiceStudioButton" Content="1. VoiceStudio" Margin="0,0,12,8" />
+           <Button Name="SetupPollyButton" Content="1. Amazon Polly" Margin="0,0,12,8" />
+           <Button Name="SetupOutputButton" Content="2. Audio output" Margin="0,0,12,8" />
+           <Button Name="SetupVoiceButton" Content="3. Add a voice" Margin="0,0,12,8" />
+           <Button Name="SetupStreamerBotButton" Content="4. Streamer.bot" Margin="0,0,0,8" />
+           <Button Name="FinishSetupButton" Content="Finish setup" Style="{StaticResource PrimaryButton}" Margin="12,0,0,8" />
+          </WrapPanel>
+         </StackPanel>
+        </Border>
         <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12" Padding="20">
          <StackPanel>
           <TextBlock Text="Audio" FontSize="17" FontWeight="SemiBold" />
+          <CheckBox Name="WindowsVoicesCheck" Content="Include installed Windows voices (no account needed)" Margin="0,14,0,0"/>
           <Grid Margin="0,16,0,0">
            <Grid.ColumnDefinitions>
             <ColumnDefinition />
@@ -1265,6 +1348,7 @@
             <ComboBox Name="PreviewDeviceBox" Margin="0,6,0,0" />
            </StackPanel>
           </Grid>
+          <WrapPanel Margin="0,14,0,0"><Button Name="TestStreamOutputButton" Content="Test stream output" Margin="0,0,12,0"/><Button Name="TestPreviewOutputButton" Content="Test preview output" Margin="0"/></WrapPanel>
           <TextBlock Text="Export folder" Foreground="{StaticResource Muted}" Margin="0,15,0,0" />
           <Grid Margin="0,6,0,0">
            <Grid.ColumnDefinitions>
@@ -1274,6 +1358,23 @@
            <TextBox Name="VoiceSaveFolderBox" VerticalContentAlignment="Center" />
            <Button Name="BrowseVoiceFolderButton" Grid.Column="1" Content="Browse..." Margin="12,0,0,0" />
           </Grid>
+          <Grid Margin="0,18,0,0">
+           <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="24"/><ColumnDefinition/></Grid.ColumnDefinitions>
+           <StackPanel><TextBlock Text="Stream volume"/><Slider Name="StreamVolumeSlider" Minimum="0" Maximum="2" Value="1" TickFrequency="0.05" IsSnapToTickEnabled="True" Margin="0,10,0,0" AutomationProperties.Name="Stream volume"/><TextBlock Text="{Binding ElementName=StreamVolumeSlider, Path=Value, StringFormat={}{0:P0}}" Foreground="{StaticResource Muted}"/></StackPanel>
+           <StackPanel Grid.Column="2"><TextBlock Text="Preview volume"/><Slider Name="PreviewVolumeSlider" Minimum="0" Maximum="2" Value="1" TickFrequency="0.05" IsSnapToTickEnabled="True" Margin="0,10,0,0" AutomationProperties.Name="Preview volume"/><TextBlock Text="{Binding ElementName=PreviewVolumeSlider, Path=Value, StringFormat={}{0:P0}}" Foreground="{StaticResource Muted}"/></StackPanel>
+          </Grid>
+          <CheckBox Name="NormalizeAudioCheck" Content="Normalize voice levels" Margin="0,16,0,0" />
+          <CheckBox Name="FadeAudioCheck" Content="Soften the start and end of audio" Margin="0,12,0,0" />
+          <Expander Header="Lower OBS audio while speech plays" Foreground="#F6F3FA" Margin="0,20,0,0">
+           <StackPanel Margin="0,14,0,0">
+            <CheckBox Name="ObsDuckingCheck" Content="Enable OBS ducking"/>
+            <TextBlock Text="OBS WebSocket address" Foreground="{StaticResource Muted}" Margin="0,12,0,0"/><TextBox Name="ObsUrlBox" Text="ws://127.0.0.1:4455" Margin="0,6,0,0"/>
+            <TextBlock Text="WebSocket password" Foreground="{StaticResource Muted}" Margin="0,12,0,0"/><PasswordBox Name="ObsPasswordBox" Margin="0,6,0,0"/>
+            <TextBlock Text="OBS input to lower" Foreground="{StaticResource Muted}" Margin="0,12,0,0"/><ComboBox Name="ObsInputBox" IsEditable="True" Margin="0,6,0,0"/>
+            <TextBlock Text="Volume while speaking" Margin="0,14,0,0"/><Slider Name="ObsDuckVolumeSlider" Minimum="0" Maximum="1" Value="0.25" TickFrequency="0.05" IsSnapToTickEnabled="True" AutomationProperties.Name="OBS ducked volume"/><TextBlock Text="{Binding ElementName=ObsDuckVolumeSlider, Path=Value, StringFormat={}{0:P0}}" Foreground="{StaticResource Muted}"/>
+            <Button Name="TestObsButton" Content="Save &amp; load OBS inputs" HorizontalAlignment="Left" Margin="0,14,0,0"/>
+           </StackPanel>
+          </Expander>
          </StackPanel>
         </Border>
         <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12" Padding="20" Margin="0,14,0,0">
@@ -1310,6 +1411,14 @@
             <TextBox Name="HistoryLimitBox" Margin="0,6,0,0" />
            </StackPanel>
           </Grid>
+          <Grid Margin="0,18,0,0">
+           <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="14"/><ColumnDefinition/><ColumnDefinition Width="14"/><ColumnDefinition/></Grid.ColumnDefinitions>
+           <StackPanel><TextBlock Text="Per-user queue limit" Foreground="{StaticResource Muted}"/><TextBox Name="PerUserQueueLimitBox" Text="0" Margin="0,6,0,0"/></StackPanel>
+           <StackPanel Grid.Column="2"><TextBlock Text="Expire after (seconds)" Foreground="{StaticResource Muted}"/><TextBox Name="MessageAgeBox" Text="0" Margin="0,6,0,0"/></StackPanel>
+           <StackPanel Grid.Column="4"><TextBlock Text="Duplicate window (seconds)" Foreground="{StaticResource Muted}"/><TextBox Name="DuplicateWindowBox" Text="0" Margin="0,6,0,0"/></StackPanel>
+          </Grid>
+          <TextBlock Text="Use 0 to turn off a limit." Foreground="{StaticResource Muted}" Margin="0,8,0,0" />
+          <CheckBox Name="PersistQueueCheck" Content="Restore unfinished speech after restarting (starts paused)" Margin="0,16,0,0"/>
          </StackPanel>
         </Border>
         <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12" Padding="20" Margin="0,14,0,0">
@@ -1319,14 +1428,34 @@
           <TextBlock Text="Keeps a tray icon while VoxRelay is running. Minimize hides the window; click the tray icon to restore. Right-click the icon to Exit." Foreground="{StaticResource Muted}" Margin="27,6,0,0" TextWrapping="Wrap" FontSize="11" />
          </StackPanel>
         </Border>
+        <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12" Padding="20" Margin="0,14,0,0">
+         <StackPanel>
+          <TextBlock Text="Data &amp; support" FontSize="17" FontWeight="SemiBold" />
+          <TextBlock Text="Profiles" Margin="0,16,0,6"/><Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><ComboBox Name="ProfilePresetBox" IsEditable="True" AutomationProperties.Name="VoxRelay profile"/><Button Name="SaveProfileButton" Content="Save profile" Grid.Column="1" Margin="12,0,12,0"/><Button Name="LoadProfileButton" Content="Load" Grid.Column="2" Margin="0"/></Grid>
+          <TextBlock Text="Backups retain your settings. Presets share voices and rules without credentials." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,6,0,14" />
+          <WrapPanel><Button Name="BackupSettingsButton" Content="Create backup" Margin="0,0,12,8"/><Button Name="ExportPresetsButton" Content="Export presets" Margin="0,0,12,8"/><Button Name="ImportPresetsButton" Content="Import presets" Margin="0,0,12,8"/><Button Name="ExportDiagnosticsButton" Content="Export diagnostics" Margin="0,0,0,8"/></WrapPanel>
+          <Grid Margin="0,8,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><ComboBox Name="BackupListBox" AutomationProperties.Name="Settings backup"/><Button Name="RestoreBackupButton" Grid.Column="1" Content="Restore backup" Margin="12,0,0,0"/></Grid>
+          <TextBlock Text="Diagnostics exclude keys, messages, usernames and local file paths." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,12,0,0" />
+          <Button Name="MigrateSpeakerBotButton" Content="Import from Speaker.bot..." HorizontalAlignment="Left" Margin="0,16,0,0"/>
+          <WrapPanel Margin="0,16,0,0"><Button Name="CheckUpdatesButton" Content="Check for updates" Margin="0,0,12,0"/><Button Name="ResetSettingsButton" Content="Reset settings..." Margin="0"/></WrapPanel>
+          <CheckBox Name="CheckUpdatesOnStartupCheck" Content="Check for updates when VoxRelay starts" Margin="0,14,0,0"/>
+          <TextBlock Text="VoxRelay 0.4.0 preview" Foreground="{StaticResource Muted}" Margin="0,16,0,0" />
+         </StackPanel>
+        </Border>
         <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
          <Button Name="SaveButton" Content="Save" Style="{StaticResource PrimaryButton}" Margin="0,0,12,0" />
          <Button Name="TestConnectionButton" Content="Refresh devices" Margin="0" />
         </StackPanel>
        </StackPanel>
       </ScrollViewer>
-      <Border Name="ActivityPage" Grid.Row="1" Visibility="Collapsed" Background="#E615131D" BorderBrush="#50485C" BorderThickness="1" CornerRadius="11" Padding="8">
-       <ListBox Name="ActivityList" Background="Transparent" Foreground="#F6F3FA" BorderThickness="0" FontFamily="Cascadia Mono" FontSize="12" />
+      <Border Name="ActivityPage" Grid.Row="1" Visibility="Collapsed" Background="#E615131D" BorderBrush="#50485C" BorderThickness="1" CornerRadius="11" Padding="16">
+       <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="2*"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+        <TextBlock Text="Speech events" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,12"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,12"><ComboBox Name="EventTestBox" Width="150" Margin="0,0,12,0"><ComboBoxItem Content="Received" Tag="received"/><ComboBoxItem Content="Generating" Tag="generating"/><ComboBoxItem Content="Generated" Tag="generated"/><ComboBoxItem Content="Queued" Tag="queued"/><ComboBoxItem Content="Queue added" Tag="queueadded"/><ComboBoxItem Content="Playing" Tag="playing"/><ComboBoxItem Content="Finished" Tag="finished"/><ComboBoxItem Content="Failed" Tag="error"/><ComboBoxItem Content="Cancelled" Tag="cancelled"/></ComboBox><Button Name="SimulateEventButton" Content="Test action" Margin="0" ToolTip="Runs the configured action without changing the live queue."/></StackPanel>
+        <DataGrid Name="EventTimelineGrid" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"><DataGrid.Columns><DataGridTextColumn Header="TIME" Binding="{Binding Time}" Width="100" ElementStyle="{StaticResource GridText}"/><DataGridTextColumn Header="EVENT" Binding="{Binding Event}" Width="150" ElementStyle="{StaticResource GridText}"/><DataGridTextColumn Header="ALIAS" Binding="{Binding Alias}" Width="140" ElementStyle="{StaticResource GridText}"/><DataGridTextColumn Header="SPEECH ID" Binding="{Binding Id}" Width="*" ElementStyle="{StaticResource GridText}"/></DataGrid.Columns></DataGrid>
+        <TextBlock Grid.Row="2" Text="Application log" FontSize="17" FontWeight="SemiBold" Margin="0,18,0,12"/>
+        <ListBox Name="ActivityList" Grid.Row="3" Background="Transparent" Foreground="#F6F3FA" BorderThickness="0" FontFamily="Cascadia Mono" FontSize="12" />
+       </Grid>
       </Border>
       <Border Grid.Row="2" BorderBrush="#50485C" BorderThickness="1" CornerRadius="11" Padding="13,11" Margin="0,15,0,0" Background="#1E1A27">
        <Grid>

@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import uuid
+import math
+from threading import Event
+from time import monotonic
 
 
 @dataclass(slots=True)
@@ -16,6 +19,17 @@ class VoiceAlias:
     instruct: str = ""
     volume: float = 1.0
     group: str = ""
+    output_device: str = ""
+    favorite: bool = False
+    ssml: bool = False
+
+    def __post_init__(self):
+        if not self.name.strip() or any(char in self.name for char in "\r\n") or self.name.casefold().startswith("group:"):
+            raise ValueError("Use a single-line alias name that does not begin with group:")
+        if not math.isfinite(self.speed) or not 0.25 <= self.speed <= 4:
+            raise ValueError("Voice speed must be between 0.25 and 4")
+        if not math.isfinite(self.volume) or not 0 <= self.volume <= 2:
+            raise ValueError("Voice volume must be between 0 and 2")
 
     @classmethod
     def from_dict(cls, name: str, value: dict) -> "VoiceAlias":
@@ -29,6 +43,9 @@ class VoiceAlias:
             instruct=str(value.get("instruct", "")),
             volume=float(value.get("volume", 1.0)),
             group=str(value.get("group", "")),
+            output_device=str(value.get("output_device", "")),
+            favorite=bool(value.get("favorite", False)),
+            ssml=bool(value.get("ssml", False)),
         )
 
     def to_dict(self) -> dict:
@@ -41,6 +58,9 @@ class VoiceAlias:
             "instruct": self.instruct,
             "volume": self.volume,
             "group": self.group,
+            "output_device": self.output_device,
+            "favorite": self.favorite,
+            "ssml": self.ssml,
         }
 
 
@@ -53,6 +73,7 @@ class SpeechJob:
         default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     )
     pcm: bytes | None = None
+    audio_bytes: bytes | None = None
     duration_ms: float = 0.0
     cancelled: bool = False
     source: str = "Manual"
@@ -60,3 +81,7 @@ class SpeechJob:
     status: str = "Queued"
     error: str = ""
     audio_path: str = ""
+    priority: int = 0
+    enqueued_at: float = field(default_factory=monotonic)
+    cancel_event: Event = field(default_factory=Event, repr=False)
+    registered: bool = False

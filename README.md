@@ -9,7 +9,7 @@ Streamer.bot lifecycle actions in one application.
 
 ## Highlights
 
-- VoiceStudio cloned voices and Amazon Polly
+- VoiceStudio cloned voices, Amazon Polly and installed Windows voices
 - Per-alias voice, model, speed, volume, language, style, and group settings
 - Dedicated playback queue with pause, resume, skip, reorder, and clear controls
 - Pronunciation dictionary with randomized alternatives and optional censorship
@@ -18,6 +18,14 @@ Streamer.bot lifecycle actions in one application.
 - Configurable delays before playback and after queue completion
 - Separate stream and preview audio devices
 - Local HTTP, WebSocket, and UDP integrations
+- Priorities, expiry, duplicate detection and optional paused queue recovery
+- Ordered routing, favorites, profiles, backup/restore and preset sharing
+- Optional OBS audio ducking, normalization, fades and output tests
+- Live event inspector and private diagnostic exports
+
+The 0.4 preview is under development. See [the user guide](docs/USER_GUIDE.md),
+[Streamer.bot recipes](docs/STREAMERBOT.md), [provider adapters](docs/PROVIDERS.md)
+and the [remaining release roadmap](ROADMAP.md).
 
 ## Download
 
@@ -32,6 +40,9 @@ Open **Services** inside VoxRelay and configure at least one provider:
 - **Amazon Polly:** enter an AWS region, Access Key ID, and Secret Access Key.
   VoxRelay encrypts saved keys with Windows DPAPI so they can only be decrypted
   by the same Windows account on the same computer.
+
+For speech without an account, choose **Windows voices** in Settings's setup card.
+Temporary AWS credentials can also include a session token.
 
 Never commit a populated `data` directory or AWS credentials to Git.
 

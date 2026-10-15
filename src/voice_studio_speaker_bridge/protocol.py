@@ -5,6 +5,7 @@ import random
 from dataclasses import replace
 
 from .settings import Settings
+from . import __version__
 
 if TYPE_CHECKING:
     from .engine import SpeechEngine
@@ -13,7 +14,7 @@ if TYPE_CHECKING:
 class SpeakerBotProtocol:
     EVENTS = {
         "application": ["startedspeaking", "stoppedspeaking"],
-        "texttospeech": ["textqueued", "queueadded", "engineprocessed", "playing", "finished", "cancelled", "deleted", "error"],
+        "texttospeech": ["received", "generating", "textqueued", "queueadded", "engineprocessed", "playing", "finished", "cancelled", "deleted", "error"],
         "voicegate": ["profileactivated"],
     }
 
@@ -24,15 +25,28 @@ class SpeakerBotProtocol:
     def execute(self, request: str, data: dict) -> dict:
         normalized = request.lower()
         if normalized == "speak":
+            self.settings.reload_if_changed()
             text = str(data.get("message", "")).strip()
             alias_name = str(data.get("voice", "")).strip()
             user = str(data.get("user", data.get("userName", ""))).strip()
             role = str(data.get("role", "")).strip().casefold()
             source = str(data.get("source", "Streamer.bot")).strip()
+            priority = int(data.get("priority", 0))
+            routing_matched = False
+            for rule in self.settings.routing_rules:
+                if rule.get("enabled", True) is False:
+                    continue
+                field = str(rule.get("field", ""))
+                actual = {"user": user, "role": role, "source": source, "event": str(data.get("event", ""))}.get(field)
+                if actual is not None and actual.casefold() == str(rule.get("value", "")).casefold():
+                    alias_name = str(rule.get("alias") or alias_name)
+                    priority = int(rule.get("priority", priority))
+                    routing_matched = True
+                    break
             rule_alias = self.settings.user_voice_rules.get(user.casefold()) if user else None
             if not rule_alias and role:
                 rule_alias = self.settings.role_voice_rules.get(role)
-            if rule_alias:
+            if rule_alias and not routing_matched:
                 alias_name = rule_alias
             if alias_name.casefold().startswith("group:"):
                 group = alias_name.split(":", 1)[1].strip().casefold()
@@ -50,11 +64,16 @@ class SpeakerBotProtocol:
                 overrides["speed"] = float(data["speed"])
             if "volume" in data:
                 overrides["volume"] = float(data["volume"])
+            if "ssml" in data:
+                overrides["ssml"] = bool(data["ssml"])
             if str(data.get("instruct", "")).strip():
                 overrides["instruct"] = str(data["instruct"]).strip()
             if overrides:
                 alias = replace(alias, **overrides)
-            job = self.engine.enqueue(text, alias, source=source, user=user)
+            if priority:
+                job = self.engine.enqueue(text, alias, source=source, user=user, priority=priority)
+            else:
+                job = self.engine.enqueue(text, alias, source=source, user=user)
             return {
                 "speechId": job.speech_id,
                 "text": text,
@@ -68,6 +87,12 @@ class SpeakerBotProtocol:
             return {}
         if normalized == "pause":
             self.engine.pause()
+            return {}
+        if normalized == "pauseaftercurrent":
+            self.engine.pause_after_current()
+            return {}
+        if normalized == "clearall":
+            self.engine.clear_all()
             return {}
         if normalized == "resume":
             self.engine.resume()
@@ -89,7 +114,7 @@ class SpeakerBotProtocol:
                 "os": "windows",
                 "apiVersion": 2,
                 "bridgeName": "VoxRelay",
-                "bridgeVersion": "0.1.0",
+                "bridgeVersion": __version__,
             }
         if normalized == "getevents":
             return {"events": self.EVENTS}
@@ -103,6 +128,11 @@ class SpeakerBotProtocol:
             }
         if normalized == "getstate":
             return self.engine.state()
+        if normalized == "loadprofile":
+            from .maintenance import Maintenance
+            name = str(data.get("profile", ""))
+            Maintenance(self.settings).load_profile(name)
+            return {"profile": name}
         if normalized == "gethistory":
             return {"history": self.engine.history_items()}
         if normalized == "clearhistory":
@@ -110,16 +140,21 @@ class SpeakerBotProtocol:
             return {}
         if normalized == "savehistoryaudio":
             return {"path": self.engine.save_history_audio(str(data.get("speechId", "")))}
+        if normalized == "replayhistory":
+            job = self.engine.replay_history(str(data.get("speechId", "")))
+            return {"speechId": job.speech_id}
         if normalized == "removespeech":
             return {"removed": self.engine.remove(str(data.get("speechId", "")))}
         if normalized == "movespeech":
             direction = -1 if str(data.get("direction", "up")).lower() == "up" else 1
             return {"moved": self.engine.move(str(data.get("speechId", "")), direction)}
+        if normalized == "reorderspeech":
+            return {"moved": self.engine.move_before(str(data.get("speechId", "")), str(data.get("beforeId", "")))}
         if normalized == "commands":
             return {"commands": [
-                "Speak", "Stop", "Pause", "Resume", "Clear", "Enable", "Disable",
-                "GetInfo", "GetEvents", "GetAliases", "GetState", "GetHistory", "ClearHistory", "SaveHistoryAudio",
-                "RemoveSpeech", "MoveSpeech", "Subscribe", "Unsubscribe", "Commands",
+                "Speak", "Stop", "Pause", "PauseAfterCurrent", "Resume", "Clear", "ClearAll", "Enable", "Disable",
+                "GetInfo", "GetEvents", "GetAliases", "GetState", "GetHistory", "ClearHistory", "SaveHistoryAudio", "ReplayHistory",
+                "RemoveSpeech", "MoveSpeech", "ReorderSpeech", "LoadProfile", "Subscribe", "Unsubscribe", "Commands",
             ]}
         if normalized in {"events", "mode", "getvoicegateprofiles", "activatevoicegateprofile"}:
             return {}

@@ -18,3 +18,9 @@ jobs:
         run: python -m pip install -e . pytest
       - name: Run tests
         run: python -m pytest -q
+      - name: Verify Windows UI functions and dialogs
+        shell: powershell
+        run: powershell.exe -STA -NoProfile -ExecutionPolicy Bypass -File tests/test_wpf_functions.ps1
+      - name: Verify responsive page layouts
+        shell: powershell
+        run: powershell.exe -STA -NoProfile -ExecutionPolicy Bypass -File tests/smoke_wpf.ps1

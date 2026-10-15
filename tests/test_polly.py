@@ -42,7 +42,7 @@ def make_client(monkeypatch):
         def __init__(self, **kwargs):
             self.kwargs = kwargs
 
-        def client(self, name):
+        def client(self, name, **kwargs):
             assert name == "polly"
             return fake_client
 

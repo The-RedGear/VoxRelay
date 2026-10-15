@@ -44,10 +44,12 @@ class Settings:
         self.api_key = "local"
         self.request_timeout = 120.0
         self.polly_enabled = False
+        self.windows_voices_enabled = True
         self.polly_region = "us-east-1"
         self.polly_profile = ""
         self.polly_access_key_encrypted = ""
         self.polly_secret_key_encrypted = ""
+        self.polly_session_token_encrypted = ""
         self.ws_address = "127.0.0.1"
         # Use a separate port so the bridge can coexist with Speaker.bot.
         self.ws_port = 7581
@@ -67,6 +69,11 @@ class Settings:
         self.streamerbot_queue_added_action = ""
         self.streamerbot_playing_action = ""
         self.streamerbot_finished_action = ""
+        self.streamerbot_received_action = ""
+        self.streamerbot_generating_action = ""
+        self.streamerbot_generated_action = ""
+        self.streamerbot_error_action = ""
+        self.streamerbot_cancelled_action = ""
         self.streamerbot_playback_delay = 0.0
         self.streamerbot_finished_delay = 0.0
         self.output_device = ""
@@ -95,6 +102,23 @@ class Settings:
         self.role_voice_rules: dict[str, str] = {}
         self.history_limit = 200
         self.minimize_to_tray = False
+        self.max_message_age = 0.0
+        self.duplicate_window = 0.0
+        self.per_user_queue_limit = 0
+        self.persist_queue = False
+        self.normalize_audio = False
+        self.fade_audio = False
+        self.stream_volume = 1.0
+        self.preview_volume = 1.0
+        self.routing_rules: list[dict] = []
+        self.setup_completed = False
+        self.check_updates_on_startup = False
+        self.obs_ducking_enabled = False
+        self.obs_url = "ws://127.0.0.1:4455"
+        self.obs_input = ""
+        self.obs_password_encrypted = ""
+        self.obs_duck_volume = 0.25
+        self.recovery_notice = ""
         self.aliases: dict[str, VoiceAlias] = {
             "EventVoice": VoiceAlias(name="EventVoice")
         }
@@ -103,17 +127,30 @@ class Settings:
     def load(self) -> None:
         if not self.path.exists():
             return
+        previous_state = self.__dict__.copy()
         try:
             # Windows PowerShell 5 writes UTF-8 JSON with a BOM.
-            data = json.loads(self.path.read_text(encoding="utf-8-sig"))
+            try:
+                data = json.loads(self.path.read_text(encoding="utf-8-sig"))
+                if not isinstance(data, dict):
+                    raise ValueError("Settings must be an object")
+            except (ValueError, UnicodeError):
+                backup = self.path.with_suffix(".json.bak")
+                data = json.loads(backup.read_text(encoding="utf-8-sig"))
+                if not isinstance(data, dict):
+                    raise ValueError("Backup must be an object")
+                self.recovery_notice = "Settings were recovered from the last backup. Save to repair the settings file."
+                logging.warning(self.recovery_notice)
             self.voice_studio_url = str(data.get("voice_studio_url", self.voice_studio_url)).rstrip("/")
             self.api_key = str(data.get("api_key", self.api_key))
-            self.request_timeout = float(data.get("request_timeout", self.request_timeout))
+            self.request_timeout = max(1, min(600, float(data.get("request_timeout", self.request_timeout))))
             self.polly_enabled = bool(data.get("polly_enabled", self.polly_enabled))
+            self.windows_voices_enabled = bool(data.get("windows_voices_enabled", True))
             self.polly_region = str(data.get("polly_region", self.polly_region)).strip() or "us-east-1"
             self.polly_profile = str(data.get("polly_profile", self.polly_profile)).strip()
             self.polly_access_key_encrypted = str(data.get("polly_access_key_encrypted", self.polly_access_key_encrypted)).strip()
             self.polly_secret_key_encrypted = str(data.get("polly_secret_key_encrypted", self.polly_secret_key_encrypted)).strip()
+            self.polly_session_token_encrypted = str(data.get("polly_session_token_encrypted", "")).strip()
             self.ws_address = str(data.get("ws_address", self.ws_address))
             ws_port = int(data.get("ws_port", self.ws_port))
             self.ws_port = ws_port if 1 <= ws_port <= 65535 else self.ws_port
@@ -130,15 +167,18 @@ class Settings:
             self.streamerbot_queue_added_action = str(data.get("streamerbot_queue_added_action", self.streamerbot_queue_added_action))
             self.streamerbot_playing_action = str(data.get("streamerbot_playing_action", self.streamerbot_playing_action))
             self.streamerbot_finished_action = str(data.get("streamerbot_finished_action", self.streamerbot_finished_action))
+            for state in ("received", "generating", "generated", "error", "cancelled"):
+                key = f"streamerbot_{state}_action"
+                setattr(self, key, str(data.get(key, "")))
             self.streamerbot_playback_delay = max(0.0, min(10.0, float(data.get("streamerbot_playback_delay", self.streamerbot_playback_delay))))
             self.streamerbot_finished_delay = max(0.0, min(10.0, float(data.get("streamerbot_finished_delay", self.streamerbot_finished_delay))))
             self.output_device = str(data.get("output_device", self.output_device))
             self.preview_output_device = str(data.get("preview_output_device", self.preview_output_device))
             self.voice_save_folder = str(data.get("voice_save_folder", self.voice_save_folder))
-            self.max_characters = int(data.get("max_characters", self.max_characters))
-            self.max_queue = int(data.get("max_queue", self.max_queue))
-            self.per_user_cooldown = float(data.get("per_user_cooldown", self.per_user_cooldown))
-            self.global_cooldown = float(data.get("global_cooldown", self.global_cooldown))
+            self.max_characters = max(1, min(100000, int(data.get("max_characters", self.max_characters))))
+            self.max_queue = max(1, min(10000, int(data.get("max_queue", self.max_queue))))
+            self.per_user_cooldown = max(0, float(data.get("per_user_cooldown", self.per_user_cooldown)))
+            self.global_cooldown = max(0, float(data.get("global_cooldown", self.global_cooldown)))
             self.block_links = bool(data.get("block_links", self.block_links))
             self.strip_links = bool(data.get("strip_links", self.strip_links))
             self.block_excess_caps = bool(data.get("block_excess_caps", self.block_excess_caps))
@@ -159,8 +199,20 @@ class Settings:
             self.hidden_pronunciations = [str(value) for value in (data.get("hidden_pronunciations") or [])]
             self.user_voice_rules = {str(key).casefold(): str(value) for key, value in (data.get("user_voice_rules") or {}).items()}
             self.role_voice_rules = {str(key).casefold(): str(value) for key, value in (data.get("role_voice_rules") or {}).items()}
-            self.history_limit = int(data.get("history_limit", self.history_limit))
+            self.history_limit = max(1, min(100000, int(data.get("history_limit", self.history_limit))))
             self.minimize_to_tray = bool(data.get("minimize_to_tray", self.minimize_to_tray))
+            for key, upper in (("max_message_age", 86400), ("duplicate_window", 3600),
+                               ("per_user_queue_limit", 1000), ("stream_volume", 2), ("preview_volume", 2)):
+                value = max(0, min(upper, float(data.get(key, getattr(self, key)))))
+                setattr(self, key, int(value) if key == "per_user_queue_limit" else value)
+            for key in ("persist_queue", "normalize_audio", "fade_audio", "setup_completed", "check_updates_on_startup"):
+                setattr(self, key, bool(data.get(key, getattr(self, key))))
+            self.routing_rules = [rule for rule in (data.get("routing_rules") or []) if isinstance(rule, dict)]
+            self.obs_ducking_enabled = bool(data.get("obs_ducking_enabled", False))
+            self.obs_url = str(data.get("obs_url", self.obs_url))
+            self.obs_input = str(data.get("obs_input", ""))
+            self.obs_password_encrypted = str(data.get("obs_password_encrypted", ""))
+            self.obs_duck_volume = max(0, min(1, float(data.get("obs_duck_volume", 0.25))))
             aliases = data.get("aliases", {})
             if isinstance(aliases, dict):
                 self.aliases = {
@@ -168,7 +220,9 @@ class Settings:
                     for name, value in aliases.items()
                 }
             self._loaded_mtime_ns = self.path.stat().st_mtime_ns
-        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        except (OSError, ValueError, TypeError, AttributeError, json.JSONDecodeError):
+            self.__dict__.clear()
+            self.__dict__.update(previous_state)
             logging.exception("Could not load settings from %s", self.path)
 
     def reload_if_changed(self) -> bool:
@@ -198,10 +252,12 @@ class Settings:
                 "api_key": self.api_key,
                 "request_timeout": self.request_timeout,
                 "polly_enabled": self.polly_enabled,
+                "windows_voices_enabled": self.windows_voices_enabled,
                 "polly_region": self.polly_region,
                 "polly_profile": self.polly_profile,
                 "polly_access_key_encrypted": self.polly_access_key_encrypted,
                 "polly_secret_key_encrypted": self.polly_secret_key_encrypted,
+                "polly_session_token_encrypted": self.polly_session_token_encrypted,
                 "ws_address": self.ws_address,
                 "ws_port": self.ws_port,
                 "http_address": self.http_address,
@@ -245,8 +301,22 @@ class Settings:
                 "minimize_to_tray": self.minimize_to_tray,
                 "aliases": {name: alias.to_dict() for name, alias in self.aliases.items()},
             }
+            for key in ("max_message_age", "duplicate_window", "per_user_queue_limit", "persist_queue",
+                        "normalize_audio", "fade_audio", "stream_volume", "preview_volume", "routing_rules", "setup_completed",
+                        "obs_ducking_enabled", "obs_url", "obs_input", "obs_password_encrypted", "obs_duck_volume", "check_updates_on_startup"):
+                payload[key] = getattr(self, key)
+            for state in ("received", "generating", "generated", "error", "cancelled"):
+                key = f"streamerbot_{state}_action"
+                payload[key] = getattr(self, key)
             temp = self.path.with_suffix(".tmp")
             temp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            if self.path.exists():
+                try:
+                    previous = json.loads(self.path.read_text(encoding="utf-8-sig"))
+                    if isinstance(previous, dict):
+                        shutil.copy2(self.path, self.path.with_suffix(".json.bak"))
+                except (OSError, ValueError):
+                    pass  # Never replace the good backup with a broken file.
             temp.replace(self.path)
             self._loaded_mtime_ns = self.path.stat().st_mtime_ns
 

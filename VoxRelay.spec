@@ -5,12 +5,12 @@ a = Analysis(
     ['wpf_launcher.py'],
     pathex=['src'],
     binaries=[],
-    datas=[('VoxRelay.ps1', '.'), ('VoxRelay.xaml', '.'), ('assets', 'assets')],
+    datas=[('VoxRelay.ps1', '.'), ('VoxRelay.xaml', '.'), ('ImportPreview.xaml', '.'), ('assets', 'assets')],
     hiddenimports=['boto3', 'botocore', 'miniaudio', '_cffi_backend', 'cffi', 'websockets'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['tkinter', '_tkinter'],
     noarchive=False,
     optimize=0,
 )
@@ -33,6 +33,7 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=['assets/VoxRelay.ico'],
+    version='version_info.txt',
 )
 coll = COLLECT(
     exe,

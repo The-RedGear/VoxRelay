@@ -2,10 +2,10 @@ VOXRELAY QUICK START
 ====================
 
 1. Double-click VoxRelay.exe.
-2. Open Services in the sidebar and connect VoiceStudio or Amazon Polly.
+2. Use the setup card: Windows voices need no account. Or connect VoiceStudio or Amazon Polly.
 3. Open Voices and create a friendly alias for each voice you want to use.
-4. Use Test Speech to confirm the voice and audio output.
-5. Open Automation for ready-to-copy Streamer.bot speech and queue-control payloads.
+4. Use Test voice to confirm the voice and audio output.
+5. Open Services > Streamer.bot for speech and queue-control payloads.
 
 PORTABLE DATA
 -------------
@@ -24,7 +24,7 @@ VSPEAK
 %voice%
 %rawInput%
 
-Queue-control payloads can be copied directly from VoxRelay's Automation page.
+Queue-control payloads can be copied directly from VoxRelay's Streamer.bot page.
 
 TROUBLESHOOTING
 ---------------

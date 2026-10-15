@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "voxrelay"
-version = "0.3.0"
+version = "0.4.0"
 description = "Multi-provider TTS automation for streamers"
 readme = "README.md"
 requires-python = ">=3.10"

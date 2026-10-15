@@ -17,6 +17,11 @@ from .protocol import SpeakerBotProtocol
 from .settings import Settings
 from .polly import PollyClient
 from .voicestudio import VoiceStudioClient
+from .providers import registry
+from .maintenance import Maintenance
+from . import __version__
+from .obs import ObsClient
+from .secrets import unprotect_windows_secret
 
 
 @dataclass
@@ -66,12 +71,14 @@ class BridgeServers:
             self.connections.clear()
         if self.ws_server is not None:
             self.ws_server.shutdown()
-        if self.udp_server is not None:
-            self.udp_server.shutdown()
-            self.udp_server.server_close()
-        if self.http_server is not None:
-            self.http_server.shutdown()
-            self.http_server.server_close()
+        udp_server = self.udp_server
+        if udp_server is not None:
+            udp_server.shutdown()
+            udp_server.server_close()
+        http_server = self.http_server
+        if http_server is not None:
+            http_server.shutdown()
+            http_server.server_close()
         if self.ws_thread is not None:
             self.ws_thread.join(timeout=3)
         if self.udp_thread is not None:
@@ -93,6 +100,28 @@ class BridgeServers:
 
             def do_GET(self) -> None:
                 path = self.path.rstrip("/")
+                if path == "/api/events":
+                    self._reply(200, {"ok": True, "events": bridge.events.recent()})
+                    return
+                if path == "/api/updates":
+                    try:
+                        result = Maintenance.check_updates()
+                    except Exception:
+                        result = {"checked": False, "message": "Update check unavailable. Try again later."}
+                    self._reply(200, {"ok": True, "result": result})
+                    return
+                if path == "/api/backups":
+                    self._reply(200, {"ok": True, "backups": Maintenance(bridge.settings).backups()})
+                    return
+                if path == "/api/profiles":
+                    self._reply(200, {"ok": True, "profiles": Maintenance(bridge.settings).profiles()})
+                    return
+                if path == "/api/providers":
+                    self._reply(200, {"ok": True, "providers": [
+                        {"id": provider.key, "name": provider.name,
+                         "enabled": provider.enabled(bridge.settings), "capabilities": provider.capabilities}
+                        for provider in registry.providers.values()]})
+                    return
                 if path == "/api/state":
                     self._reply(200, {"ok": True, "result": bridge.protocol.execute("GetState", {})})
                     return
@@ -104,35 +133,7 @@ class BridgeServers:
                     return
                 if path == "/api/voices":
                     bridge.settings.reload_if_changed()
-                    voices: list[dict] = []
-                    errors: list[str] = []
-                    try:
-                        client = VoiceStudioClient(
-                            bridge.settings.voice_studio_url,
-                            bridge.settings.api_key,
-                            bridge.settings.request_timeout,
-                        )
-                        for voice in client.list_voices():
-                            voice_id = str(voice.get("voice_id") or voice.get("id") or voice.get("name") or "default")
-                            voices.append({
-                                "provider": "voicestudio",
-                                "voice_id": voice_id,
-                                "name": str(voice.get("name") or voice.get("display_name") or voice_id),
-                                "model": "tts-1",
-                                "language": "",
-                            })
-                    except Exception as exc:
-                        errors.append(f"VoiceStudio: {exc}")
-                    if bridge.settings.polly_enabled:
-                        try:
-                            voices.extend(PollyClient(
-                                bridge.settings.polly_region,
-                                bridge.settings.polly_profile,
-                                bridge.settings.polly_access_key_encrypted,
-                                bridge.settings.polly_secret_key_encrypted,
-                            ).list_voices())
-                        except Exception as exc:
-                            errors.append(f"Amazon Polly: {exc}")
+                    voices, errors = registry.voices(bridge.settings)
                     self._reply(200, {"ok": True, "voices": voices, "errors": errors})
                     return
                 if path != "/health":
@@ -142,33 +143,75 @@ class BridgeServers:
                 self._reply(200, {
                     "ok": True,
                     "name": "VoxRelay",
+                    "version": __version__,
+                    "notice": bridge.settings.recovery_notice,
                     "aliases": sorted(bridge.settings.aliases),
                 })
 
             def do_POST(self) -> None:
                 routes = {"/speak": "Speak", "/stop": "Stop", "/clear": "Clear",
                           "/pause": "Pause", "/resume": "Resume", "/skip": "Stop",
-                          "/api/history/clear": "ClearHistory", "/api/history/save": "SaveHistoryAudio", "/api/queue/remove": "RemoveSpeech",
-                          "/api/queue/move": "MoveSpeech"}
+                          "/pause-after-current": "PauseAfterCurrent", "/clear-all": "ClearAll",
+                          "/api/profiles/load": "LoadProfile",
+                          "/api/history/clear": "ClearHistory", "/api/history/save": "SaveHistoryAudio", "/api/history/replay": "ReplayHistory", "/api/queue/remove": "RemoveSpeech",
+                          "/api/queue/move": "MoveSpeech", "/api/queue/reorder": "ReorderSpeech"}
                 command = routes.get(self.path.rstrip("/"))
                 is_streamerbot_test = self.path.rstrip("/") == "/api/integrations/streamerbot/test"
-                if command is None and not is_streamerbot_test:
+                output_test = self.path.rstrip("/") == "/api/output/test"
+                maintenance_action = self.path.rstrip("/").removeprefix("/api/maintenance/") if self.path.startswith("/api/maintenance/") else ""
+                if command is None and not is_streamerbot_test and not maintenance_action and not output_test:
                     self._reply(404, {"ok": False, "error": "Not found"})
                     return
                 try:
                     length = int(self.headers.get("Content-Length", "0"))
-                    if length > 1_000_000:
+                    if length < 0 or length > 1_000_000:
                         raise ValueError("Request is too large")
                     raw = self.rfile.read(length) if length else b"{}"
                     data = json.loads(raw.decode("utf-8"))
                     if not isinstance(data, dict):
                         raise ValueError("JSON body must be an object")
+                    if output_test:
+                        job = bridge.protocol.engine.test_output(str(data.get("device", "")), bool(data.get("preview", False)))
+                        self._reply(200, {"ok": True, "result": {"speechId": job.speech_id}})
+                        return
+                    if maintenance_action:
+                        maintenance = Maintenance(bridge.settings)
+                        if maintenance_action == "backup":
+                            result = {"path": maintenance.backup()}
+                        elif maintenance_action == "restore":
+                            maintenance.restore(str(data.get("filename", "")))
+                            result = {"restored": True}
+                        elif maintenance_action == "diagnostics":
+                            result = {"path": maintenance.diagnostics(bridge.protocol.engine.state(), bridge.events.recent())}
+                        elif maintenance_action == "export":
+                            result = {"path": maintenance.export_presets()}
+                        elif maintenance_action == "import":
+                            result = maintenance.import_presets(data)
+                        elif maintenance_action == "speakerbot-preview":
+                            result = maintenance.preview_speakerbot(data)
+                        elif maintenance_action == "updates":
+                            result = maintenance.check_updates()
+                        elif maintenance_action == "reset":
+                            result = {"backup": maintenance.reset(str(data.get("confirmation", "")))}
+                        elif maintenance_action == "obs-inputs":
+                            bridge.settings.reload_if_changed()
+                            client = ObsClient(bridge.settings.obs_url, unprotect_windows_secret(bridge.settings.obs_password_encrypted))
+                            result = client.request("GetInputList")
+                        elif maintenance_action == "save-profile":
+                            result = {"path": maintenance.save_profile(str(data.get("name", "")))}
+                        elif maintenance_action == "streamerbot-export":
+                            result = {"path": maintenance.export_streamerbot(str(data.get("alias", "")))}
+                        else:
+                            raise ValueError("Unknown maintenance action")
+                        self._reply(200, {"ok": True, "result": result})
+                        return
                     if is_streamerbot_test:
                         state = str(data.get("state", "")).casefold()
-                        event_type = {"queued": "textqueued", "queueadded": "queueadded", "playing": "playing", "finished": "finished"}.get(state)
+                        event_type = {"queued": "textqueued", "queueadded": "queueadded", "playing": "playing", "finished": "finished",
+                                      "received": "received", "generating": "generating", "generated": "engineprocessed", "error": "error", "cancelled": "cancelled"}.get(state)
                         if event_type is None:
-                            raise ValueError("state must be queued, queueAdded, playing, or finished")
-                        bridge.events.emit("texttospeech", event_type, {
+                            raise ValueError("Choose a supported lifecycle event")
+                        bridge.events.emit("integrationtest", event_type, {
                             "id": "lifecycle-test", "text": "VoxRelay lifecycle test",
                             "alias": "Test", "voiceName": "test", "source": "Settings",
                             "user": "", "duration": 0.0,
@@ -227,6 +270,8 @@ class BridgeServers:
         request_id = ""
         try:
             data = json.loads(raw)
+            if not isinstance(data, dict):
+                raise ValueError("Request must be a JSON object")
             request_id = data.get("id", "")
             request = str(data.get("request", ""))
             if not request_id or not request:
@@ -300,7 +345,8 @@ class BridgeServers:
                         action = parts[1].strip().casefold() if len(parts) > 1 else ""
                         speech_id = parts[2].strip() if len(parts) > 2 else ""
                         controls = {
-                            "pause": ("Pause", {}), "resume": ("Resume", {}),
+                            "pause": ("Pause", {}), "pauseaftercurrent": ("PauseAfterCurrent", {}),
+                            "clearall": ("ClearAll", {}), "resume": ("Resume", {}),
                             "skip": ("Stop", {}), "skip current": ("Stop", {}),
                             "clear": ("Clear", {}), "clear queue": ("Clear", {}),
                             "remove": ("RemoveSpeech", {"speechId": speech_id}),
