@@ -339,7 +339,51 @@ class BridgeServers:
                         if len(parts) < 3:
                             raise ValueError("VSPEAK packet requires an alias and message")
                         command = "Speak"
-                        data = {"voice": parts[1].strip(), "message": "\n".join(parts[2:])}
+                        data = {
+                            "voice": parts[1].strip(),
+                            "message": parts[2],
+                            "source": "Streamer.bot",
+                        }
+                        # Identity lines may include a Streamer.bot %user% JSON object
+                        # that spans multiple lines. Consume balanced {...} before the
+                        # login/role lines so the chat message is never swallowed.
+                        identity_parts = parts[3:]
+                        if identity_parts:
+                            cursor = 0
+                            if identity_parts[0].lstrip().startswith("{"):
+                                depth = 0
+                                chunk: list[str] = []
+                                while cursor < len(identity_parts):
+                                    line = identity_parts[cursor]
+                                    chunk.append(line)
+                                    depth += line.count("{") - line.count("}")
+                                    cursor += 1
+                                    if depth <= 0:
+                                        break
+                                data["user"] = "\n".join(chunk).strip()
+                            elif identity_parts[0].strip():
+                                data["user"] = identity_parts[0].strip()
+                                cursor = 1
+                            if cursor < len(identity_parts) and identity_parts[cursor].strip():
+                                data["userName"] = identity_parts[cursor].strip()
+                                cursor += 1
+                            if cursor < len(identity_parts) and identity_parts[cursor].strip():
+                                data["role"] = identity_parts[cursor].strip()
+                            # No identity markers and many leftover lines → legacy
+                            # multiline message body (alias + message only).
+                            if (
+                                len(parts) > 6
+                                and "user" not in data
+                                and "userName" not in data
+                                and not identity_parts[0].lstrip().startswith("{")
+                            ):
+                                data["message"] = "\n".join(parts[2:])
+                                data.pop("user", None)
+                                data.pop("userName", None)
+                                data.pop("role", None)
+                        if len(parts) == 4 and data.get("user") and not data.get("userName"):
+                            # One identity line: accept display or login for voice rules.
+                            data["userName"] = data["user"]
                     elif packet_type == "VCONTROL":
                         parts = lines
                         action = parts[1].strip().casefold() if len(parts) > 1 else ""

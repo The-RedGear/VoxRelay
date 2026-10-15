@@ -1,4 +1,4 @@
-VOXRELAY QUICK START
+﻿VOXRELAY QUICK START
 ====================
 
 1. Double-click VoxRelay.exe.
@@ -34,4 +34,6 @@ TROUBLESHOOTING
 - VoxRelay and Speaker.bot use separate ports and can run at the same time.
 - If a provider cannot connect, open Services and use its connection check.
 - Logs are stored in data\bridge.log.
+
+License: MIT — see LICENSE and docs\LEGAL.md
 

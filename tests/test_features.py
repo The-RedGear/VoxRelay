@@ -111,6 +111,22 @@ class FeatureTests(unittest.TestCase):
         self.assertEqual(settings.blocked_words, [])
         self.assertEqual(settings.replacements, {})
 
+    def test_powershell_empty_string_array_shape_is_not_an_allowlist(self):
+        path = Path(self.temp.name) / "ps-empty-arrays.json"
+        path.write_text(json.dumps({
+            "blocked_words": {"value": [], "Count": 0},
+            "user_blocklist": {"value": [], "Count": 0},
+            "user_allowlist": {"value": [], "Count": 0},
+            "aliases": {"EventVoice": {"voice_id": "event"}},
+        }), encoding="utf-8")
+        settings = Settings(path)
+        self.assertEqual(settings.blocked_words, [])
+        self.assertEqual(settings.user_blocklist, [])
+        self.assertEqual(settings.user_allowlist, [])
+        engine = SpeechEngine(settings, EventBus())
+        job = engine.enqueue("hello from chat", settings.aliases["EventVoice"], user="patchoulii")
+        self.assertEqual(job.text, "hello from chat")
+
     def test_command_and_mention_tokens_can_be_removed_anywhere(self):
         engine = SpeechEngine(self.settings, EventBus())
         self.settings.ignore_command_messages = True

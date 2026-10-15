@@ -12,6 +12,10 @@ history.json
 !.env.example
 .aws/
 credentials
+*credentials*.json
+*service-account*.json
+*-sa.json
+client_secret*.json
 
 # Python and build output
 .venv/

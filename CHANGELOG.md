@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0 preview
+
+Adds Speaker.bot-compatible cloud TTS engines: ElevenLabs, Azure Speech,
+Google Cloud TTS, IBM Watson, UberDuck, TTS.Monster, Acapela, and CereProc.
+Credentials live under Services > Engines (Polly and Windows stay on their
+existing pages). Secrets use the same Windows DPAPI protection as Polly.
+
 ## 0.4.0 preview
 
 Adds queue safeguards, active-audio pause, paused recovery, ordered routing,

@@ -21,7 +21,7 @@ def export_actions(port: int, alias: str) -> str:
     if not alias.strip() or "\n" in alias or "\r" in alias:
         raise ValueError("Choose a valid voice alias for the Speak action")
     queue_id = _id("command queue")
-    commands = [("Speak", f"VSPEAK\r\n{alias}\r\n%rawInput%")]
+    commands = [("Speak", f"VSPEAK\r\n{alias}\r\n%message%\r\n%displayName%\r\n%userName%")]
     for name, token in (("Pause audio", "pause"), ("Pause after current", "pauseaftercurrent"),
                         ("Resume", "resume"), ("Skip current", "skip"),
                         ("Clear waiting", "clear"), ("Stop and clear", "clearall"),

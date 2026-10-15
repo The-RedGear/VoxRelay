@@ -22,9 +22,20 @@ The registry is a developer extension point; arbitrary downloaded plugin files
 are not executed automatically. Add adapters in code and test discovery failure,
 invalid audio, authentication failure, cancellation and voice selection.
 
+Built-in engines (each has a Services page unless noted):
+
+- `voicestudio` — local VoiceStudio HTTP API
+- `polly` — Amazon Polly (`boto3`)
+- `windows` — installed Windows SAPI voices (Settings toggle)
+- `elevenlabs`, `azure`, `google`, `watson`, `uberduck`, `ttsmonster`, `acapela`, `cereproc` — cloud REST adapters
+
 Built-in references:
 
 - [AWS Session credentials](https://docs.aws.amazon.com/boto3/latest/reference/core/session.html)
 - [AWS Polly API](https://docs.aws.amazon.com/boto3/latest/reference/services/polly.html)
 - [Windows SpeechSynthesizer](https://learn.microsoft.com/en-us/dotnet/api/system.speech.synthesis.speechsynthesizer)
 - [OBS WebSocket protocol](https://github.com/obsproject/obs-websocket/blob/master/docs/generated/protocol.md)
+- [OpenSpeaker](https://github.com/EvaisaDev/OpenSpeaker) (MIT) — interoperability reference for several cloud APIs
+
+Legal and trademark notes: [LEGAL.md](LEGAL.md). Third-party licenses:
+[THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).

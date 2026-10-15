@@ -9,7 +9,7 @@ Streamer.bot lifecycle actions in one application.
 
 ## Highlights
 
-- VoiceStudio cloned voices, Amazon Polly and installed Windows voices
+- VoiceStudio, Windows SAPI voices, Amazon Polly, ElevenLabs, Azure, Google Cloud TTS, IBM Watson, UberDuck, TTS.Monster, Acapela, and CereProc
 - Per-alias voice, model, speed, volume, language, style, and group settings
 - Dedicated playback queue with pause, resume, skip, reorder, and clear controls
 - Pronunciation dictionary with randomized alternatives and optional censorship
@@ -23,9 +23,9 @@ Streamer.bot lifecycle actions in one application.
 - Optional OBS audio ducking, normalization, fades and output tests
 - Live event inspector and private diagnostic exports
 
-The 0.4 preview is under development. See [the user guide](docs/USER_GUIDE.md),
-[Streamer.bot recipes](docs/STREAMERBOT.md), [provider adapters](docs/PROVIDERS.md)
-and the [remaining release roadmap](ROADMAP.md).
+The 0.5 preview is under development. See [the user guide](docs/USER_GUIDE.md),
+[Streamer.bot recipes](docs/STREAMERBOT.md), [provider adapters](docs/PROVIDERS.md),
+[legal notes](docs/LEGAL.md), and the [remaining release roadmap](ROADMAP.md).
 
 ## Download
 
@@ -37,14 +37,15 @@ End users should download the latest Windows package from the repository's
 Open **Services** inside VoxRelay and configure at least one provider:
 
 - **VoiceStudio:** normally available locally at `http://127.0.0.1:3900`.
-- **Amazon Polly:** enter an AWS region, Access Key ID, and Secret Access Key.
-  VoxRelay encrypts saved keys with Windows DPAPI so they can only be decrypted
-  by the same Windows account on the same computer.
+- **Amazon Polly / ElevenLabs / Azure / Google / Watson / UberDuck / TTS.Monster / Acapela / CereProc:**
+  each has its own page under **Services**. Secrets are encrypted with Windows DPAPI for this Windows account.
 
-For speech without an account, choose **Windows voices** in Settings's setup card.
+For speech without an account, choose **Windows voices** on the Settings setup card.
 Temporary AWS credentials can also include a session token.
+Google service-account JSON paths need the optional `google-auth` package; an API key works without it.
 
-Never commit a populated `data` directory or AWS credentials to Git.
+Never commit a populated `data` directory, API keys, or service-account JSON to Git.
+You must comply with each provider's Terms of Service and only use voices you are authorized to use.
 
 ## Streamer.bot
 
@@ -83,6 +84,18 @@ VoxRelay runs locally. User settings, logs, generated audio, and history are
 runtime data and are intentionally excluded from this repository. Only use
 voices and credentials you own or are authorized to use.
 
+VoxRelay is **not affiliated with** Streamer.bot, Speaker.bot, Amazon, Microsoft,
+Google, ElevenLabs, IBM, or other named providers. Compatibility labels are for
+configuration only. See [`docs/LEGAL.md`](docs/LEGAL.md).
+
 ## License
 
-VoxRelay is available under the [MIT License](LICENSE).
+VoxRelay is available under the [MIT License](LICENSE). Third-party fonts,
+libraries, and service trademarks are described in
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and [`docs/LEGAL.md`](docs/LEGAL.md).
+
+## Community
+
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — issues and pull requests
+- [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — community standards
+- [`SECURITY.md`](SECURITY.md) — private vulnerability reports

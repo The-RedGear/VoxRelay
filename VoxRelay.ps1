@@ -1,4 +1,4 @@
-﻿Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System.Xaml
+Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System.Xaml
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Security
@@ -203,6 +203,27 @@ function Json-Escape([string]$value) {
     return $value.Replace('\','\\').Replace('"','\"').Replace("`r",'\r').Replace("`n",'\n')
 }
 
+
+function Enable-RoundedClip {
+    param($Element, [double]$Radius = 11)
+    if (-not $Element) { return }
+    $Element.Tag = $Radius
+    $handler = {
+        param($sender, $e)
+        $rad = 11.0
+        try { if ($null -ne $sender.Tag) { $rad = [double]$sender.Tag } } catch {}
+        if ($sender.ActualWidth -le 0 -or $sender.ActualHeight -le 0) { return }
+        $sender.Clip = [System.Windows.Media.RectangleGeometry]::new(
+            [System.Windows.Rect]::new(0, 0, $sender.ActualWidth, $sender.ActualHeight),
+            $rad,
+            $rad
+        )
+    }
+    $Element.Add_SizeChanged($handler)
+    $Element.Add_Loaded($handler)
+    & $handler $Element $null
+}
+
 $window = Load-Xaml (Join-Path $appRoot 'VoxRelay.xaml')
 $window.MinWidth = [Math]::Min(980,[Windows.SystemParameters]::WorkArea.Width-24)
 $window.Width = [Math]::Min(1180,[Windows.SystemParameters]::WorkArea.Width-24)
@@ -213,25 +234,58 @@ if (Test-Path -LiteralPath $windowIconPath) {
     try { $window.Icon = [System.Windows.Media.Imaging.BitmapFrame]::Create([Uri]::new($windowIconPath)) } catch {}
 }
 Apply-AppFont $window
+# Keep custom scrollbar thumbs as grab-able pills (Track math otherwise shrinks them to ~width).
+[EventManager]::RegisterClassHandler(
+    [System.Windows.Controls.Primitives.ScrollBar],
+    [System.Windows.FrameworkElement]::LoadedEvent,
+    [System.Windows.RoutedEventHandler]{
+        param($sender, $eventArgs)
+        try {
+            $bar = [System.Windows.Controls.Primitives.ScrollBar]$sender
+            $bar.ApplyTemplate() | Out-Null
+            $track = $bar.Template.FindName('PART_Track', $bar)
+            if (-not $track -or -not $track.Thumb) { return }
+            if ($bar.Orientation -eq [System.Windows.Controls.Orientation]::Vertical) {
+                $track.Orientation = [System.Windows.Controls.Orientation]::Vertical
+                $track.Thumb.MinHeight = 56
+            } else {
+                $track.Orientation = [System.Windows.Controls.Orientation]::Horizontal
+                $track.Thumb.MinWidth = 56
+            }
+        } catch {}
+    })
 $controlNames = @(
  'AppTitleBar','MinimizeButton','MaximizeButton','CloseButton','BridgeStatusButton','RefreshButton','PageTitle','PageSubtitle','SideStatus','BottomStatus',
  'VoicesNav','PlaygroundNav','QueueNav','HistoryNav','RulesNav','PronunciationNav','ServicesToggle','ServicesChevronPath','ServicesNavPanel',
- 'StreamerBotNav','VoiceStudioNav','PollyNav','ActivityNav','SettingsNav',
- 'VoicesPage','PlaygroundPage','QueuePage','HistoryPage','RulesPage','PronunciationPage','StreamerBotPage','VoiceStudioPage','PollyPage','SettingsPage','ActivityPage',
+ 'StreamerBotNav','VoiceStudioNav','PollyNav','ElevenLabsNav','AzureNav','GoogleNav','WatsonNav','UberDuckNav','TtsMonsterNav','AcapelaNav','CereProcNav','ActivityNav','SettingsNav',
+ 'VoicesPage','PlaygroundPage','QueuePage','HistoryPage','RulesPage','PronunciationPage','StreamerBotPage','VoiceStudioPage','PollyPage','ElevenLabsPage','AzurePage','GooglePage','WatsonPage','UberDuckPage','TtsMonsterPage','AcapelaPage','CereProcPage','SettingsPage','ActivityPage',
  'AddButton','EditButton','RemoveButton','TestButton','AliasGrid','PlayVoiceList','PlaygroundText','PlaySpeedBox','PlayVolumeBox','PlayStyleBox','CharacterCount','PlayButton','PlayStopButton',
  'QueueGrid','PauseQueueButton','ResumeQueueButton','SkipQueueButton','RemoveQueueButton','QueueUpButton','QueueDownButton','ClearQueueButton',
- 'HistoryGrid','ReplayHistoryButton','SaveHistoryAudioButton','ClearHistoryButton','BlockedWordsBox','ReplacementsBox','BlocklistBox','AllowlistBox','UserRulesBox','RoleRulesBox','MaxQueueBox','UserCooldownBox','GlobalCooldownBox','BlockLinksCheck','StripLinksCheck','BlockCapsCheck','CollapseRepeatsCheck','IgnoreCommandsCheck','IgnoreMentionsCheck','StripNonAsciiCheck','StripEmojiCheck','BlockAsciiArtCheck','SaveRulesButton',
+ 'HistoryGrid','ReplayHistoryButton','SaveHistoryAudioButton','ClearHistoryButton','BlockedWordsBox','ReplacementsBox','BlocklistBox','AllowlistBox','VoiceRulesGrid','VoiceRuleFieldBox','VoiceRuleValueBox','VoiceRuleAliasBox','AddVoiceRuleButton','UpdateVoiceRuleButton','RemoveVoiceRuleButton','TestVoiceRuleButton','MaxQueueBox','UserCooldownBox','GlobalCooldownBox','BlockLinksCheck','StripLinksCheck','BlockCapsCheck','CollapseRepeatsCheck','IgnoreCommandsCheck','IgnoreMentionsCheck','StripNonAsciiCheck','StripEmojiCheck','BlockAsciiArtCheck','SaveRulesButton',
  'PronunciationGrid','AddPronunciationButton','EditPronunciationButton','RemovePronunciationButton','PronunciationUpButton','PronunciationDownButton','PronunciationVoiceList','TestPronunciationButton','ActivityList',
- 'UrlBox','KeyBox','RequestTimeoutBox','SaveVoiceStudioButton','TestVoiceStudioButton',
+ 'UrlBox','KeyBox','RequestTimeoutBox','VoiceStudioStatus','SaveVoiceStudioButton','TestVoiceStudioButton',
  'PollyEnabledCheck','PollyRegionBox','PollyProfileBox','PollyAccessKeyBox','PollySecretKeyBox','PollyCredentialStatus','SavePollyButton','TestPollyButton','ClearPollyCredentialsButton',
+ 'ElevenLabsEnabledCheck','ElevenLabsApiKeyBox','ElevenLabsStatus','AzureEnabledCheck','AzureKeyBox','AzureRegionBox','AzureStatus','GoogleEnabledCheck','GoogleApiKeyBox','GoogleServiceAccountBox','GoogleStatus','WatsonEnabledCheck','WatsonApiKeyBox','WatsonServiceUrlBox','WatsonStatus','UberDuckEnabledCheck','UberDuckApiKeyBox','UberDuckStatus','TtsMonsterEnabledCheck','TtsMonsterOverlayBox','TtsMonsterTokenBox','TtsMonsterStatus','AcapelaEnabledCheck','AcapelaAccountBox','AcapelaPasswordBox','AcapelaAppNameBox','AcapelaStatus','CereProcEnabledCheck','CereProcUsernameBox','CereProcPasswordBox','CereProcStatus',
+ 'SaveElevenLabsButton','TestElevenLabsButton','ClearElevenLabsButton','SaveAzureButton','TestAzureButton','ClearAzureButton','SaveGoogleButton','TestGoogleButton','ClearGoogleButton','SaveWatsonButton','TestWatsonButton','ClearWatsonButton','SaveUberDuckButton','TestUberDuckButton','ClearUberDuckButton','SaveTtsMonsterButton','TestTtsMonsterButton','ClearTtsMonsterButton','SaveAcapelaButton','TestAcapelaButton','ClearAcapelaButton','SaveCereProcButton','TestCereProcButton','ClearCereProcButton',
  'UdpBox','HttpBox','WsBox','EnableUdpCheck','OutputDeviceBox','PreviewDeviceBox','VoiceSaveFolderBox','BrowseVoiceFolderButton','MaxCharactersSettingBox','MaxQueueSettingBox','HistoryLimitBox','StreamerPayloadBox',
  'EnableStreamerBotActionsCheck','StreamerBotHttpUrlBox','StreamerBotQueuedActionBox','StreamerBotQueueAddedActionBox','StreamerBotPlayingActionBox','StreamerBotFinishedActionBox','StreamerBotPlaybackDelaySlider','StreamerBotPlaybackDelayValue','StreamerBotFinishedDelaySlider','StreamerBotFinishedDelayValue',
  'TestStreamerBotQueuedButton','TestStreamerBotQueueAddedButton','TestStreamerBotPlayingButton','TestStreamerBotFinishedButton','SaveStreamerBotButton','QueueControlCommandBox','QueueControlPayloadBox','QueueControlHint','CopyQueueControlButton','TestQueueControlButton','SaveButton','CopyPayloadButton','TestConnectionButton','MinimizeToTrayCheck','BottomStatusDot'
 )
 $controlNames | ForEach-Object { Set-Variable -Name $_ -Value $window.FindName($_) }
-$extraControls = @('PauseAfterQueueButton','ClearAllQueueButton','StreamVolumeSlider','PreviewVolumeSlider','NormalizeAudioCheck','FadeAudioCheck','PerUserQueueLimitBox','MessageAgeBox','DuplicateWindowBox','SetupVoiceStudioButton','SetupPollyButton','SetupOutputButton','SetupVoiceButton','SetupStreamerBotButton','BackupSettingsButton','ExportPresetsButton','ImportPresetsButton','ExportDiagnosticsButton','BackupListBox','RestoreBackupButton')
+$extraControls = @('PauseAfterQueueButton','ClearAllQueueButton','StreamVolumeSlider','PreviewVolumeSlider','NormalizeAudioCheck','FadeAudioCheck','PerUserQueueLimitBox','MessageAgeBox','DuplicateWindowBox','SetupWindowsButton','SetupVoiceStudioButton','SetupPollyButton','SetupElevenLabsButton','SetupAzureButton','SetupGoogleButton','SetupWatsonButton','SetupUberDuckButton','SetupTtsMonsterButton','SetupAcapelaButton','SetupCereProcButton','SetupOutputButton','SetupVoiceButton','SetupStreamerBotButton','BackupSettingsButton','ExportPresetsButton','ImportPresetsButton','ExportDiagnosticsButton','BackupListBox','RestoreBackupButton')
 $extraControls | ForEach-Object { Set-Variable -Name $_ -Value $window.FindName($_) }
 @('AliasSearchBox','AliasProviderFilter','FavoritesOnlyCheck','ToggleFavoriteButton','PersistQueueCheck','FinishSetupButton') | ForEach-Object { Set-Variable -Name $_ -Value $window.FindName($_) }
+# Do NOT rounded-clip scrollable hosts — RectangleGeometry clips the scrollbar
+# thumb into a "half circle" against the top-right corner. Border.CornerRadius
+# still paints the chrome; only the geometry clip was cutting the thumb.
+@('AliasGridHost','QueueGridHost','HistoryGridHost') | ForEach-Object {
+    $hostBorder = $window.FindName($_)
+    if ($hostBorder) {
+        $hostBorder.ClipToBounds = $false
+        $hostBorder.Clip = $null
+    }
+}
+
 @('RoutingGrid','RouteFieldBox','RouteValueBox','RouteAliasBox','RoutePrioritySlider','AddRouteButton','UpdateRouteButton','RemoveRouteButton','RouteUpButton','RouteDownButton','EventTimelineGrid') | ForEach-Object { Set-Variable -Name $_ -Value $window.FindName($_) }
 $PollySessionTokenBox = $window.FindName('PollySessionTokenBox')
 $MigrateSpeakerBotButton = $window.FindName('MigrateSpeakerBotButton')
@@ -242,7 +296,6 @@ $CheckUpdatesOnStartupCheck=$window.FindName('CheckUpdatesOnStartupCheck')
 @('ProfilePresetBox','SaveProfileButton','LoadProfileButton') | ForEach-Object {Set-Variable -Name $_ -Value $window.FindName($_)}
 $QueueSummaryText=$window.FindName('QueueSummaryText')
 $WindowsVoicesCheck=$window.FindName('WindowsVoicesCheck')
-$SetupWindowsButton=$window.FindName('SetupWindowsButton')
 $PlaySsmlCheck=$window.FindName('PlaySsmlCheck')
 $EventTestBox=$window.FindName('EventTestBox');$SimulateEventButton=$window.FindName('SimulateEventButton')
 $ExportVoiceAliasBox=$window.FindName('ExportVoiceAliasBox');$ExportStreamerBotButton=$window.FindName('ExportStreamerBotButton')
@@ -268,7 +321,7 @@ function Set-ServicesExpanded([bool]$expanded) {
     $script:servicesExpanded = $expanded
     $ServicesNavPanel.Visibility = if ($expanded) { 'Visible' } else { 'Collapsed' }
     # Geometry chevron avoids Unicode encoding issues in the nav label.
-    $ServicesChevronPath.Data = [Windows.Media.Geometry]::Parse($(if ($expanded) { 'M3,5 L8,11 L13,5' } else { 'M5,3 L11,8 L5,13' }))
+    $ServicesChevronPath.Data = [Windows.Media.Geometry]::Parse($(if ($expanded) { 'M3,5 L13,5 L8,11 Z' } else { 'M5,3 L11,8 L5,13 Z' }))
 }
 
 function Update-BridgeStatus([bool]$online) {
@@ -288,24 +341,24 @@ function Update-BridgeStatus([bool]$online) {
 }
 
 function Set-Page([string]$page) {
-    $SavePageButton.Visibility=if($page -in @('settings','rules','streamerbot','voicestudio','polly')){'Visible'}else{'Collapsed'}
+    $SavePageButton.Visibility=if($page -in @('settings','rules','streamerbot','voicestudio','polly','elevenlabs','azure','google','watson','uberduck','ttsmonster','acapela','cereproc')){'Visible'}else{'Collapsed'}
     $SavePageButton.Tag=$page
     $pages = @{
         voices=$VoicesPage; playground=$PlaygroundPage; queue=$QueuePage; history=$HistoryPage; rules=$RulesPage; pronunciation=$PronunciationPage;
-        streamerbot=$StreamerBotPage; voicestudio=$VoiceStudioPage; polly=$PollyPage; settings=$SettingsPage; activity=$ActivityPage
+        streamerbot=$StreamerBotPage; voicestudio=$VoiceStudioPage; polly=$PollyPage; elevenlabs=$ElevenLabsPage; azure=$AzurePage; google=$GooglePage; watson=$WatsonPage; uberduck=$UberDuckPage; ttsmonster=$TtsMonsterPage; acapela=$AcapelaPage; cereproc=$CereProcPage; settings=$SettingsPage; activity=$ActivityPage
     }
     foreach ($key in $pages.Keys) { $pages[$key].Visibility = if ($key -eq $page) {'Visible'} else {'Collapsed'} }
     $mainNav = @{voices=$VoicesNav;playground=$PlaygroundNav;queue=$QueueNav;history=$HistoryNav;rules=$RulesNav;pronunciation=$PronunciationNav;activity=$ActivityNav;settings=$SettingsNav}
     foreach ($key in $mainNav.Keys) { $mainNav[$key].Style = $window.FindResource($(if($key -eq $page){'SelectedNavButton'}else{'NavButton'})) }
-    $serviceNav = @{streamerbot=$StreamerBotNav;voicestudio=$VoiceStudioNav;polly=$PollyNav}
+    $serviceNav = @{streamerbot=$StreamerBotNav;voicestudio=$VoiceStudioNav;polly=$PollyNav; elevenlabs=$ElevenLabsNav; azure=$AzureNav; google=$GoogleNav; watson=$WatsonNav; uberduck=$UberDuckNav; ttsmonster=$TtsMonsterNav; acapela=$AcapelaNav; cereproc=$CereProcNav}
     foreach ($key in $serviceNav.Keys) { $serviceNav[$key].Style = $window.FindResource($(if($key -eq $page){'SelectedSubNavButton'}else{'SubNavButton'})) }
-    if ($page -in @('streamerbot','voicestudio','polly')) { Set-ServicesExpanded $true }
+    if ($page -in @('streamerbot','voicestudio','polly','elevenlabs','azure','google','watson','uberduck','ttsmonster','acapela','cereproc')) { Set-ServicesExpanded $true }
     $titles = @{
         voices=@('Voices','Aliases and voice profiles'); playground=@('Playground','Try a line before it hits chat');
         queue=@('Queue','What is waiting to speak'); history=@('History','Recent speech jobs');
         rules=@('Rules','Filters, replacements, and cooldowns'); pronunciation=@('Pronunciation','Custom spoken forms');
         streamerbot=@('Streamer.bot','UDP, actions, and lifecycle hooks'); voicestudio=@('VoiceStudio','Local TTS connection');
-        polly=@('Amazon Polly','Cloud voices'); settings=@('Settings','Ports, devices, and tray');
+        polly=@('Amazon Polly','Cloud voices'); elevenlabs=@('ElevenLabs','Cloud TTS credentials'); azure=@('Azure Speech','Cloud TTS credentials'); google=@('Google Cloud TTS','Cloud TTS credentials'); watson=@('IBM Watson','Cloud TTS credentials'); uberduck=@('UberDuck','Cloud TTS credentials'); ttsmonster=@('TTS.Monster','Cloud TTS credentials'); acapela=@('Acapela','Cloud TTS credentials'); cereproc=@('CereProc','Cloud TTS credentials'); settings=@('Settings','Ports, devices, and tray');
         activity=@('Activity','Speech events and application log')
     }
     if ($titles.ContainsKey($page)) { $PageTitle.Text = $titles[$page][0]; $PageSubtitle.Text = $titles[$page][1] }
@@ -345,8 +398,15 @@ function ConvertFrom-MappingText([string]$text) {
     return [pscustomobject]$result
 }
 function ConvertFrom-Lines([string]$text) {
-    [string[]]$values = @($text -split "`r?`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    Write-Output -NoEnumerate $values
+    # Always return a real string[] (including empty). Write-Output -NoEnumerate on an
+    # empty [string[]] makes ConvertTo-Json emit {"value":[],"Count":0}, which Python
+    # then treats as allowlist entries "value"/"Count" and rejects every real user.
+    $list = New-Object System.Collections.Generic.List[string]
+    foreach ($line in @($text -split "`r?`n")) {
+        $trimmed = $line.Trim()
+        if ($trimmed) { [void]$list.Add($trimmed) }
+    }
+    return ,([string[]]$list.ToArray())
 }
 function Get-RandomPronunciation([string]$spoken) {
     $parts = @($spoken -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
@@ -369,7 +429,17 @@ function Refresh-Grid([switch]$VoicesOnly) {
         $a = $property.Value
         $provider = if ($a.provider) { [string]$a.provider } else { 'voicestudio' }
         $key = $provider + '|' + [string]$a.voice_id
-        $profile = if ($script:profiles.ContainsKey($key)) { $script:profiles[$key] } else { [string]$a.voice_id }
+        if ($script:profiles.ContainsKey($key)) {
+            $pr = $script:profiles[$key]
+            if ($pr -is [string]) { $profile = $pr }
+            else {
+                $bits = New-Object System.Collections.Generic.List[string]
+                if ($pr.Name) { [void]$bits.Add([string]$pr.Name) }
+                if ($pr.Language) { [void]$bits.Add([string]$pr.Language) }
+                if ($pr.Engine) { [void]$bits.Add([string]$pr.Engine) }
+                $profile = ($bits -join (' ' + [char]0x00B7 + ' '))
+            }
+        } else { $profile = [string]$a.voice_id }
         $rows.Add([pscustomobject]@{ Name=$property.Name; Provider=$provider; Profile=$profile; Group=[string]$a.group; Model=$a.model; Speed=$a.speed; VoiceId=$a.voice_id; Volume=$a.volume; Language=$a.language; Instruct=$a.instruct; OutputDevice=[string]$a.output_device; Favorite=[bool]$a.favorite })
     }
     $AliasGrid.ItemsSource = $rows
@@ -387,6 +457,7 @@ function Refresh-Grid([switch]$VoicesOnly) {
     if ($PlayVoiceList.Items.Count -and $PlayVoiceList.SelectedIndex -lt 0) { $PlayVoiceList.SelectedIndex = 0 }
     if ($PronunciationVoiceList.Items.Count -and $PronunciationVoiceList.SelectedIndex -lt 0) { $PronunciationVoiceList.SelectedIndex = 0 }
     $RouteAliasBox.ItemsSource = @($rows.Name)
+    $VoiceRuleAliasBox.ItemsSource = @($rows.Name)
     $exportAlias=[string]$ExportVoiceAliasBox.SelectedItem
     $ExportVoiceAliasBox.ItemsSource=@($rows.Name)
     if($exportAlias){$ExportVoiceAliasBox.SelectedItem=$exportAlias}
@@ -401,6 +472,39 @@ function Refresh-Grid([switch]$VoicesOnly) {
     $RequestTimeoutBox.Text = [string]$(if ($null -ne $settings.request_timeout) { $settings.request_timeout } else { 120 })
     $PollyEnabledCheck.IsChecked = [bool]$settings.polly_enabled
     $WindowsVoicesCheck.IsChecked = $null -eq $settings.windows_voices_enabled -or [bool]$settings.windows_voices_enabled
+
+    $ElevenLabsEnabledCheck.IsChecked = [bool]$settings.elevenlabs_enabled
+    $ElevenLabsApiKeyBox.Password = ''
+    $ElevenLabsStatus.Text = if ([string]::IsNullOrWhiteSpace([string]$settings.elevenlabs_api_key_encrypted)) { 'No key saved yet' } else { 'API key saved securely for this Windows account' }
+    $AzureEnabledCheck.IsChecked = [bool]$settings.azure_enabled
+    $AzureKeyBox.Password = ''
+    $AzureRegionBox.Text = [string]$(if ($settings.azure_region) { $settings.azure_region } else { 'eastus' })
+    $AzureStatus.Text = if ([string]::IsNullOrWhiteSpace([string]$settings.azure_subscription_key_encrypted)) { 'No key saved yet' } else { 'Subscription key saved securely for this Windows account' }
+    $GoogleEnabledCheck.IsChecked = [bool]$settings.google_enabled
+    $GoogleApiKeyBox.Password = ''
+    $GoogleServiceAccountBox.Text = [string]$settings.google_service_account_path
+    $GoogleStatus.Text = if (-not [string]::IsNullOrWhiteSpace([string]$settings.google_api_key_encrypted)) { 'API key saved securely for this Windows account' } elseif ($settings.google_service_account_path) { 'Using service-account JSON path' } else { 'No credentials saved yet' }
+    $WatsonEnabledCheck.IsChecked = [bool]$settings.watson_enabled
+    $WatsonApiKeyBox.Password = ''
+    $WatsonServiceUrlBox.Text = [string]$settings.watson_service_url
+    $WatsonStatus.Text = if ([string]::IsNullOrWhiteSpace([string]$settings.watson_api_key_encrypted)) { 'No key saved yet' } else { 'API key saved securely for this Windows account' }
+    $UberDuckEnabledCheck.IsChecked = [bool]$settings.uberduck_enabled
+    $UberDuckApiKeyBox.Password = ''
+    $UberDuckStatus.Text = if ([string]::IsNullOrWhiteSpace([string]$settings.uberduck_api_key_encrypted)) { 'No key saved yet' } else { 'API key saved securely for this Windows account' }
+    $TtsMonsterEnabledCheck.IsChecked = [bool]$settings.ttsmonster_enabled
+    $TtsMonsterOverlayBox.Text = [string]$settings.ttsmonster_overlay_url
+    $TtsMonsterTokenBox.Password = ''
+    $TtsMonsterStatus.Text = if (-not [string]::IsNullOrWhiteSpace([string]$settings.ttsmonster_api_token_encrypted)) { 'API token saved securely for this Windows account' } elseif ($settings.ttsmonster_overlay_url) { 'Using overlay URL' } else { 'No credentials saved yet' }
+    $AcapelaEnabledCheck.IsChecked = [bool]$settings.acapela_enabled
+    $AcapelaAccountBox.Text = [string]$settings.acapela_account
+    $AcapelaPasswordBox.Password = ''
+    $AcapelaAppNameBox.Text = [string]$(if ($settings.acapela_application_name) { $settings.acapela_application_name } else { 'VoxRelay' })
+    $AcapelaStatus.Text = if ([string]::IsNullOrWhiteSpace([string]$settings.acapela_password_encrypted)) { 'No password saved yet' } else { 'Password saved securely for this Windows account' }
+    $CereProcEnabledCheck.IsChecked = [bool]$settings.cereproc_enabled
+    $CereProcUsernameBox.Text = [string]$settings.cereproc_username
+    $CereProcPasswordBox.Password = ''
+    $CereProcStatus.Text = if ([string]::IsNullOrWhiteSpace([string]$settings.cereproc_password_encrypted)) { 'No password saved yet' } else { 'Password saved securely for this Windows account' }
+
     Set-PollyRegionText ([string]$(if ($settings.polly_region) { $settings.polly_region } else { 'us-east-1' }))
     $PollyProfileBox.Text = [string]$settings.polly_profile
     $PollyAccessKeyBox.Password = ''
@@ -444,8 +548,19 @@ function Refresh-Grid([switch]$VoicesOnly) {
     $BlocklistBox.Text = (@($settings.user_blocklist) -join "`r`n")
     $AllowlistBox.Text = (@($settings.user_allowlist) -join "`r`n")
     $ReplacementsBox.Text = ConvertTo-MappingText $settings.replacements
-    $UserRulesBox.Text = ConvertTo-MappingText $settings.user_voice_rules
-    $RoleRulesBox.Text = ConvertTo-MappingText $settings.role_voice_rules
+    $voiceRuleRows = New-Object System.Collections.ObjectModel.ObservableCollection[object]
+    if ($settings.user_voice_rules) {
+        foreach ($entry in $settings.user_voice_rules.PSObject.Properties) {
+            $voiceRuleRows.Add([pscustomobject]@{ field='user'; value=[string]$entry.Name; alias=[string]$entry.Value })
+        }
+    }
+    if ($settings.role_voice_rules) {
+        foreach ($entry in $settings.role_voice_rules.PSObject.Properties) {
+            $voiceRuleRows.Add([pscustomobject]@{ field='role'; value=[string]$entry.Name; alias=[string]$entry.Value })
+        }
+    }
+    $VoiceRulesGrid.ItemsSource = $voiceRuleRows
+    if ($VoiceRuleFieldBox.SelectedIndex -lt 0) { $VoiceRuleFieldBox.SelectedIndex = 0 }
     $pronunciations = New-Object System.Collections.ObjectModel.ObservableCollection[object]
     $hidden = @($settings.hidden_pronunciations)
     if ($settings.pronunciations) {
@@ -500,9 +615,15 @@ function Complete-VoiceRefresh($result) {
         $script:profiles = @{}; $script:profileModels = @{}; $script:profileModelOptions = @{}
         foreach ($v in $voices) {
             $provider = [string]$v.provider; $id = [string]$v.voice_id; $key = $provider + '|' + $id
-            $source = switch($provider){'polly'{'Amazon Polly'}'windows'{'Windows voices'}default{'VoiceStudio'}}
-            $language = if ($v.language_name) { ' - ' + [string]$v.language_name } else { '' }
-            $script:profiles[$key] = ([string]$v.name + $language + ' - ' + $source)
+            $source = switch($provider){'polly'{'Amazon Polly'}'windows'{'Windows voices'}'elevenlabs'{'ElevenLabs'}'azure'{'Azure Speech'}'google'{'Google Cloud TTS'}'watson'{'IBM Watson'}'uberduck'{'UberDuck'}'ttsmonster'{'TTS.Monster'}'acapela'{'Acapela'}'cereproc'{'CereProc'}default{'VoiceStudio'}}
+            $languageName = [string]$v.language_name
+            $script:profiles[$key] = [pscustomobject]@{
+                Key = $key
+                Name = [string]$v.name
+                Language = $languageName
+                Engine = $source
+                SearchText = (([string]$v.name) + ' ' + $languageName + ' ' + $source + ' ' + $key)
+            }
             $script:profileModels[$key] = [string]$v.model
             $script:profileModelOptions[$key] = if(@($v.engines).Count -and $v.engines){@($v.engines)}else{@([string]$v.model)}
         }
@@ -641,8 +762,18 @@ function Save-Rules {
         Set-JsonProperty $s 'user_blocklist' (ConvertFrom-Lines $BlocklistBox.Text)
         Set-JsonProperty $s 'user_allowlist' (ConvertFrom-Lines $AllowlistBox.Text)
         Set-JsonProperty $s 'replacements' (ConvertFrom-MappingText $ReplacementsBox.Text)
-        Set-JsonProperty $s 'user_voice_rules' (ConvertFrom-MappingText $UserRulesBox.Text)
-        Set-JsonProperty $s 'role_voice_rules' (ConvertFrom-MappingText $RoleRulesBox.Text)
+        $userVoiceMap = [ordered]@{}
+        $roleVoiceMap = [ordered]@{}
+        foreach ($row in @($VoiceRulesGrid.ItemsSource)) {
+            if (-not $row) { continue }
+            $match = [string]$row.value
+            $alias = [string]$row.alias
+            if (-not $match.Trim() -or -not $alias.Trim()) { continue }
+            if ([string]$row.field -eq 'role') { $roleVoiceMap[$match.Trim()] = $alias.Trim() }
+            else { $userVoiceMap[$match.Trim()] = $alias.Trim() }
+        }
+        Set-JsonProperty $s 'user_voice_rules' ([pscustomobject]$userVoiceMap)
+        Set-JsonProperty $s 'role_voice_rules' ([pscustomobject]$roleVoiceMap)
         Set-JsonProperty $s 'routing_rules' @($RoutingGrid.ItemsSource)
         Set-JsonProperty $s 'max_queue' ([int]$MaxQueueBox.Text)
         Set-JsonProperty $s 'per_user_cooldown' ([double]$UserCooldownBox.Text)
@@ -734,6 +865,178 @@ function Save-VoiceStudioSettings {
         $BottomStatus.Text = 'VoiceStudio settings saved'
     } catch { $BottomStatus.Text = $_.Exception.Message }
 }
+
+function Save-ElevenLabsSettings {
+    $s = Read-Settings
+    Set-JsonProperty $s 'elevenlabs_enabled' ([bool]$ElevenLabsEnabledCheck.IsChecked)
+    if ($ElevenLabsApiKeyBox.Password) {
+        Set-JsonProperty $s 'elevenlabs_api_key_encrypted' (Protect-VoxRelaySecret $ElevenLabsApiKeyBox.Password)
+        $ElevenLabsApiKeyBox.Password = ''
+        $ElevenLabsStatus.Text = 'API key saved securely for this Windows account'
+    }
+    Write-Settings $s
+    $BottomStatus.Text = 'ElevenLabs credentials saved'
+}
+function Clear-ElevenLabsSecrets {
+    $s = Read-Settings
+    Set-JsonProperty $s 'elevenlabs_api_key_encrypted' ''
+    Write-Settings $s
+    $ElevenLabsApiKeyBox.Password = ''
+    $ElevenLabsStatus.Text = 'No key saved yet'
+    $BottomStatus.Text = 'ElevenLabs secrets cleared'
+}
+
+function Save-AzureSettings {
+    $s = Read-Settings
+    Set-JsonProperty $s 'azure_enabled' ([bool]$AzureEnabledCheck.IsChecked)
+    Set-JsonProperty $s 'azure_region' $AzureRegionBox.Text.Trim()
+    if ($AzureKeyBox.Password) {
+        Set-JsonProperty $s 'azure_subscription_key_encrypted' (Protect-VoxRelaySecret $AzureKeyBox.Password)
+        $AzureKeyBox.Password = ''
+        $AzureStatus.Text = 'Subscription key saved securely for this Windows account'
+    }
+    Write-Settings $s
+    $BottomStatus.Text = 'Azure Speech credentials saved'
+}
+function Clear-AzureSecrets {
+    $s = Read-Settings
+    Set-JsonProperty $s 'azure_subscription_key_encrypted' ''
+    Write-Settings $s
+    $AzureKeyBox.Password = ''
+    $AzureStatus.Text = 'No key saved yet'
+    $BottomStatus.Text = 'Azure Speech secrets cleared'
+}
+
+function Save-GoogleSettings {
+    $s = Read-Settings
+    Set-JsonProperty $s 'google_enabled' ([bool]$GoogleEnabledCheck.IsChecked)
+    Set-JsonProperty $s 'google_service_account_path' $GoogleServiceAccountBox.Text.Trim()
+    if ($GoogleApiKeyBox.Password) {
+        Set-JsonProperty $s 'google_api_key_encrypted' (Protect-VoxRelaySecret $GoogleApiKeyBox.Password)
+        $GoogleApiKeyBox.Password = ''
+        $GoogleStatus.Text = 'API key saved securely for this Windows account'
+    } elseif ($GoogleServiceAccountBox.Text.Trim()) {
+        $GoogleStatus.Text = 'Using service-account JSON path'
+    }
+    Write-Settings $s
+    $BottomStatus.Text = 'Google Cloud TTS credentials saved'
+}
+function Clear-GoogleSecrets {
+    $s = Read-Settings
+    Set-JsonProperty $s 'google_api_key_encrypted' ''
+    Write-Settings $s
+    $GoogleApiKeyBox.Password = ''
+    $GoogleStatus.Text = if ($GoogleServiceAccountBox.Text.Trim()) { 'Using service-account JSON path' } else { 'No credentials saved yet' }
+    $BottomStatus.Text = 'Google Cloud TTS secrets cleared'
+}
+
+function Save-WatsonSettings {
+    $s = Read-Settings
+    Set-JsonProperty $s 'watson_enabled' ([bool]$WatsonEnabledCheck.IsChecked)
+    Set-JsonProperty $s 'watson_service_url' $WatsonServiceUrlBox.Text.Trim().TrimEnd('/')
+    if ($WatsonApiKeyBox.Password) {
+        Set-JsonProperty $s 'watson_api_key_encrypted' (Protect-VoxRelaySecret $WatsonApiKeyBox.Password)
+        $WatsonApiKeyBox.Password = ''
+        $WatsonStatus.Text = 'API key saved securely for this Windows account'
+    }
+    Write-Settings $s
+    $BottomStatus.Text = 'IBM Watson credentials saved'
+}
+function Clear-WatsonSecrets {
+    $s = Read-Settings
+    Set-JsonProperty $s 'watson_api_key_encrypted' ''
+    Write-Settings $s
+    $WatsonApiKeyBox.Password = ''
+    $WatsonStatus.Text = 'No key saved yet'
+    $BottomStatus.Text = 'IBM Watson secrets cleared'
+}
+
+function Save-UberDuckSettings {
+    $s = Read-Settings
+    Set-JsonProperty $s 'uberduck_enabled' ([bool]$UberDuckEnabledCheck.IsChecked)
+    if ($UberDuckApiKeyBox.Password) {
+        Set-JsonProperty $s 'uberduck_api_key_encrypted' (Protect-VoxRelaySecret $UberDuckApiKeyBox.Password)
+        $UberDuckApiKeyBox.Password = ''
+        $UberDuckStatus.Text = 'API key saved securely for this Windows account'
+    }
+    Write-Settings $s
+    $BottomStatus.Text = 'UberDuck credentials saved'
+}
+function Clear-UberDuckSecrets {
+    $s = Read-Settings
+    Set-JsonProperty $s 'uberduck_api_key_encrypted' ''
+    Write-Settings $s
+    $UberDuckApiKeyBox.Password = ''
+    $UberDuckStatus.Text = 'No key saved yet'
+    $BottomStatus.Text = 'UberDuck secrets cleared'
+}
+
+function Save-TtsMonsterSettings {
+    $s = Read-Settings
+    Set-JsonProperty $s 'ttsmonster_enabled' ([bool]$TtsMonsterEnabledCheck.IsChecked)
+    Set-JsonProperty $s 'ttsmonster_overlay_url' $TtsMonsterOverlayBox.Text.Trim()
+    if ($TtsMonsterTokenBox.Password) {
+        Set-JsonProperty $s 'ttsmonster_api_token_encrypted' (Protect-VoxRelaySecret $TtsMonsterTokenBox.Password)
+        $TtsMonsterTokenBox.Password = ''
+        $TtsMonsterStatus.Text = 'API token saved securely for this Windows account'
+    } elseif ($TtsMonsterOverlayBox.Text.Trim()) {
+        $TtsMonsterStatus.Text = 'Using overlay URL'
+    }
+    Write-Settings $s
+    $BottomStatus.Text = 'TTS.Monster credentials saved'
+}
+function Clear-TtsMonsterSecrets {
+    $s = Read-Settings
+    Set-JsonProperty $s 'ttsmonster_api_token_encrypted' ''
+    Write-Settings $s
+    $TtsMonsterTokenBox.Password = ''
+    $TtsMonsterStatus.Text = if ($TtsMonsterOverlayBox.Text.Trim()) { 'Using overlay URL' } else { 'No credentials saved yet' }
+    $BottomStatus.Text = 'TTS.Monster secrets cleared'
+}
+
+function Save-AcapelaSettings {
+    $s = Read-Settings
+    Set-JsonProperty $s 'acapela_enabled' ([bool]$AcapelaEnabledCheck.IsChecked)
+    Set-JsonProperty $s 'acapela_account' $AcapelaAccountBox.Text.Trim()
+    Set-JsonProperty $s 'acapela_application_name' $(if ($AcapelaAppNameBox.Text.Trim()) { $AcapelaAppNameBox.Text.Trim() } else { 'VoxRelay' })
+    if ($AcapelaPasswordBox.Password) {
+        Set-JsonProperty $s 'acapela_password_encrypted' (Protect-VoxRelaySecret $AcapelaPasswordBox.Password)
+        $AcapelaPasswordBox.Password = ''
+        $AcapelaStatus.Text = 'Password saved securely for this Windows account'
+    }
+    Write-Settings $s
+    $BottomStatus.Text = 'Acapela credentials saved'
+}
+function Clear-AcapelaSecrets {
+    $s = Read-Settings
+    Set-JsonProperty $s 'acapela_password_encrypted' ''
+    Write-Settings $s
+    $AcapelaPasswordBox.Password = ''
+    $AcapelaStatus.Text = 'No password saved yet'
+    $BottomStatus.Text = 'Acapela secrets cleared'
+}
+
+function Save-CereProcSettings {
+    $s = Read-Settings
+    Set-JsonProperty $s 'cereproc_enabled' ([bool]$CereProcEnabledCheck.IsChecked)
+    Set-JsonProperty $s 'cereproc_username' $CereProcUsernameBox.Text.Trim()
+    if ($CereProcPasswordBox.Password) {
+        Set-JsonProperty $s 'cereproc_password_encrypted' (Protect-VoxRelaySecret $CereProcPasswordBox.Password)
+        $CereProcPasswordBox.Password = ''
+        $CereProcStatus.Text = 'Password saved securely for this Windows account'
+    }
+    Write-Settings $s
+    $BottomStatus.Text = 'CereProc credentials saved'
+}
+function Clear-CereProcSecrets {
+    $s = Read-Settings
+    Set-JsonProperty $s 'cereproc_password_encrypted' ''
+    Write-Settings $s
+    $CereProcPasswordBox.Password = ''
+    $CereProcStatus.Text = 'No password saved yet'
+    $BottomStatus.Text = 'CereProc secrets cleared'
+}
+
 function Save-PollySettings {
     try {
         $s = Read-Settings
@@ -755,22 +1058,23 @@ function Save-PollySettings {
     } catch { $BottomStatus.Text = $_.Exception.Message }
 }
 
+
+
 function Show-AliasDialog($existing) {
     [xml]$dialogXaml=@'
-<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Width="560" Height="755" WindowStartupLocation="CenterOwner" ResizeMode="NoResize" WindowStyle="None" AllowsTransparency="True" Background="Transparent" Foreground="#F6F3FA">
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Width="620" Height="780" WindowStartupLocation="CenterOwner" ResizeMode="NoResize" WindowStyle="None" AllowsTransparency="True" Background="Transparent" Foreground="#F6F3FA">
  <Window.Resources>
   <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#B6A3FF"/><SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#15131D"/>
   <Style TargetType="Button"><Setter Property="Foreground" Value="#F6F3FA"/><Setter Property="Background" Value="#1E1A27"/><Setter Property="BorderBrush" Value="#50485C"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="14,9"/><Setter Property="Cursor" Value="Hand"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="Shell" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" Padding="{TemplateBinding Padding}"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="#F6F3FA"/><Setter TargetName="Shell" Property="BorderBrush" Value="#B6A3FF"/><Setter TargetName="Shell" Property="Background" Value="#50485C"/></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="Shell" Property="Opacity" Value="0.75"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
   <Style TargetType="TextBox"><Setter Property="Background" Value="#1E1A27"/><Setter Property="Foreground" Value="#F6F3FA"/><Setter Property="BorderBrush" Value="#50485C"/><Setter Property="Padding" Value="11,9"/><Setter Property="CaretBrush" Value="#B6A3FF"/><Setter Property="SelectionBrush" Value="#B6A3FF"/><Setter Property="SelectionTextBrush" Value="#15131D"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TextBox"><Border x:Name="Field" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="6"><ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"/></Border><ControlTemplate.Triggers><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Field" Property="BorderBrush" Value="#B6A3FF"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter TargetName="Field" Property="Opacity" Value="0.55"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
-  <Style TargetType="ListBoxItem"><Setter Property="Foreground" Value="#F6F3FA"/><Setter Property="Background" Value="Transparent"/><Setter Property="Padding" Value="11,8"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><Border x:Name="ItemShell" Background="{TemplateBinding Background}" BorderBrush="Transparent" BorderThickness="1" Padding="{TemplateBinding Padding}"><ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ItemShell" Property="Background" Value="#33282231"/></Trigger><Trigger Property="IsSelected" Value="True"><Setter TargetName="ItemShell" Property="Background" Value="#B6A3FF"/><Setter TargetName="ItemShell" Property="BorderBrush" Value="#B6A3FF"/><Setter Property="Foreground" Value="#15131D"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
-  <Style TargetType="ScrollBar"><Setter Property="Width" Value="10"/><Setter Property="Background" Value="#1E1A27"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar"><Grid Background="{TemplateBinding Background}"><Track x:Name="PART_Track" IsDirectionReversed="True"><Track.DecreaseRepeatButton><RepeatButton Command="{x:Static ScrollBar.PageUpCommand}" Opacity="0"/></Track.DecreaseRepeatButton><Track.Thumb><Thumb><Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="#50485C" CornerRadius="5" Margin="2"/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb><Track.IncreaseRepeatButton><RepeatButton Command="{x:Static ScrollBar.PageDownCommand}" Opacity="0"/></Track.IncreaseRepeatButton></Track></Grid></ControlTemplate></Setter.Value></Setter></Style>
+  <Style TargetType="ListBoxItem"><Setter Property="Foreground" Value="#F6F3FA"/><Setter Property="Background" Value="Transparent"/><Setter Property="Padding" Value="10,7"/><Setter Property="Margin" Value="3,2"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><Border x:Name="ItemShell" Background="{TemplateBinding Background}" BorderBrush="Transparent" BorderThickness="1" CornerRadius="6" Padding="{TemplateBinding Padding}" Margin="{TemplateBinding Margin}"><ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ItemShell" Property="Background" Value="#33282231"/></Trigger><Trigger Property="IsSelected" Value="True"><Setter TargetName="ItemShell" Property="Background" Value="#B6A3FF"/><Setter TargetName="ItemShell" Property="BorderBrush" Value="#B6A3FF"/><Setter Property="Foreground" Value="#15131D"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
  </Window.Resources>
  <Border Background="#15131D" BorderBrush="#50485C" BorderThickness="1" CornerRadius="13"><Border.Effect><DropShadowEffect Color="#000000" BlurRadius="24" ShadowDepth="7" Opacity="0.5"/></Border.Effect><Grid ClipToBounds="True"><Grid.RowDefinitions><RowDefinition Height="48"/><RowDefinition Height="*"/></Grid.RowDefinitions>
   <Border Name="TitleBar" Background="#1E1A27" BorderBrush="#50485C" BorderThickness="0,0,0,1" CornerRadius="13,13,0,0"><Grid><StackPanel Orientation="Horizontal" Margin="17,0" VerticalAlignment="Center"><Ellipse Width="7" Height="7" Fill="#B6A3FF" Margin="0,0,9,0"/><TextBlock Text="Voice alias" FontWeight="SemiBold"/></StackPanel><Button Name="Close" Content="X" HorizontalAlignment="Right" Width="46" Background="Transparent" BorderThickness="0"/></Grid></Border>
   <Grid Grid.Row="1"><Grid.RowDefinitions><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
    <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="24,20,14,0"><StackPanel Margin="0,0,10,18">
     <TextBlock Text="Alias name" Foreground="#B9B2C2"/><TextBox Name="NameBox" Margin="0,7,0,17"/>
-    <TextBlock Text="Voice provider and profile" Foreground="#B9B2C2"/><TextBox Name="ProfileSearchBox" Margin="0,7,0,8" ToolTip="Search available voices"/><Border Height="180" Margin="0,0,0,17" Background="#1E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="8" ClipToBounds="True"><ListBox Name="ProfileBox" Background="Transparent" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto"/></Border>
+    <TextBlock Text="Voice provider and profile" Foreground="#B9B2C2"/><TextBox Name="ProfileSearchBox" Margin="0,7,0,8" ToolTip="Search by voice, language, or engine"/><Border Name="ProfileListHost" Height="200" Margin="0,0,0,17" Background="#1E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="8" ClipToBounds="False"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><Border Grid.Row="0" Background="#9915131D" BorderBrush="#50485C" BorderThickness="0,0,0,1" Padding="14,8,14,7"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="1.25*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="0.95*"/></Grid.ColumnDefinitions><TextBlock Text="VOICE" Foreground="#B9B2C2" FontSize="10" FontWeight="Bold"/><TextBlock Grid.Column="1" Text="LANGUAGE" Foreground="#B9B2C2" FontSize="10" FontWeight="Bold"/><TextBlock Grid.Column="2" Text="ENGINE" Foreground="#B9B2C2" FontSize="10" FontWeight="Bold"/></Grid></Border><ListBox Name="ProfileBox" Grid.Row="1" Background="Transparent" BorderThickness="0" Padding="4" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto"><ListBox.ItemTemplate><DataTemplate><Grid Margin="2,0"><Grid.ColumnDefinitions><ColumnDefinition Width="1.25*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="0.95*"/></Grid.ColumnDefinitions><TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="{Binding Language}" Opacity="0.72" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/><TextBlock Grid.Column="2" Text="{Binding Engine}" Opacity="0.72" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/></Grid></DataTemplate></ListBox.ItemTemplate></ListBox></Grid></Border>
     <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="16"/><ColumnDefinition/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Engine model" Foreground="#B9B2C2"/><ComboBox Name="ModelBox" Margin="0,7,0,0"/></StackPanel><StackPanel Grid.Column="2"><TextBlock Text="Speed" Foreground="#B9B2C2"/><Slider Name="SpeedBox" Minimum="0.5" Maximum="2" TickFrequency="0.05" IsSnapToTickEnabled="True" Value="1" Margin="0,7,0,0" AutomationProperties.Name="Alias speed"/><TextBlock Text="{Binding ElementName=SpeedBox,Path=Value,StringFormat={}{0:0.00}x}"/></StackPanel></Grid>
     <Grid Margin="0,14,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="16"/><ColumnDefinition/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Group (optional)" Foreground="#B9B2C2"/><TextBox Name="GroupBox" Margin="0,7,0,0"/></StackPanel><StackPanel Grid.Column="2"><TextBlock Text="Volume" Foreground="#B9B2C2"/><Slider Name="VolumeBox" Minimum="0" Maximum="2" TickFrequency="0.05" IsSnapToTickEnabled="True" Value="1" Margin="0,7,0,0" AutomationProperties.Name="Alias volume"/><TextBlock Text="{Binding ElementName=VolumeBox,Path=Value,StringFormat={}{0:P0}}"/></StackPanel></Grid>
     <TextBlock Text="Language code (optional)" Foreground="#B9B2C2" Margin="0,13,0,0"/><TextBox Name="LanguageBox" Margin="0,7,0,0"/>
@@ -792,11 +1096,28 @@ function Show-AliasDialog($existing) {
     foreach ($device in @($OutputDeviceBox.Items)) { if ($device -ne '[Default]') { [void]$aliasOutput.Items.Add([string]$device) } }
     $aliasOutput.SelectedIndex=0
     if ($existing.OutputDevice) { if(-not$aliasOutput.Items.Contains([string]$existing.OutputDevice)){[void]$aliasOutput.Items.Add([string]$existing.OutputDevice)};$aliasOutput.SelectedItem=[string]$existing.OutputDevice }
-    foreach($entry in $script:profiles.GetEnumerator()|Sort-Object Value){[void]$p.Items.Add(($entry.Value+'  ['+$entry.Key+']'))}
-    $profileSearch.Add_TextChanged({ $p.Items.Filter=[Predicate[object]]{param($item) return ([string]$item).IndexOf($profileSearch.Text,[StringComparison]::OrdinalIgnoreCase) -ge 0} })
+    # Keep rounded border chrome, but never clip the voice list scrollbar.
+    $profileHost = $d.FindName('ProfileListHost')
+    if ($profileHost) { $profileHost.ClipToBounds = $false; $profileHost.Clip = $null }
+    foreach($entry in $script:profiles.GetEnumerator()|Sort-Object { $_.Value.Name }, { $_.Value.Language }, { $_.Value.Engine }){
+        $item = $entry.Value
+        if ($item -is [string]) {
+            $item = [pscustomobject]@{ Key=$entry.Key; Name=[string]$item; Language=''; Engine=''; SearchText=([string]$item + ' ' + $entry.Key) }
+        }
+        [void]$p.Items.Add($item)
+    }
+    $profileSearch.Add_TextChanged({
+        $p.Items.Filter = [Predicate[object]]{
+            param($item)
+            $q = $profileSearch.Text
+            if ([string]::IsNullOrWhiteSpace($q)) { return $true }
+            $hay = if ($item.PSObject.Properties['SearchText']) { [string]$item.SearchText } else { [string]$item }
+            return $hay.IndexOf($q, [StringComparison]::OrdinalIgnoreCase) -ge 0
+        }
+    })
     $p.Add_SelectionChanged({
         if($p.SelectedItem){
-            $selectedKey=([regex]::Match([string]$p.SelectedItem,'\[([^\]]+)\]$')).Groups[1].Value
+            $selectedKey = if ($p.SelectedItem.PSObject.Properties['Key']) { [string]$p.SelectedItem.Key } else { ([regex]::Match([string]$p.SelectedItem,'\[([^\]]+)\]$')).Groups[1].Value }
             if($script:profileModelOptions.ContainsKey($selectedKey)){$m.ItemsSource=@($script:profileModelOptions[$selectedKey]);$m.SelectedItem=[string]$script:profileModels[$selectedKey]}
             $style.IsEnabled=$selectedKey.StartsWith('voicestudio|')
         }
@@ -804,8 +1125,12 @@ function Show-AliasDialog($existing) {
     if($existing){
         $n.Text=$existing.Name;$sp.Value=[double]$existing.Speed;$g.Text=[string]$existing.Group;$vol.Value=[double]$existing.Volume;$lang.Text=[string]$existing.Language;$style.Text=[string]$existing.Instruct
         $provider=if($existing.Provider){[string]$existing.Provider}else{'voicestudio'};$wanted=$provider+'|'+$existing.VoiceId
-        $match=$p.Items|Where-Object{([string]$_).EndsWith('['+$wanted+']')}|Select-Object -First 1
-        if(-not$match){$label=if($existing.Profile){[string]$existing.Profile}else{[string]$existing.VoiceId};$match=($label+' ['+$wanted+']');[void]$p.Items.Add($match)}
+        $match=$p.Items|Where-Object{ $_.Key -eq $wanted }|Select-Object -First 1
+        if(-not$match){
+            $label=if($existing.Profile){[string]$existing.Profile}else{[string]$existing.VoiceId}
+            $match=[pscustomobject]@{ Key=$wanted; Name=$label; Language=''; Engine=$provider; SearchText=($label + ' ' + $wanted) }
+            [void]$p.Items.Add($match)
+        }
         $p.SelectedItem=$match
         if(@($m.ItemsSource) -notcontains [string]$existing.Model){$m.ItemsSource=@($m.ItemsSource)+@([string]$existing.Model)}
         $m.SelectedItem=[string]$existing.Model
@@ -817,7 +1142,7 @@ function Show-AliasDialog($existing) {
             if (-not $m.SelectedItem) { throw 'Choose an engine model.' }
             $speed=[double]$sp.Value;$volume=[double]$vol.Value
             if ($speed -lt 0.5 -or $speed -gt 2 -or $volume -lt 0 -or $volume -gt 2) { throw 'Speed must be 0.5 to 2; volume must be 0 to 2.' }
-            $key=([regex]::Match([string]$p.SelectedItem,'\[([^\]]+)\]$')).Groups[1].Value;$parts=$key.Split('|',2)
+            $key = if ($p.SelectedItem.PSObject.Properties['Key']) { [string]$p.SelectedItem.Key } else { ([regex]::Match([string]$p.SelectedItem,'\[([^\]]+)\]$')).Groups[1].Value };$parts=$key.Split('|',2)
             $script:dialogResult=[pscustomobject]@{Name=$n.Text.Trim();Provider=$parts[0];VoiceId=$parts[1];Model=[string]$m.SelectedItem;Speed=$speed;Group=$g.Text.Trim();Volume=$volume;Language=$lang.Text.Trim();Instruct=$style.Text.Trim();OutputDevice=$(if($aliasOutput.SelectedIndex -gt 0){[string]$aliasOutput.SelectedItem}else{''})}
             $d.DialogResult=$true
         } catch { $aliasValidation.Text=$_.Exception.Message }
@@ -1059,7 +1384,7 @@ $window.Add_StateChanged({
 $VoicesNav.Add_Click({ Set-Page 'voices' }); $PlaygroundNav.Add_Click({ Set-Page 'playground' }); $QueueNav.Add_Click({ Set-Page 'queue' })
 $HistoryNav.Add_Click({ Set-Page 'history' }); $RulesNav.Add_Click({ Set-Page 'rules' }); $PronunciationNav.Add_Click({ Set-Page 'pronunciation' })
 $ServicesToggle.Add_Click({ Set-ServicesExpanded (-not $script:servicesExpanded) })
-$StreamerBotNav.Add_Click({ Set-Page 'streamerbot' }); $VoiceStudioNav.Add_Click({ Set-Page 'voicestudio' }); $PollyNav.Add_Click({ Set-Page 'polly' })
+$StreamerBotNav.Add_Click({ Set-Page 'streamerbot' }); $VoiceStudioNav.Add_Click({ Set-Page 'voicestudio' }); $PollyNav.Add_Click({ Set-Page 'polly' }); $ElevenLabsNav.Add_Click({ Set-Page 'elevenlabs' }); $AzureNav.Add_Click({ Set-Page 'azure' }); $GoogleNav.Add_Click({ Set-Page 'google' }); $WatsonNav.Add_Click({ Set-Page 'watson' }); $UberDuckNav.Add_Click({ Set-Page 'uberduck' }); $TtsMonsterNav.Add_Click({ Set-Page 'ttsmonster' }); $AcapelaNav.Add_Click({ Set-Page 'acapela' }); $CereProcNav.Add_Click({ Set-Page 'cereproc' })
 $ActivityNav.Add_Click({ Set-Page 'activity' }); $SettingsNav.Add_Click({ Set-Page 'settings' }); $BridgeStatusButton.Add_Click({ Set-Page 'settings' })
 $RefreshButton.Add_Click({ Refresh-Voices })
 $AddButton.Add_Click({ $v = Show-AliasDialog $null; if ($v) { Save-Alias $null $v } })
@@ -1069,7 +1394,7 @@ $TestButton.Add_Click({ $row = $AliasGrid.SelectedItem; if ($row) { $text = Show
 $PlaygroundText.Add_TextChanged({ $CharacterCount.Text = ([string]$PlaygroundText.Text).Length.ToString() + ' characters' })
 $PlayVoiceList.Add_SelectionChanged({
     $s=Read-Settings;$name=[string]$PlayVoiceList.SelectedItem
-    if($name){$provider=[string]$s.aliases.$name.provider;$PlaySsmlCheck.IsEnabled=$provider -in @('polly','windows');if(-not $PlaySsmlCheck.IsEnabled){$PlaySsmlCheck.IsChecked=$false};$PlayStyleBox.IsEnabled=$provider -eq 'voicestudio'}
+    if($name){$provider=[string]$s.aliases.$name.provider;$PlaySsmlCheck.IsEnabled=$provider -in @('polly','windows','azure','cereproc');if(-not $PlaySsmlCheck.IsEnabled){$PlaySsmlCheck.IsChecked=$false};$PlayStyleBox.IsEnabled=$provider -eq 'voicestudio'}
 })
 $PlaySsmlCheck.Add_Checked({$PlaySpeedBox.IsEnabled=$false})
 $PlaySsmlCheck.Add_Unchecked({$PlaySpeedBox.IsEnabled=$true})
@@ -1127,6 +1452,30 @@ $TestStreamerBotFinishedButton.Add_Click({ try { Invoke-BridgePost '/api/integra
 $SaveVoiceStudioButton.Add_Click({ Save-VoiceStudioSettings })
 $TestVoiceStudioButton.Add_Click({ Save-VoiceStudioSettings; Refresh-Voices })
 $SavePollyButton.Add_Click({ Save-PollySettings })
+$SaveElevenLabsButton.Add_Click({ Save-ElevenLabsSettings })
+$TestElevenLabsButton.Add_Click({ Save-ElevenLabsSettings; Refresh-Voices })
+$ClearElevenLabsButton.Add_Click({ Clear-ElevenLabsSecrets })
+$SaveAzureButton.Add_Click({ Save-AzureSettings })
+$TestAzureButton.Add_Click({ Save-AzureSettings; Refresh-Voices })
+$ClearAzureButton.Add_Click({ Clear-AzureSecrets })
+$SaveGoogleButton.Add_Click({ Save-GoogleSettings })
+$TestGoogleButton.Add_Click({ Save-GoogleSettings; Refresh-Voices })
+$ClearGoogleButton.Add_Click({ Clear-GoogleSecrets })
+$SaveWatsonButton.Add_Click({ Save-WatsonSettings })
+$TestWatsonButton.Add_Click({ Save-WatsonSettings; Refresh-Voices })
+$ClearWatsonButton.Add_Click({ Clear-WatsonSecrets })
+$SaveUberDuckButton.Add_Click({ Save-UberDuckSettings })
+$TestUberDuckButton.Add_Click({ Save-UberDuckSettings; Refresh-Voices })
+$ClearUberDuckButton.Add_Click({ Clear-UberDuckSecrets })
+$SaveTtsMonsterButton.Add_Click({ Save-TtsMonsterSettings })
+$TestTtsMonsterButton.Add_Click({ Save-TtsMonsterSettings; Refresh-Voices })
+$ClearTtsMonsterButton.Add_Click({ Clear-TtsMonsterSecrets })
+$SaveAcapelaButton.Add_Click({ Save-AcapelaSettings })
+$TestAcapelaButton.Add_Click({ Save-AcapelaSettings; Refresh-Voices })
+$ClearAcapelaButton.Add_Click({ Clear-AcapelaSecrets })
+$SaveCereProcButton.Add_Click({ Save-CereProcSettings })
+$TestCereProcButton.Add_Click({ Save-CereProcSettings; Refresh-Voices })
+$ClearCereProcButton.Add_Click({ Clear-CereProcSecrets })
 $TestPollyButton.Add_Click({ Save-PollySettings; Refresh-Voices })
 $ClearPollyCredentialsButton.Add_Click({
     try {
@@ -1227,7 +1576,8 @@ $QueueGrid.Add_Drop({
     $e.Handled=$true
 })
 $ClearAllQueueButton.Add_Click({ try { Invoke-BridgePost '/clear-all' | Out-Null; Refresh-ServiceState } catch { $BottomStatus.Text = $_.Exception.Message } })
-$SetupVoiceStudioButton.Add_Click({ Set-Page 'voicestudio' })
+
+
 $SavePageButton.Add_Click({
     switch([string]$SavePageButton.Tag){
         'settings'{$SaveButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))}
@@ -1235,6 +1585,14 @@ $SavePageButton.Add_Click({
         'streamerbot'{Save-StreamerBotSettings}
         'voicestudio'{Save-VoiceStudioSettings}
         'polly'{Save-PollySettings}
+  'elevenlabs'{Save-ElevenLabsSettings}
+  'azure'{Save-AzureSettings}
+  'google'{Save-GoogleSettings}
+  'watson'{Save-WatsonSettings}
+  'uberduck'{Save-UberDuckSettings}
+  'ttsmonster'{Save-TtsMonsterSettings}
+  'acapela'{Save-AcapelaSettings}
+  'cereproc'{Save-CereProcSettings}
     }
 })
 $ExportStreamerBotButton.Add_Click({
@@ -1258,11 +1616,6 @@ function Create-WindowsDefaultAlias {
     }
     Set-Page 'voices';$BottomStatus.Text='Windows voice is ready. Select it and choose Test voice.'
 }
-$SetupWindowsButton.Add_Click({
-    $s=Read-Settings;Set-JsonProperty $s 'windows_voices_enabled' $true;Write-Settings $s;$WindowsVoicesCheck.IsChecked=$true
-    if(@($script:profiles.Keys | Where-Object {$_.StartsWith('windows|')}).Count){Create-WindowsDefaultAlias}
-    else{$script:setupWindowsPending=$true;Refresh-Voices}
-})
 function Set-ObsSettings($settings) {
     Set-JsonProperty $settings 'obs_ducking_enabled' ([bool]$ObsDuckingCheck.IsChecked)
     Set-JsonProperty $settings 'obs_url' $ObsUrlBox.Text.Trim()
@@ -1285,7 +1638,33 @@ $TestPreviewOutputButton.Add_Click({
     if($device -eq '[Same as stream output]'){$device=[string]$OutputDeviceBox.SelectedItem}
     try { Invoke-BridgePost '/api/output/test' @{device=$device;preview=$true} | Out-Null;$BottomStatus.Text='Preview test queued' } catch { $BottomStatus.Text=$_.Exception.Message }
 })
-$SetupPollyButton.Add_Click({ Set-Page 'polly' })
+
+$SetupWindowsButton.Add_Click({
+    $s = Read-Settings
+    Set-JsonProperty $s 'windows_voices_enabled' $true
+    Write-Settings $s
+    $WindowsVoicesCheck.IsChecked = $true
+    Set-ServicesExpanded $true
+    Set-Page 'settings'
+    if (@($script:profiles.Keys | Where-Object { $_.StartsWith('windows|') }).Count) {
+        Create-WindowsDefaultAlias
+    } else {
+        $script:setupWindowsPending = $true
+        Refresh-Voices
+    }
+    $BottomStatus.Text = 'Windows voices enabled. Continue with audio output or add a voice.'
+})
+$SetupVoiceStudioButton.Add_Click({ Set-ServicesExpanded $true; Set-Page 'voicestudio' })
+$SetupPollyButton.Add_Click({ Set-ServicesExpanded $true; Set-Page 'polly' })
+$SetupElevenLabsButton.Add_Click({ Set-ServicesExpanded $true; Set-Page 'elevenlabs' })
+$SetupAzureButton.Add_Click({ Set-ServicesExpanded $true; Set-Page 'azure' })
+$SetupGoogleButton.Add_Click({ Set-ServicesExpanded $true; Set-Page 'google' })
+$SetupWatsonButton.Add_Click({ Set-ServicesExpanded $true; Set-Page 'watson' })
+$SetupUberDuckButton.Add_Click({ Set-ServicesExpanded $true; Set-Page 'uberduck' })
+$SetupTtsMonsterButton.Add_Click({ Set-ServicesExpanded $true; Set-Page 'ttsmonster' })
+$SetupAcapelaButton.Add_Click({ Set-ServicesExpanded $true; Set-Page 'acapela' })
+$SetupCereProcButton.Add_Click({ Set-ServicesExpanded $true; Set-Page 'cereproc' })
+
 $SetupOutputButton.Add_Click({ $OutputDeviceBox.BringIntoView(); $OutputDeviceBox.Focus(); $OutputDeviceBox.IsDropDownOpen = $true })
 $SetupVoiceButton.Add_Click({ Set-Page 'voices'; $v = Show-AliasDialog $null; if ($v) { Save-Alias $null $v } })
 $SetupStreamerBotButton.Add_Click({ Set-Page 'streamerbot' })
@@ -1297,6 +1676,62 @@ function Save-RouteEditor([bool]$replace) {
     else { $RoutingGrid.ItemsSource.Add($rule) }
     $BottomStatus.Text = 'Routing changed. Save rules to apply.'
 }
+
+function Get-VoiceRuleDraft([switch]$RequireSelection) {
+    $fieldItem = $VoiceRuleFieldBox.SelectedItem
+    $field = if ($fieldItem -and $fieldItem.Tag) { [string]$fieldItem.Tag } else { 'user' }
+    $value = $VoiceRuleValueBox.Text.Trim()
+    $alias = [string]$VoiceRuleAliasBox.SelectedItem
+    if (-not $value -or -not $alias) { throw 'Enter a match and choose a voice.' }
+    return [pscustomobject]@{ field=$field; value=$value; alias=$alias }
+}
+function Find-VoiceRuleIndex([string]$field, [string]$value) {
+    $items = @($VoiceRulesGrid.ItemsSource)
+    for ($i = 0; $i -lt $items.Count; $i++) {
+        if ([string]$items[$i].field -eq $field -and [string]$items[$i].value -eq $value) { return $i }
+        if ([string]$items[$i].field -eq $field -and ([string]$items[$i].value).Equals($value, [StringComparison]::OrdinalIgnoreCase)) { return $i }
+    }
+    return -1
+}
+function Upsert-VoiceRule([switch]$Replace) {
+    try {
+        $rule = Get-VoiceRuleDraft
+        $index = Find-VoiceRuleIndex $rule.field $rule.value
+        if ($Replace) {
+            if ($VoiceRulesGrid.SelectedIndex -lt 0) { $BottomStatus.Text = 'Select a voice rule to update.'; return }
+            $sel = $VoiceRulesGrid.SelectedItem
+            # Allow renaming match: remove old key conflict if another row owns new match
+            if ($index -ge 0 -and $index -ne $VoiceRulesGrid.SelectedIndex) { $BottomStatus.Text = 'Another entry already matches that viewer or role.'; return }
+            $VoiceRulesGrid.ItemsSource[$VoiceRulesGrid.SelectedIndex] = $rule
+        } else {
+            if ($index -ge 0) { $BottomStatus.Text = 'That viewer or role already has a voice. Select it and use Update.'; return }
+            $VoiceRulesGrid.ItemsSource.Add($rule)
+        }
+        $BottomStatus.Text = 'Voice rule changed. Save rules to apply.'
+    } catch { $BottomStatus.Text = $_.Exception.Message }
+}
+$AddVoiceRuleButton.Add_Click({ Upsert-VoiceRule })
+$UpdateVoiceRuleButton.Add_Click({ Upsert-VoiceRule -Replace })
+$RemoveVoiceRuleButton.Add_Click({
+    $index = $VoiceRulesGrid.SelectedIndex
+    if ($index -ge 0) { $VoiceRulesGrid.ItemsSource.RemoveAt($index); $BottomStatus.Text = 'Voice rule removed. Save rules to apply.' }
+})
+$TestVoiceRuleButton.Add_Click({
+    $row = $VoiceRulesGrid.SelectedItem
+    if (-not $row) { $BottomStatus.Text = 'Select a voice rule to test.'; return }
+    $text = Show-TestDialog ([string]$row.alias)
+    if ($text) { Speak-Text ([string]$row.alias) $text 'Test' }
+})
+$VoiceRulesGrid.Add_SelectionChanged({
+    $rule = $VoiceRulesGrid.SelectedItem
+    if (-not $rule) { return }
+    foreach ($item in $VoiceRuleFieldBox.Items) {
+        if ($item.Tag -eq $rule.field) { $VoiceRuleFieldBox.SelectedItem = $item; break }
+    }
+    $VoiceRuleValueBox.Text = [string]$rule.value
+    if ($VoiceRuleAliasBox.Items -contains [string]$rule.alias) { $VoiceRuleAliasBox.SelectedItem = [string]$rule.alias }
+})
+
 $AddRouteButton.Add_Click({ Save-RouteEditor $false })
 $UpdateRouteButton.Add_Click({ Save-RouteEditor $true })
 $RemoveRouteButton.Add_Click({ $index=$RoutingGrid.SelectedIndex;if($index -ge 0){$RoutingGrid.ItemsSource.RemoveAt($index)} })
@@ -1308,6 +1743,8 @@ $RoutingGrid.Add_SelectionChanged({
 })
 $FinishSetupButton.Add_Click({
     $s = Read-Settings; Set-JsonProperty $s 'setup_completed' $true; Write-Settings $s
+    $getStarted = $window.FindName('GetStartedExpander')
+    if ($getStarted) { $getStarted.IsExpanded = $false }
     Set-Page 'voices'; $BottomStatus.Text = 'Ready. Add an alias, then use Test voice to check your output.'
 })
 function Filter-VoiceAliases {
@@ -1335,7 +1772,7 @@ $ToggleFavoriteButton.Add_Click({
 })
 $AliasGrid.Add_SelectionChanged({
     $row=$AliasGrid.SelectedItem;$ToggleFavoriteButton.IsEnabled=$null -ne $row
-    $ToggleFavoriteButton.Content=if($row -and $row.Favorite){'Unfavorite'}else{'Favorite'}
+    $favLabel=$window.FindName('FavoriteButtonLabel'); if($favLabel){ $favLabel.Text=if($row -and $row.Favorite){'Unfavorite'}else{'Favorite'} } elseif($ToggleFavoriteButton){ $ToggleFavoriteButton.Content=if($row -and $row.Favorite){'Unfavorite'}else{'Favorite'} }
 })
 function Refresh-BackupList {
     try { $BackupListBox.ItemsSource = @((Invoke-BridgeGet '/api/backups' 2).backups) } catch {}
@@ -1481,6 +1918,8 @@ $window.Add_ContentRendered({
         try { Refresh-Voices } catch {}
         Refresh-BackupList
         $initial = Read-Settings
+        $getStarted = $window.FindName('GetStartedExpander')
+        if ($getStarted) { $getStarted.IsExpanded = -not [bool]$initial.setup_completed }
         if ($initial.setup_completed) { Set-Page 'voices' } else { Set-Page 'settings' }
         if ($initial.check_updates_on_startup) { Start-UpdateCheck $false }
     }) | Out-Null

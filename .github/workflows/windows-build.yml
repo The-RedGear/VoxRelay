@@ -23,7 +23,7 @@ jobs:
       - name: Include user documentation
         shell: powershell
         run: |
-          Copy-Item -LiteralPath 'QUICK START.txt','LICENSE','THIRD_PARTY_NOTICES.md','README.md','ROADMAP.md','CHANGELOG.md' -Destination dist/VoxRelay
+          Copy-Item -LiteralPath 'QUICK START.txt','LICENSE','THIRD_PARTY_NOTICES.md','README.md','ROADMAP.md','CHANGELOG.md','CODE_OF_CONDUCT.md','SECURITY.md','CONTRIBUTING.md' -Destination dist/VoxRelay
           Copy-Item -LiteralPath docs -Destination dist/VoxRelay/docs -Recurse
       - uses: actions/upload-artifact@v4
         with:

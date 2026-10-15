@@ -10,6 +10,14 @@ from .settings import Settings
 from .polly import PollyClient
 from .voicestudio import VoiceStudioClient
 from .windows_voices import WindowsVoiceClient
+from .elevenlabs import ElevenLabsClient
+from .azure_tts import AzureTtsClient
+from .google_tts import GoogleTtsClient
+from .watson import WatsonClient
+from .uberduck import UberDuckClient
+from .ttsmonster import TtsMonsterClient
+from .acapela import AcapelaClient
+from .cereproc import CereProcClient
 
 
 class SpeechProvider(Protocol):
@@ -67,13 +75,86 @@ class ProviderRegistry:
 
 
 registry = ProviderRegistry()
-registry.register(Provider("voicestudio", "VoiceStudio",
+registry.register(Provider(
+    "voicestudio", "VoiceStudio",
     lambda settings: VoiceStudioClient(settings.voice_studio_url, settings.api_key, settings.request_timeout),
-    lambda settings: True, ("speed", "style", "language")))
-registry.register(Provider("polly", "Amazon Polly",
-    lambda settings: PollyClient(settings.polly_region, settings.polly_profile,
-        settings.polly_access_key_encrypted, settings.polly_secret_key_encrypted, settings.polly_session_token_encrypted, settings.request_timeout),
-    lambda settings: settings.polly_enabled, ("speed", "language", "ssml")))
-registry.register(Provider("windows", "Windows voices",
+    lambda settings: True,
+    ("speed", "style", "language"),
+))
+registry.register(Provider(
+    "polly", "Amazon Polly",
+    lambda settings: PollyClient(
+        settings.polly_region, settings.polly_profile,
+        settings.polly_access_key_encrypted, settings.polly_secret_key_encrypted,
+        settings.polly_session_token_encrypted, settings.request_timeout,
+    ),
+    lambda settings: settings.polly_enabled,
+    ("speed", "language", "ssml"),
+))
+registry.register(Provider(
+    "windows", "Windows voices",
     lambda settings: WindowsVoiceClient(settings.request_timeout),
-    lambda settings: os.name == "nt" and settings.windows_voices_enabled, ("speed", "language", "ssml")))
+    lambda settings: os.name == "nt" and settings.windows_voices_enabled,
+    ("speed", "language", "ssml"),
+))
+registry.register(Provider(
+    "elevenlabs", "ElevenLabs",
+    lambda settings: ElevenLabsClient(settings.elevenlabs_api_key_encrypted, settings.request_timeout),
+    lambda settings: settings.elevenlabs_enabled,
+    ("speed", "language"),
+))
+registry.register(Provider(
+    "azure", "Azure Speech",
+    lambda settings: AzureTtsClient(
+        settings.azure_subscription_key_encrypted, settings.azure_region, settings.request_timeout,
+    ),
+    lambda settings: settings.azure_enabled,
+    ("speed", "language", "ssml"),
+))
+registry.register(Provider(
+    "google", "Google Cloud TTS",
+    lambda settings: GoogleTtsClient(
+        settings.google_api_key_encrypted, settings.google_service_account_path, settings.request_timeout,
+    ),
+    lambda settings: settings.google_enabled,
+    ("speed", "language"),
+))
+registry.register(Provider(
+    "watson", "IBM Watson",
+    lambda settings: WatsonClient(
+        settings.watson_api_key_encrypted, settings.watson_service_url, settings.request_timeout,
+    ),
+    lambda settings: settings.watson_enabled,
+    ("speed", "language"),
+))
+registry.register(Provider(
+    "uberduck", "UberDuck",
+    lambda settings: UberDuckClient(settings.uberduck_api_key_encrypted, settings.request_timeout),
+    lambda settings: settings.uberduck_enabled,
+    ("speed", "language"),
+))
+registry.register(Provider(
+    "ttsmonster", "TTS.Monster",
+    lambda settings: TtsMonsterClient(
+        settings.ttsmonster_api_token_encrypted, settings.ttsmonster_overlay_url, settings.request_timeout,
+    ),
+    lambda settings: settings.ttsmonster_enabled,
+    ("speed", "language"),
+))
+registry.register(Provider(
+    "acapela", "Acapela",
+    lambda settings: AcapelaClient(
+        settings.acapela_account, settings.acapela_password_encrypted,
+        settings.acapela_application_name, settings.request_timeout,
+    ),
+    lambda settings: settings.acapela_enabled,
+    ("speed", "language"),
+))
+registry.register(Provider(
+    "cereproc", "CereProc",
+    lambda settings: CereProcClient(
+        settings.cereproc_username, settings.cereproc_password_encrypted, settings.request_timeout,
+    ),
+    lambda settings: settings.cereproc_enabled,
+    ("speed", "language", "ssml"),
+))

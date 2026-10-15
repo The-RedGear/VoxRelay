@@ -36,6 +36,37 @@ class IntegrationTests(unittest.TestCase):
         self.assertEqual(engine.enqueue.call_args.args[1].name, "Priority")
         self.assertEqual(engine.enqueue.call_args.kwargs["priority"], 20)
 
+    def test_user_voice_rule_matches_login_or_display(self):
+        self.settings.aliases["ViewerVoice"] = VoiceAlias("ViewerVoice")
+        self.settings.user_voice_rules["coolviewer"] = "ViewerVoice"
+        engine = Mock()
+        engine.enqueue.return_value = SpeechJob("hi", self.settings.aliases["ViewerVoice"])
+        protocol = SpeakerBotProtocol(self.settings, engine)
+        protocol.execute("Speak", {"message": "hi", "user": "CoolViewer", "userName": "otherlogin", "voice": "EventVoice"})
+        self.assertEqual(engine.enqueue.call_args.args[1].name, "ViewerVoice")
+        protocol.execute("Speak", {"message": "hi", "user": "SomeoneElse", "userName": "CoolViewer", "voice": "EventVoice"})
+        self.assertEqual(engine.enqueue.call_args.args[1].name, "ViewerVoice")
+
+
+
+    def test_speak_sanitizes_streamerbot_user_object(self):
+        self.settings.aliases["ViewerVoice"] = VoiceAlias("ViewerVoice")
+        self.settings.user_voice_rules["patchoulii"] = "ViewerVoice"
+        self.settings.user_allowlist = ["patchoulii"]
+        engine = Mock()
+        engine.enqueue.return_value = SpeechJob("hi", self.settings.aliases["ViewerVoice"])
+        blob = (
+            '{"badges":[],"color":"#DE68DF","id":"233910033","login":"patchoulii",'
+            '"name":"Patchoulii","role":1,"subscribed":true,"type":"twitch"}'
+        )
+        result = SpeakerBotProtocol(self.settings, engine).execute(
+            "Speak", {"message": "hi from chat", "user": blob, "userName": "patchoulii", "voice": "EventVoice"}
+        )
+        self.assertEqual(engine.enqueue.call_args.args[0], "hi from chat")
+        self.assertEqual(result["text"], "hi from chat")
+        self.assertEqual(engine.enqueue.call_args.kwargs["user"], "patchoulii")
+        self.assertEqual(engine.enqueue.call_args.args[1].name, "ViewerVoice")
+
     def test_provider_failure_keeps_other_provider_voices(self):
         registry = ProviderRegistry()
         bad = Mock(side_effect=RuntimeError("offline"))
@@ -149,7 +180,7 @@ class IntegrationTests(unittest.TestCase):
         actions = envelope["data"]["actions"]
         self.assertEqual(len(actions), 10)
         self.assertTrue(all(not action["triggers"] for action in actions))
-        self.assertEqual(actions[0]["actions"][0]["payload"], "VSPEAK\r\nWindows voice\r\n%rawInput%")
+        self.assertEqual(actions[0]["actions"][0]["payload"], "VSPEAK\r\nWindows voice\r\n%message%\r\n%displayName%\r\n%userName%")
         self.assertTrue(all(action["actions"][0]["port"] == 6670 for action in actions))
         self.assertIn("VCONTROL\r\nclearall", [action["actions"][0]["payload"] for action in actions])
 

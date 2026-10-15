@@ -56,7 +56,12 @@ class UdpServerTests(unittest.TestCase):
                 time.sleep(0.01)
             server.stop()
             protocol.execute.assert_called_once_with(
-                "Speak", {"voice": "EventVoice", "message": 'hello "quoted" world'}
+                "Speak",
+                {
+                    "voice": "EventVoice",
+                    "message": 'hello "quoted" world',
+                    "source": "Streamer.bot",
+                },
             )
 
     def test_simple_queue_control_packets(self):
@@ -73,6 +78,33 @@ class UdpServerTests(unittest.TestCase):
             with self.subTest(payload=payload):
                 protocol = self._send(payload)
                 protocol.execute.assert_called_once_with(command, data)
+
+
+    def test_speak_packet_with_user_identity(self):
+        protocol = self._send(b"VSPEAK\nEventVoice\nhello world\nCoolViewer\ncoolviewer")
+        protocol.execute.assert_called_once_with(
+            "Speak",
+            {
+                "voice": "EventVoice",
+                "message": "hello world",
+                "source": "Streamer.bot",
+                "user": "CoolViewer",
+                "userName": "coolviewer",
+            },
+        )
+
+    def test_speak_packet_with_single_identity_line(self):
+        protocol = self._send(b"VSPEAK\nEventVoice\nhello world\ncoolviewer")
+        protocol.execute.assert_called_once_with(
+            "Speak",
+            {
+                "voice": "EventVoice",
+                "message": "hello world",
+                "source": "Streamer.bot",
+                "user": "coolviewer",
+                "userName": "coolviewer",
+            },
+        )
 
 
 if __name__ == "__main__":

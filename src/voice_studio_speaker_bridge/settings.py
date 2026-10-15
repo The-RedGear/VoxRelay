@@ -50,6 +50,29 @@ class Settings:
         self.polly_access_key_encrypted = ""
         self.polly_secret_key_encrypted = ""
         self.polly_session_token_encrypted = ""
+        self.elevenlabs_enabled = False
+        self.elevenlabs_api_key_encrypted = ""
+        self.azure_enabled = False
+        self.azure_subscription_key_encrypted = ""
+        self.azure_region = "eastus"
+        self.google_enabled = False
+        self.google_api_key_encrypted = ""
+        self.google_service_account_path = ""
+        self.watson_enabled = False
+        self.watson_api_key_encrypted = ""
+        self.watson_service_url = ""
+        self.uberduck_enabled = False
+        self.uberduck_api_key_encrypted = ""
+        self.ttsmonster_enabled = False
+        self.ttsmonster_api_token_encrypted = ""
+        self.ttsmonster_overlay_url = ""
+        self.acapela_enabled = False
+        self.acapela_account = ""
+        self.acapela_password_encrypted = ""
+        self.acapela_application_name = "VoxRelay"
+        self.cereproc_enabled = False
+        self.cereproc_username = ""
+        self.cereproc_password_encrypted = ""
         self.ws_address = "127.0.0.1"
         # Use a separate port so the bridge can coexist with Speaker.bot.
         self.ws_port = 7581
@@ -151,6 +174,29 @@ class Settings:
             self.polly_access_key_encrypted = str(data.get("polly_access_key_encrypted", self.polly_access_key_encrypted)).strip()
             self.polly_secret_key_encrypted = str(data.get("polly_secret_key_encrypted", self.polly_secret_key_encrypted)).strip()
             self.polly_session_token_encrypted = str(data.get("polly_session_token_encrypted", "")).strip()
+            self.elevenlabs_enabled = bool(data.get("elevenlabs_enabled", self.elevenlabs_enabled))
+            self.elevenlabs_api_key_encrypted = str(data.get("elevenlabs_api_key_encrypted", self.elevenlabs_api_key_encrypted)).strip()
+            self.azure_enabled = bool(data.get("azure_enabled", self.azure_enabled))
+            self.azure_subscription_key_encrypted = str(data.get("azure_subscription_key_encrypted", self.azure_subscription_key_encrypted)).strip()
+            self.azure_region = str(data.get("azure_region", self.azure_region)).strip() or "eastus"
+            self.google_enabled = bool(data.get("google_enabled", self.google_enabled))
+            self.google_api_key_encrypted = str(data.get("google_api_key_encrypted", self.google_api_key_encrypted)).strip()
+            self.google_service_account_path = str(data.get("google_service_account_path", self.google_service_account_path)).strip()
+            self.watson_enabled = bool(data.get("watson_enabled", self.watson_enabled))
+            self.watson_api_key_encrypted = str(data.get("watson_api_key_encrypted", self.watson_api_key_encrypted)).strip()
+            self.watson_service_url = str(data.get("watson_service_url", self.watson_service_url)).rstrip("/")
+            self.uberduck_enabled = bool(data.get("uberduck_enabled", self.uberduck_enabled))
+            self.uberduck_api_key_encrypted = str(data.get("uberduck_api_key_encrypted", self.uberduck_api_key_encrypted)).strip()
+            self.ttsmonster_enabled = bool(data.get("ttsmonster_enabled", self.ttsmonster_enabled))
+            self.ttsmonster_api_token_encrypted = str(data.get("ttsmonster_api_token_encrypted", self.ttsmonster_api_token_encrypted)).strip()
+            self.ttsmonster_overlay_url = str(data.get("ttsmonster_overlay_url", self.ttsmonster_overlay_url)).strip()
+            self.acapela_enabled = bool(data.get("acapela_enabled", self.acapela_enabled))
+            self.acapela_account = str(data.get("acapela_account", self.acapela_account)).strip()
+            self.acapela_password_encrypted = str(data.get("acapela_password_encrypted", self.acapela_password_encrypted)).strip()
+            self.acapela_application_name = str(data.get("acapela_application_name", self.acapela_application_name)).strip() or "VoxRelay"
+            self.cereproc_enabled = bool(data.get("cereproc_enabled", self.cereproc_enabled))
+            self.cereproc_username = str(data.get("cereproc_username", self.cereproc_username)).strip()
+            self.cereproc_password_encrypted = str(data.get("cereproc_password_encrypted", self.cereproc_password_encrypted)).strip()
             self.ws_address = str(data.get("ws_address", self.ws_address))
             ws_port = int(data.get("ws_port", self.ws_port))
             self.ws_port = ws_port if 1 <= ws_port <= 65535 else self.ws_port
@@ -191,9 +237,11 @@ class Settings:
             # PowerShell serializes an empty pipeline as JSON null. Treat null
             # collections as empty so one blank Rules field cannot invalidate
             # the rest of the settings file (especially saved voice aliases).
-            self.blocked_words = [str(value) for value in (data.get("blocked_words") or [])]
-            self.user_blocklist = [str(value) for value in (data.get("user_blocklist") or [])]
-            self.user_allowlist = [str(value) for value in (data.get("user_allowlist") or [])]
+            # Also unwrap {"value":[...],"Count":N} from a known empty-[string[]]
+            # ConvertTo-Json bug — otherwise keys become fake allowlist entries.
+            self.blocked_words = self._coerce_string_list(data.get("blocked_words"))
+            self.user_blocklist = self._coerce_string_list(data.get("user_blocklist"))
+            self.user_allowlist = self._coerce_string_list(data.get("user_allowlist"))
             self.replacements = {str(key): str(value) for key, value in (data.get("replacements") or {}).items()}
             self.pronunciations = {str(key): str(value) for key, value in (data.get("pronunciations") or {}).items()}
             self.hidden_pronunciations = [str(value) for value in (data.get("hidden_pronunciations") or [])]
@@ -224,6 +272,22 @@ class Settings:
             self.__dict__.clear()
             self.__dict__.update(previous_state)
             logging.exception("Could not load settings from %s", self.path)
+
+    @staticmethod
+    def _coerce_string_list(raw) -> list[str]:
+        """Normalize list fields from JSON / PowerShell ConvertTo-Json quirks."""
+        if raw is None:
+            return []
+        if isinstance(raw, dict):
+            # Empty [string[]] via Write-Output -NoEnumerate → {"value":[],"Count":0}
+            nested = raw.get("value")
+            if isinstance(nested, list):
+                raw = nested
+            else:
+                return []
+        if not isinstance(raw, list):
+            return []
+        return [str(value) for value in raw]
 
     def reload_if_changed(self) -> bool:
         """Reload settings written by the WPF front end without restarting."""
@@ -258,6 +322,29 @@ class Settings:
                 "polly_access_key_encrypted": self.polly_access_key_encrypted,
                 "polly_secret_key_encrypted": self.polly_secret_key_encrypted,
                 "polly_session_token_encrypted": self.polly_session_token_encrypted,
+                "elevenlabs_enabled": self.elevenlabs_enabled,
+                "elevenlabs_api_key_encrypted": self.elevenlabs_api_key_encrypted,
+                "azure_enabled": self.azure_enabled,
+                "azure_subscription_key_encrypted": self.azure_subscription_key_encrypted,
+                "azure_region": self.azure_region,
+                "google_enabled": self.google_enabled,
+                "google_api_key_encrypted": self.google_api_key_encrypted,
+                "google_service_account_path": self.google_service_account_path,
+                "watson_enabled": self.watson_enabled,
+                "watson_api_key_encrypted": self.watson_api_key_encrypted,
+                "watson_service_url": self.watson_service_url,
+                "uberduck_enabled": self.uberduck_enabled,
+                "uberduck_api_key_encrypted": self.uberduck_api_key_encrypted,
+                "ttsmonster_enabled": self.ttsmonster_enabled,
+                "ttsmonster_api_token_encrypted": self.ttsmonster_api_token_encrypted,
+                "ttsmonster_overlay_url": self.ttsmonster_overlay_url,
+                "acapela_enabled": self.acapela_enabled,
+                "acapela_account": self.acapela_account,
+                "acapela_password_encrypted": self.acapela_password_encrypted,
+                "acapela_application_name": self.acapela_application_name,
+                "cereproc_enabled": self.cereproc_enabled,
+                "cereproc_username": self.cereproc_username,
+                "cereproc_password_encrypted": self.cereproc_password_encrypted,
                 "ws_address": self.ws_address,
                 "ws_port": self.ws_port,
                 "http_address": self.http_address,

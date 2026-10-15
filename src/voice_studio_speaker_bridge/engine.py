@@ -245,6 +245,30 @@ class SpeechEngine:
                     setattr(node, attribute, leading + prepared + trailing)
         return ElementTree.tostring(root, encoding="unicode")
 
+
+    @staticmethod
+    def _normalize_viewer(user: str) -> str:
+        text = str(user or "").strip()
+        if not text:
+            return ""
+        if text.startswith("%") and text.endswith("%"):
+            return ""
+        if text.startswith("{") and ('"login"' in text or '"badges"' in text):
+            try:
+                import json
+                parsed = json.loads(text)
+            except Exception:
+                return ""
+            if isinstance(parsed, dict):
+                return str(
+                    parsed.get("login")
+                    or parsed.get("name")
+                    or parsed.get("displayName")
+                    or ""
+                ).strip()
+            return ""
+        return text
+
     def _prepare_text(self, text: str, user: str) -> str:
         text = text.strip()
         if self.settings.ignore_command_messages:
@@ -264,6 +288,7 @@ class SpeechEngine:
         if self.settings.strip_emojis:
             text = "".join(char for char in text if not self._is_emoji(char) and ord(char) not in {0x200D, 0xFE0F})
         text = re.sub(r"\s+", " ", text).strip()
+        user = self._normalize_viewer(user)
         user_key = user.casefold().strip()
         blocked_users = {value.casefold() for value in self.settings.user_blocklist}
         allowed_users = {value.casefold() for value in self.settings.user_allowlist}

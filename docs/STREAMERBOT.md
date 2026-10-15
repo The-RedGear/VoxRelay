@@ -14,8 +14,20 @@ Live import behavior across Streamer.bot versions still needs verification.
 ```text
 VSPEAK
 Windows voice
-%rawInput%
+%message%
+%displayName%
+%userName%
 ```
+
+Line 1 is the command, line 2 is the voice alias, line 3 is the spoken text.
+Optional line 4 is the viewer display name (`%displayName%` or `%user%` when it is a
+plain name), line 5 is the Twitch login (`%userName%`), and line 6 can be a role.
+Do not put Streamer.bot's `%user%` object JSON on the identity lines — in current
+Streamer.bot builds `%user%` often expands to a whole `{"badges":...,"login":...}`
+blob. Use `%displayName%` + `%userName%` instead. Automatic voice rules match either
+identity case-insensitively. A single optional identity line is also accepted and
+matched as both display and login. If a JSON user object still arrives, VoxRelay
+extracts `name` / `login` automatically.
 
 ```text
 VCONTROL
