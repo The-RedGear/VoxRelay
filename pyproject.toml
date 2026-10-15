@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "voxrelay"
+version = "0.3.0"
+description = "Multi-provider TTS automation for streamers"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+  "boto3>=1.35",
+  "miniaudio>=1.61",
+  "websockets>=14.2",
+]
+
+[project.scripts]
+voxrelay = "voice_studio_speaker_bridge.app:main"
+voice-studio-speaker-bridge = "voice_studio_speaker_bridge.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

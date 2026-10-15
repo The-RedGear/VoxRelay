@@ -1,0 +1,37 @@
+# User data and generated audio
+data/
+*.wav
+*.mp3
+*.log
+settings.json
+history.json
+
+# Credentials and local environment
+.env
+.env.*
+!.env.example
+.aws/
+credentials
+
+# Python and build output
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Packaged releases and editor files
+*.zip
+*.7z
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+Thumbs.db
+Desktop.ini

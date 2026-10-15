@@ -1,0 +1,1346 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="VoxRelay" Width="1180" Height="760" MinWidth="980" MinHeight="640" WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="CanResizeWithGrip" AllowsTransparency="True" Background="Transparent" Foreground="#F6F3FA">
+ <Window.Resources>
+  <SolidColorBrush x:Key="Panel" Color="#1E1A27" />
+  <SolidColorBrush x:Key="Panel2" Color="#1E1A27" />
+  <SolidColorBrush x:Key="Border" Color="#50485C" />
+  <SolidColorBrush x:Key="Muted" Color="#B9B2C2" />
+  <SolidColorBrush x:Key="Accent" Color="#B6A3FF" />
+  <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#B6A3FF" />
+  <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#15131D" />
+  <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#B6A3FF" />
+  <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="#15131D" />
+  <Style x:Key="IconPath" TargetType="Path">
+   <Setter Property="Stroke" Value="#F6F3FA" />
+   <Setter Property="StrokeThickness" Value="1.7" />
+   <Setter Property="StrokeStartLineCap" Value="Round" />
+   <Setter Property="StrokeEndLineCap" Value="Round" />
+   <Setter Property="StrokeLineJoin" Value="Round" />
+   <Setter Property="Fill" Value="Transparent" />
+  </Style>
+  <Style TargetType="Button">
+   <Setter Property="Foreground" Value="#F6F3FA" />
+   <Setter Property="Background" Value="#1E1A27" />
+   <Setter Property="BorderBrush" Value="#50485C" />
+   <Setter Property="BorderThickness" Value="1" />
+   <Setter Property="Padding" Value="15,9" />
+   <Setter Property="Margin" Value="0,0,9,0" />
+   <Setter Property="FontWeight" Value="SemiBold" />
+   <Setter Property="Cursor" Value="Hand" />
+   <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="Button">
+      <Border x:Name="Shell" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+       <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsMouseOver" Value="True">
+        <Setter TargetName="Shell" Property="Background" Value="#33282231" />
+        <Setter TargetName="Shell" Property="BorderBrush" Value="#B6A3FF" />
+       </Trigger>
+       <Trigger Property="IsPressed" Value="True">
+        <Setter TargetName="Shell" Property="Opacity" Value="0.78" />
+       </Trigger>
+       <Trigger Property="IsEnabled" Value="False">
+        <Setter TargetName="Shell" Property="Opacity" Value="0.4" />
+       </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
+  <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+   <Setter Property="Foreground" Value="#15131D" />
+   <Setter Property="BorderBrush" Value="#B6A3FF" />
+   <Setter Property="Background">
+    <Setter.Value>
+     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+      <GradientStop Color="#C9BCFF" />
+      <GradientStop Color="#B6A3FF" Offset="1" />
+     </LinearGradientBrush>
+    </Setter.Value>
+   </Setter>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="Button">
+      <Border x:Name="Shell" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+       <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsMouseOver" Value="True">
+        <Setter TargetName="Shell" Property="Background" Value="#F6F3FA" />
+        <Setter TargetName="Shell" Property="BorderBrush" Value="#F6F3FA" />
+       </Trigger>
+       <Trigger Property="IsPressed" Value="True">
+        <Setter TargetName="Shell" Property="Background" Value="#B6A3FF" />
+        <Setter TargetName="Shell" Property="Opacity" Value="0.82" />
+       </Trigger>
+       <Trigger Property="IsEnabled" Value="False">
+        <Setter TargetName="Shell" Property="Opacity" Value="0.4" />
+       </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
+  <Style x:Key="TitleButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+   <Setter Property="Width" Value="42" />
+   <Setter Property="Height" Value="34" />
+   <Setter Property="Padding" Value="0" />
+   <Setter Property="Margin" Value="0" />
+   <Setter Property="Background" Value="Transparent" />
+   <Setter Property="BorderThickness" Value="0" />
+   <Setter Property="Foreground" Value="#F6F3FA" />
+  </Style>
+  <Style x:Key="NavButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+   <Setter Property="HorizontalContentAlignment" Value="Left" />
+   <Setter Property="Background" Value="Transparent" />
+   <Setter Property="BorderThickness" Value="0" />
+   <Setter Property="Padding" Value="16,12" />
+   <Setter Property="Margin" Value="10,3" />
+   <Setter Property="Foreground" Value="#F6F3FA" />
+  </Style>
+  <Style x:Key="SelectedNavButton" TargetType="Button" BasedOn="{StaticResource NavButton}">
+   <Setter Property="Background" Value="#331E1A27" />
+   <Setter Property="Foreground" Value="#B6A3FF" />
+  </Style>
+  <Style x:Key="NavSectionButton" TargetType="Button" BasedOn="{StaticResource NavButton}">
+   <Setter Property="Padding" Value="16,10" />
+   <Setter Property="Margin" Value="10,8,10,2" />
+   <Setter Property="FontWeight" Value="SemiBold" />
+   <Setter Property="Foreground" Value="#B9B2C2" />
+  </Style>
+  <Style x:Key="SubNavButton" TargetType="Button" BasedOn="{StaticResource NavButton}">
+   <Setter Property="Padding" Value="14,10" />
+   <Setter Property="Margin" Value="28,2,10,2" />
+   <Setter Property="FontSize" Value="13" />
+  </Style>
+  <Style x:Key="SelectedSubNavButton" TargetType="Button" BasedOn="{StaticResource SubNavButton}">
+   <Setter Property="Background" Value="#331E1A27" />
+   <Setter Property="Foreground" Value="#B6A3FF" />
+  </Style>
+  <Style TargetType="TextBox">
+   <Setter Property="Foreground" Value="#F6F3FA" />
+   <Setter Property="Background" Value="#1E1A27" />
+   <Setter Property="BorderBrush" Value="#50485C" />
+   <Setter Property="BorderThickness" Value="1" />
+   <Setter Property="Padding" Value="11,9" />
+   <Setter Property="MinWidth" Value="120" />
+   <Setter Property="MinHeight" Value="40" />
+   <Setter Property="CaretBrush" Value="#B6A3FF" />
+   <Setter Property="SelectionBrush" Value="#B6A3FF" />
+   <Setter Property="SelectionTextBrush" Value="#15131D" />
+   <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="TextBox">
+      <Border x:Name="Field" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7" Padding="{TemplateBinding Padding}">
+       <ScrollViewer x:Name="PART_ContentHost" />
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsKeyboardFocused" Value="True">
+        <Setter TargetName="Field" Property="BorderBrush" Value="#B6A3FF" />
+       </Trigger>
+       <Trigger Property="IsReadOnly" Value="True">
+        <Setter TargetName="Field" Property="Opacity" Value="0.78" />
+       </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
+  <Style TargetType="PasswordBox">
+   <Setter Property="Foreground" Value="#F6F3FA" />
+   <Setter Property="Background" Value="#1E1A27" />
+   <Setter Property="BorderBrush" Value="#50485C" />
+   <Setter Property="BorderThickness" Value="1" />
+   <Setter Property="Padding" Value="11,9" />
+   <Setter Property="MinWidth" Value="120" />
+   <Setter Property="MinHeight" Value="40" />
+   <Setter Property="CaretBrush" Value="#B6A3FF" />
+   <Setter Property="SelectionBrush" Value="#B6A3FF" />
+   <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="PasswordBox">
+      <Border x:Name="Field" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7" Padding="{TemplateBinding Padding}">
+       <ScrollViewer x:Name="PART_ContentHost" />
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Field" Property="BorderBrush" Value="#B6A3FF" /></Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
+  <Style x:Key="SliderTrackFilled" TargetType="RepeatButton">
+   <Setter Property="Focusable" Value="False" />
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RepeatButton"><Border Background="#B6A3FF" CornerRadius="3" Height="5" VerticalAlignment="Center" /></ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="SliderTrackEmpty" TargetType="RepeatButton">
+   <Setter Property="Focusable" Value="False" />
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RepeatButton"><Border Background="#50485C" CornerRadius="3" Height="5" VerticalAlignment="Center" /></ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="VoiceSlider" TargetType="Slider">
+   <Setter Property="Height" Value="28" />
+   <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Slider">
+    <Grid Margin="2,0">
+     <Track x:Name="PART_Track">
+      <Track.DecreaseRepeatButton><RepeatButton Command="Slider.DecreaseLarge" Style="{StaticResource SliderTrackFilled}" /></Track.DecreaseRepeatButton>
+      <Track.Thumb><Thumb Width="18" Height="18"><Thumb.Template><ControlTemplate TargetType="Thumb"><Border x:Name="Knob" Background="#F6F3FA" BorderBrush="#B6A3FF" BorderThickness="3" CornerRadius="9" /><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Knob" Property="Background" Value="#B6A3FF" /></Trigger><Trigger Property="IsDragging" Value="True"><Setter TargetName="Knob" Property="Background" Value="#B6A3FF" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Thumb.Template></Thumb></Track.Thumb>
+      <Track.IncreaseRepeatButton><RepeatButton Command="Slider.IncreaseLarge" Style="{StaticResource SliderTrackEmpty}" /></Track.IncreaseRepeatButton>
+     </Track>
+    </Grid>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style TargetType="CheckBox">
+   <Setter Property="Foreground" Value="#F6F3FA" />
+   <Setter Property="Margin" Value="0,5" />
+   <Setter Property="Cursor" Value="Hand" />
+   <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="CheckBox">
+      <Grid>
+       <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="18" />
+        <ColumnDefinition />
+       </Grid.ColumnDefinitions>
+       <Border x:Name="Box" Width="16" Height="16" Background="#1E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="4">
+        <Path x:Name="Check" Data="M3,8 L7,12 L14,4" Stroke="#15131D" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Visibility="Collapsed" />
+       </Border>
+       <ContentPresenter Grid.Column="1" Margin="9,0,0,0" VerticalAlignment="Center" />
+      </Grid>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsMouseOver" Value="True">
+        <Setter TargetName="Box" Property="BorderBrush" Value="#B6A3FF" />
+       </Trigger>
+       <Trigger Property="IsChecked" Value="True">
+        <Setter TargetName="Box" Property="Background" Value="#B6A3FF" />
+        <Setter TargetName="Box" Property="BorderBrush" Value="#B6A3FF" />
+        <Setter TargetName="Check" Property="Visibility" Value="Visible" />
+       </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
+  <Style TargetType="ComboBoxItem">
+   <Setter Property="Foreground" Value="#F6F3FA" />
+   <Setter Property="Background" Value="Transparent" />
+   <Setter Property="Padding" Value="12,9" />
+   <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+   <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="ComboBoxItem">
+      <Border x:Name="Item" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+       <ContentPresenter />
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsMouseOver" Value="True">
+        <Setter TargetName="Item" Property="Background" Value="#33282231" />
+       </Trigger>
+       <Trigger Property="IsSelected" Value="True">
+        <Setter TargetName="Item" Property="Background" Value="#B6A3FF" />
+        <Setter Property="Foreground" Value="#15131D" />
+       </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
+  <Style TargetType="ComboBox">
+   <Setter Property="Foreground" Value="#F6F3FA" />
+   <Setter Property="Background" Value="#1E1A27" />
+   <Setter Property="BorderBrush" Value="#50485C" />
+   <Setter Property="Height" Value="42" />
+   <Setter Property="MinWidth" Value="190" />
+   <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="ComboBox">
+      <Grid>
+       <ToggleButton x:Name="DropDownToggle" Focusable="False" ClickMode="Press" IsChecked="{Binding IsDropDownOpen,RelativeSource={RelativeSource TemplatedParent},Mode=TwoWay}">
+        <ToggleButton.Template>
+         <ControlTemplate TargetType="ToggleButton">
+          <Border x:Name="Shell" Background="{Binding Background,RelativeSource={RelativeSource AncestorType=ComboBox}}" BorderBrush="{Binding BorderBrush,RelativeSource={RelativeSource AncestorType=ComboBox}}" BorderThickness="1" CornerRadius="8">
+           <Grid>
+            <ContentPresenter Content="{Binding SelectionBoxItem,RelativeSource={RelativeSource AncestorType=ComboBox}}" TextElement.Foreground="#F6F3FA" Margin="12,0,38,0" VerticalAlignment="Center" />
+            <Path Data="M3,6 L8,11 L13,6" Stroke="#B6A3FF" StrokeThickness="1.7" StrokeStartLineCap="Round" StrokeEndLineCap="Round" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,13,0" />
+           </Grid>
+          </Border>
+          <ControlTemplate.Triggers>
+           <Trigger Property="IsMouseOver" Value="True">
+            <Setter TargetName="Shell" Property="BorderBrush" Value="#B6A3FF" />
+           </Trigger>
+           <Trigger Property="IsChecked" Value="True">
+            <Setter TargetName="Shell" Property="BorderBrush" Value="#B6A3FF" />
+           </Trigger>
+          </ControlTemplate.Triggers>
+         </ControlTemplate>
+        </ToggleButton.Template>
+       </ToggleButton>
+       <Popup Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False">
+        <Border Background="#1E1A27" BorderBrush="#B6A3FF" BorderThickness="1" CornerRadius="8" Margin="0,4,0,0" MinWidth="{Binding ActualWidth,RelativeSource={RelativeSource TemplatedParent}}" MaxHeight="240">
+         <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <ItemsPresenter />
+         </ScrollViewer>
+        </Border>
+       </Popup>
+      </Grid>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
+  <Style TargetType="ScrollBar">
+   <Setter Property="Width" Value="10" />
+   <Setter Property="Background" Value="#15131D" />
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="ScrollBar">
+      <Grid Background="{TemplateBinding Background}">
+       <Track x:Name="PART_Track" IsDirectionReversed="True">
+        <Track.DecreaseRepeatButton>
+         <RepeatButton Command="{x:Static ScrollBar.PageUpCommand}" Opacity="0" />
+        </Track.DecreaseRepeatButton>
+        <Track.Thumb>
+         <Thumb>
+          <Thumb.Template>
+           <ControlTemplate TargetType="Thumb">
+            <Border Background="#50485C" CornerRadius="5" Margin="2" />
+           </ControlTemplate>
+          </Thumb.Template>
+         </Thumb>
+        </Track.Thumb>
+        <Track.IncreaseRepeatButton>
+         <RepeatButton Command="{x:Static ScrollBar.PageDownCommand}" Opacity="0" />
+        </Track.IncreaseRepeatButton>
+       </Track>
+      </Grid>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
+  <Style TargetType="DataGrid">
+   <Setter Property="Background" Value="#15131D" />
+   <Setter Property="Foreground" Value="#F6F3FA" />
+   <Setter Property="BorderBrush" Value="#50485C" />
+   <Setter Property="RowBackground" Value="#15131D" />
+   <Setter Property="AlternatingRowBackground" Value="#1E1A27" />
+   <Setter Property="GridLinesVisibility" Value="Horizontal" />
+   <Setter Property="HorizontalGridLinesBrush" Value="#50485C" />
+   <Setter Property="HeadersVisibility" Value="Column" />
+   <Setter Property="RowHeight" Value="52" />
+   <Setter Property="ColumnHeaderHeight" Value="42" />
+   <Setter Property="SelectionUnit" Value="FullRow" />
+  </Style>
+  <Style TargetType="DataGridColumnHeader">
+   <Setter Property="Background" Value="#1E1A27" />
+   <Setter Property="Foreground" Value="#B9B2C2" />
+   <Setter Property="BorderBrush" Value="#50485C" />
+   <Setter Property="BorderThickness" Value="0,0,0,1" />
+   <Setter Property="Padding" Value="16,0" />
+   <Setter Property="FontSize" Value="11" />
+   <Setter Property="FontWeight" Value="SemiBold" />
+   <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style TargetType="DataGridCell">
+   <Setter Property="Padding" Value="0" />
+   <Setter Property="VerticalContentAlignment" Value="Center" />
+   <Setter Property="BorderThickness" Value="0" />
+   <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+  </Style>
+  <Style TargetType="DataGridRow">
+   <Setter Property="VerticalContentAlignment" Value="Center" />
+   <Setter Property="Foreground" Value="#F6F3FA" />
+   <Setter Property="BorderBrush" Value="#50485C" />
+   <Setter Property="BorderThickness" Value="0,0,0,1" />
+   <Style.Triggers>
+    <Trigger Property="IsMouseOver" Value="True">
+     <Setter Property="Background" Value="#33282231" />
+    </Trigger>
+    <Trigger Property="IsSelected" Value="True">
+     <Setter Property="Background" Value="#55B6A3FF" />
+     <Setter Property="Foreground" Value="#F6F3FA" />
+     <Setter Property="BorderBrush" Value="#B6A3FF" />
+    </Trigger>
+   </Style.Triggers>
+  </Style>
+  <Style x:Key="GridText" TargetType="TextBlock">
+   <Setter Property="VerticalAlignment" Value="Center" />
+   <Setter Property="Margin" Value="16,0" />
+  </Style>
+  <Style TargetType="ListBoxItem">
+   <Setter Property="Foreground" Value="#F6F3FA" />
+   <Setter Property="Background" Value="Transparent" />
+   <Setter Property="Padding" Value="10,8" />
+   <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+   <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="ListBoxItem">
+      <Border x:Name="ItemShell" Background="{TemplateBinding Background}" BorderBrush="Transparent" BorderThickness="1" CornerRadius="6" Padding="{TemplateBinding Padding}">
+       <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" />
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsMouseOver" Value="True">
+        <Setter TargetName="ItemShell" Property="Background" Value="#33282231" />
+       </Trigger>
+       <Trigger Property="IsSelected" Value="True">
+        <Setter TargetName="ItemShell" Property="Background" Value="#B6A3FF" />
+        <Setter TargetName="ItemShell" Property="BorderBrush" Value="#B6A3FF" />
+        <Setter Property="Foreground" Value="#15131D" />
+       </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
+ </Window.Resources>
+ <Border CornerRadius="14" BorderBrush="#50485C" BorderThickness="1" SnapsToDevicePixels="True">
+  <Border.Effect>
+   <DropShadowEffect Color="#000000" BlurRadius="30" ShadowDepth="8" Opacity="0.52" />
+  </Border.Effect>
+  <Grid ClipToBounds="True">
+   <Grid.Background>
+    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+     <GradientStop Color="#15131D" />
+     <GradientStop Color="#1E1A27" Offset="0.52" />
+     <GradientStop Color="#15131D" Offset="1" />
+    </LinearGradientBrush>
+   </Grid.Background>
+   <Ellipse Width="760" Height="620" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-380,-270,0" IsHitTestVisible="False">
+    <Ellipse.Fill>
+     <RadialGradientBrush>
+      <GradientStop Color="#42E78DAF" />
+      <GradientStop Color="#12A05E84" Offset="0.48" />
+      <GradientStop Color="#00A05E84" Offset="1" />
+     </RadialGradientBrush>
+    </Ellipse.Fill>
+   </Ellipse>
+   <Ellipse Width="640" Height="540" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-360,0,0,-300" IsHitTestVisible="False">
+    <Ellipse.Fill>
+     <RadialGradientBrush>
+      <GradientStop Color="#2E824E76" />
+      <GradientStop Color="#006D3D68" Offset="1" />
+     </RadialGradientBrush>
+    </Ellipse.Fill>
+   </Ellipse>
+   <Grid>
+    <Grid.RowDefinitions>
+     <RowDefinition Height="42" />
+     <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+    <Border Name="AppTitleBar" Background="#E615131D" BorderBrush="#50485C" BorderThickness="0,0,0,1" CornerRadius="14,14,0,0">
+     <Grid Margin="14,0,5,0">
+      <Grid.ColumnDefinitions>
+       <ColumnDefinition />
+       <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+       <Viewbox Width="19" Height="19" Margin="0,0,9,0">
+        <Canvas Width="24" Height="24">
+         <Path Stroke="#B6A3FF" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M1,13 C3,13 3,6 5,6 C7,6 7,18 9,18 C11,18 11,3 13,3 C15,3 15,20 17,20 C19,20 19,8 21,8 C22,8 22,12 23,12" />
+        </Canvas>
+       </Viewbox>
+       <TextBlock Text="VoxRelay" FontWeight="SemiBold" FontSize="13" />
+       <TextBlock Text="  /  Voice Automation" Foreground="#B9B2C2" FontSize="12" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal">
+       <Button Name="MinimizeButton" Style="{StaticResource TitleButton}" Content="-" />
+       <Button Name="MaximizeButton" Style="{StaticResource TitleButton}" Content="[]" />
+       <Button Name="CloseButton" Style="{StaticResource TitleButton}" Content="X" />
+      </StackPanel>
+     </Grid>
+    </Border>
+    <Grid Grid.Row="1">
+     <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="232" />
+      <ColumnDefinition />
+     </Grid.ColumnDefinitions>
+     <Border Background="#E615131D" BorderBrush="#50485C" BorderThickness="0,0,1,0">
+      <Grid>
+       <Grid.RowDefinitions>
+        <RowDefinition Height="104" />
+        <RowDefinition />
+        <RowDefinition Height="Auto" />
+       </Grid.RowDefinitions>
+       <Grid Margin="20,20,16,18">
+        <Grid.ColumnDefinitions>
+         <ColumnDefinition Width="48" />
+         <ColumnDefinition />
+        </Grid.ColumnDefinitions>
+        <Border Width="42" Height="42" CornerRadius="12">
+         <Border.Background>
+          <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+           <GradientStop Color="#50485C" />
+           <GradientStop Color="#1E1A27" Offset="1" />
+          </LinearGradientBrush>
+         </Border.Background>
+         <Viewbox Margin="8">
+          <Canvas Width="24" Height="24">
+           <Path Stroke="#B6A3FF" StrokeThickness="2.1" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M1,13 C3,13 3,6 5,6 C7,6 7,18 9,18 C11,18 11,3 13,3 C15,3 15,20 17,20 C19,20 19,8 21,8 C22,8 22,12 23,12" />
+          </Canvas>
+         </Viewbox>
+        </Border>
+        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+         <TextBlock Text="VoxRelay" FontSize="18" FontWeight="SemiBold" />
+         <TextBlock Text="V O I C E   A U T O M A T I O N" Foreground="#B6A3FF" FontSize="7" FontWeight="Bold" />
+        </StackPanel>
+       </Grid>
+       <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="0,8,0,8">
+         <Button Name="VoicesNav" Style="{StaticResource SelectedNavButton}">
+          <StackPanel Orientation="Horizontal">
+           <Viewbox Width="18" Height="18" Margin="0,0,12,0">
+            <Canvas Width="24" Height="24">
+             <Path Style="{StaticResource IconPath}" Data="M2,12 C4,12 4,6 6,6 C8,6 8,18 10,18 C12,18 12,3 14,3 C16,3 16,16 18,16 C20,16 20,9 22,9" />
+            </Canvas>
+           </Viewbox>
+           <TextBlock Text="Voices" VerticalAlignment="Center" />
+          </StackPanel>
+         </Button>
+         <Button Name="PlaygroundNav" Style="{StaticResource NavButton}">
+          <StackPanel Orientation="Horizontal">
+           <Viewbox Width="18" Height="18" Margin="0,0,12,0">
+            <Canvas Width="24" Height="24">
+             <Path Style="{StaticResource IconPath}" Data="M7,4 L19,12 L7,20 Z" />
+            </Canvas>
+           </Viewbox>
+           <TextBlock Text="Playground" VerticalAlignment="Center" />
+          </StackPanel>
+         </Button>
+         <Button Name="QueueNav" Style="{StaticResource NavButton}">
+          <StackPanel Orientation="Horizontal">
+           <Viewbox Width="18" Height="18" Margin="0,0,12,0">
+            <Canvas Width="24" Height="24">
+             <Path Style="{StaticResource IconPath}" Data="M5,6 L19,6 M5,12 L19,12 M5,18 L19,18" />
+            </Canvas>
+           </Viewbox>
+           <TextBlock Text="Queue" VerticalAlignment="Center" />
+          </StackPanel>
+         </Button>
+         <Button Name="HistoryNav" Style="{StaticResource NavButton}">
+          <StackPanel Orientation="Horizontal">
+           <Viewbox Width="18" Height="18" Margin="0,0,12,0">
+            <Canvas Width="24" Height="24">
+             <Path Style="{StaticResource IconPath}" Data="M4,7 L4,3 L8,3 M4,3 C1,8 3,17 10,20 C17,23 23,17 21,10 C19,3 11,1 6,5 M12,7 L12,13 L16,15" />
+            </Canvas>
+           </Viewbox>
+           <TextBlock Text="History" VerticalAlignment="Center" />
+          </StackPanel>
+         </Button>
+         <Button Name="RulesNav" Style="{StaticResource NavButton}">
+          <StackPanel Orientation="Horizontal">
+           <Viewbox Width="18" Height="18" Margin="0,0,12,0">
+            <Canvas Width="24" Height="24">
+             <Path Style="{StaticResource IconPath}" Data="M4,5 L20,5 M4,12 L20,12 M4,19 L20,19 M8,2 L8,8 M16,9 L16,15 M11,16 L11,22" />
+            </Canvas>
+           </Viewbox>
+           <TextBlock Text="Rules" VerticalAlignment="Center" />
+          </StackPanel>
+         </Button>
+         <Button Name="PronunciationNav" Style="{StaticResource NavButton}">
+          <StackPanel Orientation="Horizontal">
+           <Viewbox Width="18" Height="18" Margin="0,0,12,0">
+            <Canvas Width="24" Height="24">
+             <Path Style="{StaticResource IconPath}" Data="M4,10 L4,14 L8,14 L13,19 L13,5 L8,10 Z M17,9 C19,11 19,13 17,15 M19,6 C23,10 23,14 19,18" />
+            </Canvas>
+           </Viewbox>
+           <TextBlock Text="Pronunciation" VerticalAlignment="Center" />
+          </StackPanel>
+         </Button>
+
+         <Button Name="ServicesToggle" Style="{StaticResource NavSectionButton}">
+          <Grid>
+           <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+           </Grid.ColumnDefinitions>
+           <Viewbox Width="18" Height="18" Margin="0,0,12,0" VerticalAlignment="Center">
+            <Canvas Width="24" Height="24">
+             <Path Style="{StaticResource IconPath}" Data="M4,7 L12,7 L12,4 L20,4 L20,10 L12,10 L12,7 M4,17 L20,17 M4,12 L20,12" />
+            </Canvas>
+           </Viewbox>
+           <TextBlock Grid.Column="1" Text="Services" VerticalAlignment="Center" />
+           <Viewbox Name="ServicesChevronHost" Grid.Column="2" Width="12" Height="12" Margin="8,0,0,0" VerticalAlignment="Center">
+            <Canvas Width="16" Height="16">
+             <Path Name="ServicesChevronPath" Style="{StaticResource IconPath}" Data="M3,5 L8,11 L13,5" />
+            </Canvas>
+           </Viewbox>
+          </Grid>
+         </Button>
+         <StackPanel Name="ServicesNavPanel" Margin="0,0,0,4">
+          <Button Name="StreamerBotNav" Style="{StaticResource SubNavButton}">
+           <TextBlock Text="Streamer.bot" VerticalAlignment="Center" />
+          </Button>
+          <Button Name="VoiceStudioNav" Style="{StaticResource SubNavButton}">
+           <TextBlock Text="VoiceStudio" VerticalAlignment="Center" />
+          </Button>
+          <Button Name="PollyNav" Style="{StaticResource SubNavButton}">
+           <TextBlock Text="Amazon Polly" VerticalAlignment="Center" />
+          </Button>
+         </StackPanel>
+
+         <Button Name="ActivityNav" Style="{StaticResource NavButton}">
+          <StackPanel Orientation="Horizontal">
+           <Viewbox Width="18" Height="18" Margin="0,0,12,0">
+            <Canvas Width="24" Height="24">
+             <Path Style="{StaticResource IconPath}" Data="M3,12 L7,12 L10,5 L14,19 L17,12 L21,12" />
+            </Canvas>
+           </Viewbox>
+           <TextBlock Text="Activity" VerticalAlignment="Center" />
+          </StackPanel>
+         </Button>
+         <Button Name="SettingsNav" Style="{StaticResource NavButton}">
+          <StackPanel Orientation="Horizontal">
+           <Viewbox Width="18" Height="18" Margin="0,0,12,0">
+            <Canvas Width="24" Height="24">
+             <Path Style="{StaticResource IconPath}" Data="M12,8 C9.8,8 8,9.8 8,12 C8,14.2 9.8,16 12,16 C14.2,16 16,14.2 16,12 C16,9.8 14.2,8 12,8 Z M4,12 L2,12 M22,12 L20,12 M12,4 L12,2 M12,22 L12,20 M6.3,6.3 L4.9,4.9 M19.1,19.1 L17.7,17.7 M17.7,6.3 L19.1,4.9 M6.3,17.7 L4.9,19.1" />
+            </Canvas>
+           </Viewbox>
+           <TextBlock Text="Settings" VerticalAlignment="Center" />
+          </StackPanel>
+         </Button>
+        </StackPanel>
+       </ScrollViewer>
+       <Button Name="BridgeStatusButton" Grid.Row="2" Margin="13" Padding="0" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch">
+        <Border Padding="14" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12">
+         <Border.Background>
+          <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+           <GradientStop Color="#1E1A27" />
+           <GradientStop Color="#15131D" Offset="1" />
+          </LinearGradientBrush>
+         </Border.Background>
+         <Grid>
+          <Grid.ColumnDefinitions>
+           <ColumnDefinition Width="Auto" />
+           <ColumnDefinition />
+           <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <Grid Width="34" Height="34">
+           <Ellipse Fill="#173FD49B" />
+           <Ellipse Width="8" Height="8" Fill="#4DDEA5" />
+          </Grid>
+          <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+           <TextBlock Text="STATUS" Foreground="#B9B2C2" FontSize="9" FontWeight="Bold" />
+           <TextBlock Name="SideStatus" Text="Starting..." Foreground="#B9B2C2" Margin="0,3,0,0" FontWeight="SemiBold" />
+          </StackPanel>
+          <Viewbox Grid.Column="2" Width="12" Height="12" Margin="8,0,0,0">
+           <Canvas Width="16" Height="16">
+            <Path Style="{StaticResource IconPath}" Data="M5,2 L11,8 L5,14" />
+           </Canvas>
+          </Viewbox>
+         </Grid>
+        </Border>
+       </Button>
+      </Grid>
+     </Border>
+     <Grid Grid.Column="1" Margin="32,24,32,26">
+      <Grid.RowDefinitions>
+       <RowDefinition Height="Auto" />
+       <RowDefinition />
+       <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+      <Grid Margin="0,0,0,20">
+       <Grid.ColumnDefinitions>
+        <ColumnDefinition />
+        <ColumnDefinition Width="Auto" />
+       </Grid.ColumnDefinitions>
+       <StackPanel>
+        <TextBlock Name="PageTitle" Text="Voices" FontSize="28" FontWeight="SemiBold" />
+        <TextBlock Name="PageSubtitle" Text="Friendly names for every provider voice." Foreground="{StaticResource Muted}" Margin="0,5,0,0" FontSize="13" />
+       </StackPanel>
+       <Button Name="RefreshButton" Grid.Column="1" Style="{StaticResource PrimaryButton}" VerticalAlignment="Top" Margin="0">
+        <StackPanel Orientation="Horizontal">
+         <Viewbox Width="15" Height="15" Margin="0,0,8,0">
+          <Canvas Width="24" Height="24">
+           <Path Stroke="#15131D" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="Transparent" Data="M20,7 L20,2 L15,2 M20,2 C13,-3 3,2 3,11 C3,19 12,24 19,18 M4,17 L4,22 L9,22" />
+          </Canvas>
+         </Viewbox>
+         <TextBlock Text="Refresh voices" />
+        </StackPanel>
+       </Button>
+      </Grid>
+      <Grid Name="VoicesPage" Grid.Row="1">
+       <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition />
+       </Grid.RowDefinitions>
+       <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+        <Button Name="AddButton" Style="{StaticResource PrimaryButton}">
+         <StackPanel Orientation="Horizontal">
+          <Viewbox Width="14" Height="14" Margin="0,0,8,0">
+           <Canvas Width="16" Height="16">
+            <Path Stroke="#15131D" StrokeThickness="1.8" StrokeStartLineCap="Round" Data="M8,2 L8,14 M2,8 L14,8" />
+           </Canvas>
+          </Viewbox>
+          <TextBlock Text="Add alias" />
+         </StackPanel>
+        </Button>
+        <Button Name="EditButton">
+         <StackPanel Orientation="Horizontal">
+          <Viewbox Width="14" Height="14" Margin="0,0,8,0">
+           <Canvas Width="16" Height="16">
+            <Path Style="{StaticResource IconPath}" Data="M3,11 L2,14 L5,13 L13,5 L11,3 Z M9.5,4.5 L11.5,6.5" />
+           </Canvas>
+          </Viewbox>
+          <TextBlock Text="Edit" />
+         </StackPanel>
+        </Button>
+        <Button Name="RemoveButton">
+         <StackPanel Orientation="Horizontal">
+          <Viewbox Width="14" Height="14" Margin="0,0,8,0">
+           <Canvas Width="16" Height="16">
+            <Path Style="{StaticResource IconPath}" Data="M2,8 L14,8" />
+           </Canvas>
+          </Viewbox>
+          <TextBlock Text="Remove" />
+         </StackPanel>
+        </Button>
+        <Button Name="TestButton">
+         <StackPanel Orientation="Horizontal">
+          <Viewbox Width="14" Height="14" Margin="0,0,8,0">
+           <Canvas Width="16" Height="16">
+            <Path Style="{StaticResource IconPath}" Data="M4,2 L13,8 L4,14 Z" />
+           </Canvas>
+          </Viewbox>
+          <TextBlock Text="Test voice" />
+         </StackPanel>
+        </Button>
+       </StackPanel>
+       <Border Grid.Row="1" CornerRadius="11" BorderBrush="#50485C" BorderThickness="1" Background="#15131D" ClipToBounds="True">
+        <DataGrid Name="AliasGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" BorderThickness="0">
+         <DataGrid.Columns>
+          <DataGridTextColumn Header="ALIAS" Binding="{Binding Name}" Width="*" ElementStyle="{StaticResource GridText}" />
+          <DataGridTextColumn Header="VOICE PROFILE" Binding="{Binding Profile}" Width="2*" ElementStyle="{StaticResource GridText}" />
+          <DataGridTextColumn Header="GROUP" Binding="{Binding Group}" Width="120" ElementStyle="{StaticResource GridText}" />
+          <DataGridTextColumn Header="MODEL" Binding="{Binding Model}" Width="120" ElementStyle="{StaticResource GridText}" />
+          <DataGridTextColumn Header="SPEED" Binding="{Binding Speed}" Width="72" ElementStyle="{StaticResource GridText}" />
+         </DataGrid.Columns>
+        </DataGrid>
+       </Border>
+      </Grid>
+      <Grid Name="PlaygroundPage" Grid.Row="1" Visibility="Collapsed">
+       <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="235" />
+        <ColumnDefinition Width="18" />
+        <ColumnDefinition />
+       </Grid.ColumnDefinitions>
+       <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="11" Padding="8">
+        <Grid>
+         <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition />
+         </Grid.RowDefinitions>
+         <TextBlock Text="VOICE OR PRESET" Foreground="{StaticResource Muted}" FontSize="10" FontWeight="Bold" Margin="8,6,8,10" />
+         <ListBox Name="PlayVoiceList" Grid.Row="1" Background="Transparent" BorderThickness="0" />
+        </Grid>
+       </Border>
+       <Border Grid.Column="2" Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="11" Padding="22">
+        <Grid>
+         <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+         </Grid.RowDefinitions>
+         <TextBlock Text="SCRIPT" Foreground="{StaticResource Muted}" FontSize="10" FontWeight="Bold" />
+         <TextBox Name="PlaygroundText" Grid.Row="1" Margin="0,10,0,14" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top" FontSize="16" />
+         <Grid Grid.Row="2">
+          <Grid.ColumnDefinitions>
+           <ColumnDefinition />
+           <ColumnDefinition Width="14" />
+           <ColumnDefinition />
+           <ColumnDefinition Width="14" />
+           <ColumnDefinition Width="2*" />
+          </Grid.ColumnDefinitions>
+          <StackPanel>
+           <TextBlock Text="Speed" Foreground="{StaticResource Muted}" />
+           <TextBox Name="PlaySpeedBox" Text="1.0" Margin="0,6,0,0" />
+          </StackPanel>
+          <StackPanel Grid.Column="2">
+           <TextBlock Text="Volume" Foreground="{StaticResource Muted}" />
+           <TextBox Name="PlayVolumeBox" Text="1.0" Margin="0,6,0,0" />
+          </StackPanel>
+          <StackPanel Grid.Column="4">
+           <TextBlock Text="Style instruction" Foreground="{StaticResource Muted}" />
+           <TextBox Name="PlayStyleBox" Margin="0,6,0,0" />
+          </StackPanel>
+         </Grid>
+         <Grid Grid.Row="3" Margin="0,18,0,0">
+          <TextBlock Name="CharacterCount" Text="0 characters" Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+           <Button Name="PlayStopButton" Content="Stop" />
+           <Button Name="PlayButton" Content="Synthesize audio" Style="{StaticResource PrimaryButton}" Margin="0" />
+          </StackPanel>
+         </Grid>
+        </Grid>
+       </Border>
+      </Grid>
+      <Grid Name="QueuePage" Grid.Row="1" Visibility="Collapsed">
+       <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition />
+       </Grid.RowDefinitions>
+       <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+        <Button Name="PauseQueueButton" Content="Pause" />
+        <Button Name="ResumeQueueButton" Content="Resume" />
+        <Button Name="SkipQueueButton" Content="Skip current" />
+        <Button Name="RemoveQueueButton" Content="Remove" />
+        <Button Name="QueueUpButton" Content="Move up" />
+        <Button Name="QueueDownButton" Content="Move down" />
+        <Button Name="ClearQueueButton" Content="Clear queue" Margin="0" />
+       </StackPanel>
+       <Border Grid.Row="1" CornerRadius="11" BorderBrush="#50485C" BorderThickness="1" Background="#15131D" ClipToBounds="True">
+        <DataGrid Name="QueueGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" BorderThickness="0">
+         <DataGrid.Columns>
+          <DataGridTextColumn Header="STATUS" Binding="{Binding Status}" Width="110" ElementStyle="{StaticResource GridText}" />
+          <DataGridTextColumn Header="ALIAS" Binding="{Binding Alias}" Width="140" ElementStyle="{StaticResource GridText}" />
+          <DataGridTextColumn Header="VIEWER" Binding="{Binding User}" Width="130" ElementStyle="{StaticResource GridText}" />
+          <DataGridTextColumn Header="MESSAGE" Binding="{Binding Text}" Width="*" ElementStyle="{StaticResource GridText}" />
+         </DataGrid.Columns>
+        </DataGrid>
+       </Border>
+      </Grid>
+      <Grid Name="HistoryPage" Grid.Row="1" Visibility="Collapsed">
+       <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition />
+       </Grid.RowDefinitions>
+       <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+        <Button Name="ReplayHistoryButton" Content="Replay selected" Style="{StaticResource PrimaryButton}" Margin="0,0,12,0" />
+        <Button Name="SaveHistoryAudioButton" Content="Save audio" Margin="0,0,12,0" />
+        <Button Name="ClearHistoryButton" Content="Clear history" Margin="0" />
+       </StackPanel>
+       <Border Grid.Row="1" CornerRadius="11" BorderBrush="#50485C" BorderThickness="1" Background="#15131D" ClipToBounds="True">
+        <DataGrid Name="HistoryGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" BorderThickness="0">
+         <DataGrid.Columns>
+          <DataGridTextColumn Header="TIME" Binding="{Binding Time}" Width="145" ElementStyle="{StaticResource GridText}" />
+          <DataGridTextColumn Header="STATUS" Binding="{Binding Status}" Width="90" ElementStyle="{StaticResource GridText}" />
+          <DataGridTextColumn Header="ALIAS" Binding="{Binding Alias}" Width="125" ElementStyle="{StaticResource GridText}" />
+          <DataGridTextColumn Header="SOURCE" Binding="{Binding Source}" Width="120" ElementStyle="{StaticResource GridText}" />
+          <DataGridTextColumn Header="MESSAGE" Binding="{Binding Text}" Width="*" ElementStyle="{StaticResource GridText}" />
+         </DataGrid.Columns>
+        </DataGrid>
+       </Border>
+      </Grid>
+      <ScrollViewer Name="RulesPage" Grid.Row="1" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+       <StackPanel MaxWidth="780" HorizontalAlignment="Left">
+        <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="11" Padding="20">
+         <StackPanel>
+          <TextBlock Text="Message moderation" FontSize="17" FontWeight="SemiBold" />
+          <Grid Margin="0,15,0,0">
+           <Grid.ColumnDefinitions>
+            <ColumnDefinition />
+            <ColumnDefinition Width="16" />
+            <ColumnDefinition />
+           </Grid.ColumnDefinitions>
+           <StackPanel>
+            <TextBlock Text="Blocked words or phrases" Foreground="{StaticResource Muted}" />
+            <TextBox Name="BlockedWordsBox" Height="95" Margin="0,6,0,0" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" />
+           </StackPanel>
+           <StackPanel Grid.Column="2">
+            <TextBlock Text="Replacements (old =&gt; new)" Foreground="{StaticResource Muted}" />
+            <TextBox Name="ReplacementsBox" Height="95" Margin="0,6,0,0" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" />
+           </StackPanel>
+          </Grid>
+          <Border Background="#801E1A27" BorderBrush="#3D3741" BorderThickness="1" CornerRadius="8" Padding="15" Margin="0,16,0,0">
+           <Grid>
+            <Grid.ColumnDefinitions>
+             <ColumnDefinition Width="155" />
+             <ColumnDefinition Width="18" />
+             <ColumnDefinition />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+             <TextBlock Text="Links" FontWeight="SemiBold" />
+             <TextBlock Text="Choose how URLs are handled." Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" />
+            </StackPanel>
+            <Grid Grid.Column="2">
+             <Grid.ColumnDefinitions>
+              <ColumnDefinition />
+              <ColumnDefinition Width="18" />
+              <ColumnDefinition />
+             </Grid.ColumnDefinitions>
+             <StackPanel>
+              <CheckBox Name="BlockLinksCheck" Content="Block the whole message" Margin="0,0,0,0" />
+              <TextBlock Text="Nothing is spoken when a link is found." Foreground="{StaticResource Muted}" FontSize="11" Margin="27,4,0,0" TextWrapping="Wrap" />
+             </StackPanel>
+             <StackPanel Grid.Column="2">
+              <CheckBox Name="StripLinksCheck" Content="Remove only the link" Margin="0,0,0,0" />
+              <TextBlock Text="The rest of the message is still spoken." Foreground="{StaticResource Muted}" FontSize="11" Margin="27,4,0,0" TextWrapping="Wrap" />
+             </StackPanel>
+            </Grid>
+           </Grid>
+          </Border>
+          <Border Background="#801E1A27" BorderBrush="#3D3741" BorderThickness="1" CornerRadius="8" Padding="15" Margin="0,10,0,0">
+           <Grid>
+            <Grid.ColumnDefinitions>
+             <ColumnDefinition Width="155" />
+             <ColumnDefinition Width="18" />
+             <ColumnDefinition />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+             <TextBlock Text="Speech cleanup" FontWeight="SemiBold" />
+             <TextBlock Text="Make noisy chat easier to listen to." Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" />
+            </StackPanel>
+            <Grid Grid.Column="2">
+             <Grid.ColumnDefinitions>
+              <ColumnDefinition />
+              <ColumnDefinition Width="18" />
+              <ColumnDefinition />
+             </Grid.ColumnDefinitions>
+             <CheckBox Name="BlockCapsCheck" Content="Block excessive capitals" Margin="0" VerticalAlignment="Top" />
+             <CheckBox Name="CollapseRepeatsCheck" Grid.Column="2" Content="Shorten repeated characters" Margin="0" VerticalAlignment="Top" />
+            </Grid>
+           </Grid>
+          </Border>
+          <Border Background="#801E1A27" BorderBrush="#3D3741" BorderThickness="1" CornerRadius="8" Padding="15" Margin="0,10,0,0">
+           <Grid>
+            <Grid.ColumnDefinitions>
+             <ColumnDefinition Width="155" />
+             <ColumnDefinition Width="18" />
+             <ColumnDefinition />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+             <TextBlock Text="Chat prefixes" FontWeight="SemiBold" />
+             <TextBlock Text="Matching tokens are removed anywhere in the message." Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" />
+            </StackPanel>
+            <Grid Grid.Column="2">
+             <Grid.ColumnDefinitions>
+              <ColumnDefinition />
+              <ColumnDefinition Width="18" />
+              <ColumnDefinition />
+             </Grid.ColumnDefinitions>
+             <CheckBox Name="IgnoreCommandsCheck" Content="Remove !command" Margin="0" VerticalAlignment="Top" />
+             <CheckBox Name="IgnoreMentionsCheck" Grid.Column="2" Content="Remove @mention" Margin="0" VerticalAlignment="Top" />
+            </Grid>
+           </Grid>
+          </Border>
+          <Border Background="#801E1A27" BorderBrush="#3D3741" BorderThickness="1" CornerRadius="8" Padding="15" Margin="0,10,0,0">
+           <Grid>
+            <Grid.ColumnDefinitions>
+             <ColumnDefinition Width="155" />
+             <ColumnDefinition Width="18" />
+             <ColumnDefinition />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+             <TextBlock Text="Symbols and emoji" FontWeight="SemiBold" />
+             <TextBlock Text="Each filter works independently." Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" />
+            </StackPanel>
+            <Grid Grid.Column="2">
+             <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+             </Grid.RowDefinitions>
+             <Grid.ColumnDefinitions>
+              <ColumnDefinition />
+              <ColumnDefinition Width="18" />
+              <ColumnDefinition />
+             </Grid.ColumnDefinitions>
+             <CheckBox Name="StripNonAsciiCheck" Content="Remove decorative symbols" Margin="0" VerticalAlignment="Top" />
+             <CheckBox Name="StripEmojiCheck" Grid.Column="2" Content="Remove emoji" Margin="0" VerticalAlignment="Top" />
+             <CheckBox Name="BlockAsciiArtCheck" Grid.Row="1" Content="Block symbol-heavy ASCII art" Margin="0,12,0,0" VerticalAlignment="Top" />
+            </Grid>
+           </Grid>
+          </Border>
+         </StackPanel>
+        </Border>
+        <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="11" Padding="20" Margin="0,14,0,0">
+         <StackPanel>
+          <TextBlock Text="Limits and viewers" FontSize="17" FontWeight="SemiBold" />
+          <Grid Margin="0,15,0,0">
+           <Grid.ColumnDefinitions>
+            <ColumnDefinition />
+            <ColumnDefinition Width="14" />
+            <ColumnDefinition />
+            <ColumnDefinition Width="14" />
+            <ColumnDefinition />
+           </Grid.ColumnDefinitions>
+           <StackPanel>
+            <TextBlock Text="Maximum queue" Foreground="{StaticResource Muted}" />
+            <TextBox Name="MaxQueueBox" Margin="0,6,0,0" />
+           </StackPanel>
+           <StackPanel Grid.Column="2">
+            <TextBlock Text="Viewer cooldown (seconds)" Foreground="{StaticResource Muted}" />
+            <TextBox Name="UserCooldownBox" Margin="0,6,0,0" />
+           </StackPanel>
+           <StackPanel Grid.Column="4">
+            <TextBlock Text="Global cooldown (seconds)" Foreground="{StaticResource Muted}" />
+            <TextBox Name="GlobalCooldownBox" Margin="0,6,0,0" />
+           </StackPanel>
+          </Grid>
+          <Grid Margin="0,15,0,0">
+           <Grid.ColumnDefinitions>
+            <ColumnDefinition />
+            <ColumnDefinition Width="16" />
+            <ColumnDefinition />
+           </Grid.ColumnDefinitions>
+           <StackPanel>
+            <TextBlock Text="Blocked viewers (one per line)" Foreground="{StaticResource Muted}" />
+            <TextBox Name="BlocklistBox" Height="75" Margin="0,6,0,0" AcceptsReturn="True" />
+           </StackPanel>
+           <StackPanel Grid.Column="2">
+            <TextBlock Text="Allowed viewers (empty allows everyone)" Foreground="{StaticResource Muted}" />
+            <TextBox Name="AllowlistBox" Height="75" Margin="0,6,0,0" AcceptsReturn="True" />
+           </StackPanel>
+          </Grid>
+         </StackPanel>
+        </Border>
+        <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="11" Padding="20" Margin="0,14,0,0">
+         <StackPanel>
+          <TextBlock Text="Automatic voice rules" FontSize="17" FontWeight="SemiBold" />
+          <TextBlock Text="Map a viewer or role to an alias or group using name =&gt; alias." Foreground="{StaticResource Muted}" Margin="0,4,0,12" />
+          <Grid>
+           <Grid.ColumnDefinitions>
+            <ColumnDefinition />
+            <ColumnDefinition Width="16" />
+            <ColumnDefinition />
+           </Grid.ColumnDefinitions>
+           <StackPanel>
+            <TextBlock Text="Viewer rules" Foreground="{StaticResource Muted}" />
+            <TextBox Name="UserRulesBox" Height="80" Margin="0,6,0,0" AcceptsReturn="True" />
+           </StackPanel>
+           <StackPanel Grid.Column="2">
+            <TextBlock Text="Role rules" Foreground="{StaticResource Muted}" />
+            <TextBox Name="RoleRulesBox" Height="80" Margin="0,6,0,0" AcceptsReturn="True" />
+           </StackPanel>
+          </Grid>
+         </StackPanel>
+        </Border>
+        <Button Name="SaveRulesButton" Content="Save rules" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" Margin="0,16,0,0" />
+       </StackPanel>
+      </ScrollViewer>
+      <Grid Name="PronunciationPage" Grid.Row="1" Visibility="Collapsed">
+       <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition />
+        <RowDefinition Height="Auto" />
+       </Grid.RowDefinitions>
+       <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+        <Button Name="AddPronunciationButton" Content="+  Add entry" Style="{StaticResource PrimaryButton}" Margin="0,0,12,0" />
+        <Button Name="EditPronunciationButton" Content="Edit" Margin="0,0,12,0" />
+        <Button Name="RemovePronunciationButton" Content="Remove" Margin="0,0,12,0" />
+        <Button Name="PronunciationUpButton" Content="Move up" Margin="0,0,12,0" />
+        <Button Name="PronunciationDownButton" Content="Move down" Margin="0" />
+       </StackPanel>
+       <Border Grid.Row="1" Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="11" ClipToBounds="True">
+        <Grid>
+         <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition />
+         </Grid.RowDefinitions>
+         <Border Background="#991E1A27" BorderBrush="#50485C" BorderThickness="0,0,0,1" Padding="18,14">
+          <StackPanel>
+           <TextBlock Text="Pronunciation dictionary" FontSize="17" FontWeight="SemiBold" />
+           <TextBlock Text="Separate multiple pronunciations with commas and the bridge will choose one randomly. Matching is case-insensitive." Foreground="{StaticResource Muted}" Margin="0,4,0,0" />
+          </StackPanel>
+         </Border>
+         <DataGrid Name="PronunciationGrid" Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" CanUserReorderColumns="False" CanUserResizeRows="False" IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow">
+          <DataGrid.Columns>
+           <DataGridTextColumn Header="WRITTEN TEXT" Binding="{Binding DisplayWritten}" Width="0.42*" ElementStyle="{StaticResource GridText}" />
+           <DataGridTextColumn Header="SPOKEN AS / RANDOM OPTIONS" Binding="{Binding Spoken}" Width="0.58*" ElementStyle="{StaticResource GridText}" />
+          </DataGrid.Columns>
+         </DataGrid>
+        </Grid>
+       </Border>
+       <Border Grid.Row="2" Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="11" Padding="16" Margin="0,12,0,0">
+        <Grid>
+         <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition />
+          <ColumnDefinition Width="Auto" />
+         </Grid.ColumnDefinitions>
+         <StackPanel VerticalAlignment="Center" Margin="0,0,18,0">
+          <TextBlock Text="Preview selected entry" FontWeight="SemiBold" />
+          <TextBlock Text="Choose an alias; each preview randomly picks one configured option." Foreground="{StaticResource Muted}" Margin="0,3,0,0" />
+         </StackPanel>
+         <ComboBox Name="PronunciationVoiceList" Grid.Column="1" Margin="0,0,12,0" VerticalAlignment="Center" />
+         <Button Name="TestPronunciationButton" Grid.Column="2" Content="Test audio" Style="{StaticResource PrimaryButton}" Margin="0" VerticalAlignment="Center" />
+        </Grid>
+       </Border>
+      </Grid>
+      <ScrollViewer Name="StreamerBotPage" Grid.Row="1" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+       <StackPanel MaxWidth="800" HorizontalAlignment="Left" Margin="0,0,10,0">
+        <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12" Padding="20">
+         <StackPanel>
+          <TextBlock Text="Connection" FontSize="17" FontWeight="SemiBold" />
+          <CheckBox Name="EnableUdpCheck" Content="Listen for Streamer.bot UDP speak requests" Margin="0,14,0,0" />
+          <Grid Margin="0,14,0,0">
+           <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="160" />
+            <ColumnDefinition Width="14" />
+            <ColumnDefinition Width="160" />
+            <ColumnDefinition Width="14" />
+            <ColumnDefinition Width="*" MinWidth="220" />
+           </Grid.ColumnDefinitions>
+           <StackPanel>
+            <TextBlock Text="UDP port" Foreground="{StaticResource Muted}" />
+            <TextBox Name="UdpBox" Margin="0,6,0,0" MinWidth="160" />
+           </StackPanel>
+           <StackPanel Grid.Column="2">
+            <TextBlock Text="WebSocket port" Foreground="{StaticResource Muted}" />
+            <TextBox Name="WsBox" Margin="0,6,0,0" MinWidth="160" />
+           </StackPanel>
+           <StackPanel Grid.Column="4">
+            <TextBlock Text="HTTP address (actions)" Foreground="{StaticResource Muted}" />
+            <TextBox Name="StreamerBotHttpUrlBox" Margin="0,6,0,0" MinWidth="220" />
+           </StackPanel>
+          </Grid>
+          <TextBlock Text="UDP payload for Streamer.bot" Foreground="{StaticResource Muted}" Margin="0,15,0,0" />
+          <TextBox Name="StreamerPayloadBox" Text="VSPEAK&#xA;%voice%&#xA;%rawInput%" Height="72" Margin="0,6,0,0" AcceptsReturn="True" FontFamily="Cascadia Mono" IsReadOnly="True" />
+          <Button Name="CopyPayloadButton" Content="Copy payload" HorizontalAlignment="Left" Margin="0,12,0,0" />
+         </StackPanel>
+        </Border>
+        <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12" Padding="20" Margin="0,14,0,0">
+         <StackPanel>
+          <TextBlock Text="Lifecycle actions" FontSize="17" FontWeight="SemiBold" />
+          <CheckBox Name="EnableStreamerBotActionsCheck" Content="Enable lifecycle actions" Margin="0,12,0,13" />
+          <Grid>
+           <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="12" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+           <StackPanel><TextBlock Text="Queued" Foreground="{StaticResource Muted}" /><TextBox Name="StreamerBotQueuedActionBox" Margin="0,6,0,0" /></StackPanel>
+           <Button Name="TestStreamerBotQueuedButton" Grid.Column="2" Content="Test" Width="70" Margin="0,24,0,0" />
+          </Grid>
+          <Border Background="#801E1A27" BorderBrush="#3D3741" BorderThickness="1" CornerRadius="9" Padding="14" Margin="0,14,0,0">
+           <Grid>
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <StackPanel>
+             <TextBlock Text="Delay before playback" FontWeight="SemiBold" />
+             <TextBlock Text="Wait after the Queued action before speaking." Foreground="{StaticResource Muted}" FontSize="11" Margin="0,3,12,0" />
+            </StackPanel>
+            <Border Grid.Column="1" Background="#1E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="7" Padding="10,5" MinWidth="62"><TextBlock Name="StreamerBotPlaybackDelayValue" Text="0.00 s" Foreground="#B6A3FF" FontWeight="SemiBold" HorizontalAlignment="Center" /></Border>
+            <Slider Name="StreamerBotPlaybackDelaySlider" Grid.Row="1" Grid.ColumnSpan="2" Style="{StaticResource VoiceSlider}" Minimum="0" Maximum="10" TickFrequency="0.25" IsSnapToTickEnabled="True" SmallChange="0.25" LargeChange="1" Margin="0,11,0,0" />
+           </Grid>
+          </Border>
+          <Grid Margin="0,12,0,0">
+           <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="12" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+           <StackPanel><TextBlock Text="Added while speaking" Foreground="{StaticResource Muted}" /><TextBox Name="StreamerBotQueueAddedActionBox" Margin="0,6,0,0" /></StackPanel>
+           <Button Name="TestStreamerBotQueueAddedButton" Grid.Column="2" Content="Test" Width="70" Margin="0,24,0,0" />
+          </Grid>
+          <Grid Margin="0,12,0,0">
+           <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="12" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+           <StackPanel><TextBlock Text="Playback started" Foreground="{StaticResource Muted}" /><TextBox Name="StreamerBotPlayingActionBox" Margin="0,6,0,0" /></StackPanel>
+           <Button Name="TestStreamerBotPlayingButton" Grid.Column="2" Content="Test" Width="70" Margin="0,24,0,0" />
+          </Grid>
+          <Grid Margin="0,12,0,0">
+           <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="12" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+           <StackPanel><TextBlock Text="Queue finished" Foreground="{StaticResource Muted}" /><TextBox Name="StreamerBotFinishedActionBox" Margin="0,6,0,0" /></StackPanel>
+           <Button Name="TestStreamerBotFinishedButton" Grid.Column="2" Content="Test" Width="70" Margin="0,24,0,0" />
+          </Grid>
+          <Border Background="#801E1A27" BorderBrush="#3D3741" BorderThickness="1" CornerRadius="9" Padding="14" Margin="0,14,0,0">
+           <Grid>
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <TextBlock Text="Delay after queue finishes" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <Border Grid.Column="1" Background="#1E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="7" Padding="10,5" MinWidth="62"><TextBlock Name="StreamerBotFinishedDelayValue" Text="0.00 s" Foreground="#B6A3FF" FontWeight="SemiBold" HorizontalAlignment="Center" /></Border>
+            <Slider Name="StreamerBotFinishedDelaySlider" Grid.Row="1" Grid.ColumnSpan="2" Style="{StaticResource VoiceSlider}" Minimum="0" Maximum="10" TickFrequency="0.25" IsSnapToTickEnabled="True" SmallChange="0.25" LargeChange="1" Margin="0,11,0,0" />
+           </Grid>
+          </Border>
+          <TextBlock Text="Action variables: %ttsState%, %ttsId%, %ttsText%, %ttsAlias%, %ttsVoice%, %ttsSource%, %ttsUser%, %ttsDuration%" Foreground="{StaticResource Muted}" Margin="0,13,0,0" TextWrapping="Wrap" FontSize="11" />
+          <Button Name="SaveStreamerBotButton" Content="Save" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" Margin="0,16,0,0" />
+         </StackPanel>
+        </Border>
+        <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12" Padding="20" Margin="0,14,0,0">
+         <StackPanel>
+          <TextBlock Text="Queue controls" FontSize="17" FontWeight="SemiBold" />
+          <TextBlock Text="Choose a command, then copy its payload into a Streamer.bot UDP Broadcast action on the port shown above." Foreground="{StaticResource Muted}" Margin="0,4,0,15" TextWrapping="Wrap" />
+          <Grid>
+           <Grid.ColumnDefinitions><ColumnDefinition Width="210" /><ColumnDefinition Width="14" /><ColumnDefinition /></Grid.ColumnDefinitions>
+           <StackPanel><TextBlock Text="Action" Foreground="{StaticResource Muted}" /><ComboBox Name="QueueControlCommandBox" Margin="0,6,0,0"><ComboBoxItem Content="Pause" Tag="pause" /><ComboBoxItem Content="Resume" Tag="resume" /><ComboBoxItem Content="Skip current" Tag="skip" /><ComboBoxItem Content="Remove item" Tag="remove" /><ComboBoxItem Content="Move item up" Tag="moveup" /><ComboBoxItem Content="Move item down" Tag="movedown" /><ComboBoxItem Content="Clear queue" Tag="clear" /></ComboBox></StackPanel>
+           <StackPanel Grid.Column="2"><TextBlock Text="UDP payload" Foreground="{StaticResource Muted}" /><TextBox Name="QueueControlPayloadBox" Height="58" Margin="0,6,0,0" AcceptsReturn="True" IsReadOnly="True" FontFamily="Cascadia Mono" VerticalContentAlignment="Center" /></StackPanel>
+          </Grid>
+          <TextBlock Name="QueueControlHint" Foreground="{StaticResource Muted}" Margin="0,10,0,0" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Margin="0,14,0,0"><Button Name="CopyQueueControlButton" Content="Copy payload" Style="{StaticResource PrimaryButton}" /><Button Name="TestQueueControlButton" Content="Test action" Margin="0" /></StackPanel>
+         </StackPanel>
+        </Border>
+       </StackPanel>
+      </ScrollViewer>
+      <ScrollViewer Name="VoiceStudioPage" Grid.Row="1" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+       <StackPanel MaxWidth="720" HorizontalAlignment="Left" Margin="0,0,10,0">
+        <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12" Padding="20">
+         <StackPanel>
+          <TextBlock Text="VoiceStudio" FontSize="17" FontWeight="SemiBold" />
+          <TextBlock Text="Local cloned voices" Foreground="{StaticResource Muted}" Margin="0,4,0,16" />
+          <TextBlock Text="Service address" Foreground="{StaticResource Muted}" />
+          <TextBox Name="UrlBox" Margin="0,6,0,14" />
+          <Grid>
+           <Grid.ColumnDefinitions>
+            <ColumnDefinition />
+            <ColumnDefinition Width="16" />
+            <ColumnDefinition Width="160" />
+           </Grid.ColumnDefinitions>
+           <StackPanel>
+            <TextBlock Text="API key" Foreground="{StaticResource Muted}" />
+            <TextBox Name="KeyBox" Margin="0,6,0,0" />
+           </StackPanel>
+           <StackPanel Grid.Column="2">
+            <TextBlock Text="Timeout (sec)" Foreground="{StaticResource Muted}" />
+            <TextBox Name="RequestTimeoutBox" Margin="0,6,0,0" />
+           </StackPanel>
+          </Grid>
+          <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+           <Button Name="SaveVoiceStudioButton" Content="Save" Style="{StaticResource PrimaryButton}" Margin="0,0,12,0" />
+           <Button Name="TestVoiceStudioButton" Content="Test connection" Margin="0" />
+          </StackPanel>
+         </StackPanel>
+        </Border>
+       </StackPanel>
+      </ScrollViewer>
+      <ScrollViewer Name="PollyPage" Grid.Row="1" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+       <StackPanel MaxWidth="720" HorizontalAlignment="Left" Margin="0,0,10,0">
+        <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12" Padding="20">
+         <StackPanel>
+          <Grid>
+           <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+           <StackPanel>
+            <TextBlock Text="Amazon Polly" FontSize="17" FontWeight="SemiBold" />
+            <TextBlock Text="Cloud TTS voices from AWS" Foreground="{StaticResource Muted}" Margin="0,4,0,0" />
+           </StackPanel>
+           <CheckBox Name="PollyEnabledCheck" Grid.Column="1" Content="Enabled" VerticalAlignment="Center" />
+          </Grid>
+          <TextBlock Text="1. Enter your AWS credentials" FontSize="15" FontWeight="SemiBold" Margin="0,20,0,0" />
+          <TextBlock Text="Create an IAM access key with permission to use Amazon Polly, then paste both values below." Foreground="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap" />
+          <Grid Margin="0,14,0,0">
+           <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="16" /><ColumnDefinition /></Grid.ColumnDefinitions>
+           <StackPanel>
+            <TextBlock Text="Access Key ID" Foreground="{StaticResource Muted}" />
+            <PasswordBox Name="PollyAccessKeyBox" Margin="0,6,0,0" PasswordChar="●" />
+           </StackPanel>
+           <StackPanel Grid.Column="2">
+            <TextBlock Text="Secret Access Key" Foreground="{StaticResource Muted}" />
+            <PasswordBox Name="PollySecretKeyBox" Margin="0,6,0,0" PasswordChar="●" />
+           </StackPanel>
+          </Grid>
+          <TextBlock Name="PollyCredentialStatus" Text="No keys saved yet" Foreground="{StaticResource Muted}" Margin="0,9,0,0" />
+          <TextBlock Text="2. Choose the region where Polly is enabled" FontSize="15" FontWeight="SemiBold" Margin="0,20,0,0" />
+          <Grid Margin="0,10,0,0">
+           <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="16" /><ColumnDefinition /></Grid.ColumnDefinitions>
+           <StackPanel>
+            <TextBlock Text="AWS region" Foreground="{StaticResource Muted}" />
+            <ComboBox Name="PollyRegionBox" Margin="0,6,0,0" IsEditable="True">
+             <ComboBoxItem Content="us-east-1" /><ComboBoxItem Content="us-east-2" /><ComboBoxItem Content="us-west-1" /><ComboBoxItem Content="us-west-2" />
+             <ComboBoxItem Content="eu-west-1" /><ComboBoxItem Content="eu-west-2" /><ComboBoxItem Content="eu-central-1" />
+             <ComboBoxItem Content="ap-northeast-1" /><ComboBoxItem Content="ap-southeast-1" /><ComboBoxItem Content="ap-southeast-2" />
+            </ComboBox>
+           </StackPanel>
+           <StackPanel Grid.Column="2">
+            <TextBlock Text="AWS profile (advanced, optional)" Foreground="{StaticResource Muted}" />
+            <TextBox Name="PollyProfileBox" Margin="0,6,0,0" />
+           </StackPanel>
+          </Grid>
+          <Border Background="#66282231" CornerRadius="8" Padding="12" Margin="0,16,0,0">
+           <TextBlock Text="Your keys are encrypted for your Windows account and stay on this PC. Leave the key fields blank to keep the saved credentials." Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
+          </Border>
+          <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+           <Button Name="SavePollyButton" Content="Save credentials" Style="{StaticResource PrimaryButton}" Margin="0,0,12,0" />
+           <Button Name="TestPollyButton" Content="Test &amp; load voices" Margin="0,0,12,0" />
+           <Button Name="ClearPollyCredentialsButton" Content="Clear keys" Margin="0" />
+          </StackPanel>
+         </StackPanel>
+        </Border>
+       </StackPanel>
+      </ScrollViewer>
+      <ScrollViewer Name="SettingsPage" Grid.Row="1" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+       <StackPanel MaxWidth="800" HorizontalAlignment="Left" Margin="0,0,10,0">
+        <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12" Padding="20">
+         <StackPanel>
+          <TextBlock Text="Audio" FontSize="17" FontWeight="SemiBold" />
+          <Grid Margin="0,16,0,0">
+           <Grid.ColumnDefinitions>
+            <ColumnDefinition />
+            <ColumnDefinition Width="16" />
+            <ColumnDefinition />
+           </Grid.ColumnDefinitions>
+           <StackPanel>
+            <TextBlock Text="Stream output" Foreground="{StaticResource Muted}" />
+            <ComboBox Name="OutputDeviceBox" Margin="0,6,0,0" />
+           </StackPanel>
+           <StackPanel Grid.Column="2">
+            <TextBlock Text="Preview / test output" Foreground="{StaticResource Muted}" />
+            <ComboBox Name="PreviewDeviceBox" Margin="0,6,0,0" />
+           </StackPanel>
+          </Grid>
+          <TextBlock Text="Export folder" Foreground="{StaticResource Muted}" Margin="0,15,0,0" />
+          <Grid Margin="0,6,0,0">
+           <Grid.ColumnDefinitions>
+            <ColumnDefinition />
+            <ColumnDefinition Width="Auto" />
+           </Grid.ColumnDefinitions>
+           <TextBox Name="VoiceSaveFolderBox" VerticalContentAlignment="Center" />
+           <Button Name="BrowseVoiceFolderButton" Grid.Column="1" Content="Browse..." Margin="12,0,0,0" />
+          </Grid>
+         </StackPanel>
+        </Border>
+        <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12" Padding="20" Margin="0,14,0,0">
+         <StackPanel>
+          <TextBlock Text="Local API" FontSize="17" FontWeight="SemiBold" />
+          <TextBlock Text="HTTP port used by VoxRelay itself. Restart after changing." Foreground="{StaticResource Muted}" Margin="0,4,0,15" />
+          <StackPanel Width="220" HorizontalAlignment="Left">
+           <TextBlock Text="HTTP port" Foreground="{StaticResource Muted}" />
+           <TextBox Name="HttpBox" Margin="0,6,0,0" Width="220" />
+          </StackPanel>
+         </StackPanel>
+        </Border>
+        <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12" Padding="20" Margin="0,14,0,0">
+         <StackPanel>
+          <TextBlock Text="Limits" FontSize="17" FontWeight="SemiBold" />
+          <Grid Margin="0,16,0,0">
+           <Grid.ColumnDefinitions>
+            <ColumnDefinition />
+            <ColumnDefinition Width="14" />
+            <ColumnDefinition />
+            <ColumnDefinition Width="14" />
+            <ColumnDefinition />
+           </Grid.ColumnDefinitions>
+           <StackPanel>
+            <TextBlock Text="Max characters" Foreground="{StaticResource Muted}" />
+            <TextBox Name="MaxCharactersSettingBox" Margin="0,6,0,0" />
+           </StackPanel>
+           <StackPanel Grid.Column="2">
+            <TextBlock Text="Max queue size" Foreground="{StaticResource Muted}" />
+            <TextBox Name="MaxQueueSettingBox" Margin="0,6,0,0" />
+           </StackPanel>
+           <StackPanel Grid.Column="4">
+            <TextBlock Text="History entries" Foreground="{StaticResource Muted}" />
+            <TextBox Name="HistoryLimitBox" Margin="0,6,0,0" />
+           </StackPanel>
+          </Grid>
+         </StackPanel>
+        </Border>
+        <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12" Padding="20" Margin="0,14,0,0">
+         <StackPanel>
+          <TextBlock Text="Window" FontSize="17" FontWeight="SemiBold" />
+          <CheckBox Name="MinimizeToTrayCheck" Content="Minimize to system tray" Margin="0,14,0,0" />
+          <TextBlock Text="Keeps a tray icon while VoxRelay is running. Minimize hides the window; click the tray icon to restore. Right-click the icon to Exit." Foreground="{StaticResource Muted}" Margin="27,6,0,0" TextWrapping="Wrap" FontSize="11" />
+         </StackPanel>
+        </Border>
+        <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+         <Button Name="SaveButton" Content="Save" Style="{StaticResource PrimaryButton}" Margin="0,0,12,0" />
+         <Button Name="TestConnectionButton" Content="Refresh devices" Margin="0" />
+        </StackPanel>
+       </StackPanel>
+      </ScrollViewer>
+      <Border Name="ActivityPage" Grid.Row="1" Visibility="Collapsed" Background="#E615131D" BorderBrush="#50485C" BorderThickness="1" CornerRadius="11" Padding="8">
+       <ListBox Name="ActivityList" Background="Transparent" Foreground="#F6F3FA" BorderThickness="0" FontFamily="Cascadia Mono" FontSize="12" />
+      </Border>
+      <Border Grid.Row="2" BorderBrush="#50485C" BorderThickness="1" CornerRadius="11" Padding="13,11" Margin="0,15,0,0" Background="#1E1A27">
+       <Grid>
+        <Grid.ColumnDefinitions>
+         <ColumnDefinition Width="Auto" />
+         <ColumnDefinition />
+        </Grid.ColumnDefinitions>
+        <Ellipse Name="BottomStatusDot" Width="7" Height="7" Fill="#B9B2C2" VerticalAlignment="Center" />
+        <TextBlock Name="BottomStatus" Grid.Column="1" Text="Initializing bridge..." Foreground="#F6F3FA" Margin="10,0,0,0" />
+       </Grid>
+      </Border>
+     </Grid>
+    </Grid>
+   </Grid>
+  </Grid>
+ </Border>
+</Window>

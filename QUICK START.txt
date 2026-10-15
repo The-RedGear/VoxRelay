@@ -1,0 +1,37 @@
+VOXRELAY QUICK START
+====================
+
+1. Double-click VoxRelay.exe.
+2. Open Services in the sidebar and connect VoiceStudio or Amazon Polly.
+3. Open Voices and create a friendly alias for each voice you want to use.
+4. Use Test Speech to confirm the voice and audio output.
+5. Open Automation for ready-to-copy Streamer.bot speech and queue-control payloads.
+
+PORTABLE DATA
+-------------
+
+Your settings, history, logs, and generated-audio cache are stored in the
+data folder beside VoxRelay.exe. Back up that folder to preserve your setup.
+
+STREAMER.BOT
+------------
+
+VoxRelay listens for UDP broadcasts on port 6670 by default.
+
+Speak payload:
+
+VSPEAK
+%voice%
+%rawInput%
+
+Queue-control payloads can be copied directly from VoxRelay's Automation page.
+
+TROUBLESHOOTING
+---------------
+
+- Keep the entire VoxRelay folder together. Do not move VoxRelay.exe away
+  from its _internal folder.
+- VoxRelay and Speaker.bot use separate ports and can run at the same time.
+- If a provider cannot connect, open Services and use its connection check.
+- Logs are stored in data\bridge.log.
+

@@ -1,0 +1,22 @@
+name: Feature request
+description: Suggest an improvement to VoxRelay
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Suggested behavior
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Streamer workflow
+      description: Explain how this would fit into your stream or automation.
