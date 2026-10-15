@@ -23,9 +23,12 @@ Streamer.bot lifecycle actions in one application.
 - Optional OBS audio ducking, normalization, fades and output tests
 - Live event inspector and private diagnostic exports
 
-The 0.5 preview is under development. See [the user guide](docs/USER_GUIDE.md),
+**0.5.0-preview** is the current public preview (unsigned Windows build). See
+[release notes](docs/RELEASE_NOTES.md), [the user guide](docs/USER_GUIDE.md),
 [Streamer.bot recipes](docs/STREAMERBOT.md), [provider adapters](docs/PROVIDERS.md),
 [legal notes](docs/LEGAL.md), and the [remaining release roadmap](ROADMAP.md).
+
+Cloud TTS usage is billed by each provider. Only use voices you are authorized to use.
 
 ## Download
 

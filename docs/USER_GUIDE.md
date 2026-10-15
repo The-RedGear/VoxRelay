@@ -1,18 +1,42 @@
-# VoxRelay 0.4 preview
+# VoxRelay 0.5 preview
 
-Run VoxRelay.exe from the extracted folder. Keep its `_internal` folder beside it.
+Run `VoxRelay.exe` from the extracted folder. Keep its `_internal` folder beside it.
 VoxRelay uses the `data` folder beside the EXE. A second launch restores the
 existing window rather than starting another playback service.
 
 ## First voice
 
-Settings opens on the first launch. Choose Windows voices for speech without an
-account, or configure VoiceStudio or Amazon Polly under Services. Select your
-stream output, use its test button, then add an alias in Voices and test it.
+Settings opens on the first launch. Choose **Windows voices** for speech without an
+account, or configure a provider under **Services**. Select your stream output, use
+its test button, then add an alias in **Voices** and test it.
 
-Polly accepts an access key and secret, an optional session token for temporary
-credentials, or an existing AWS profile. Saved keys are encrypted for the current
-Windows account. Moving data to another PC or account requires entering keys again.
+| Service | Notes |
+| --- | --- |
+| VoiceStudio | Local HTTP server (often `http://127.0.0.1:3900`) |
+| Windows voices | No account; enable on the Settings setup card |
+| Amazon Polly | Access key + secret (optional session token or AWS profile) |
+| ElevenLabs, Azure, Google, Watson, UberDuck, TTS.Monster, Acapela, CereProc | Each has its own Services page |
+
+Saved keys are encrypted for the current Windows account (DPAPI). Moving `data` to
+another PC or account requires entering keys again. Cloud providers bill usage on
+their own accounts — VoxRelay does not sell minutes.
+
+## Streamer.bot identities
+
+When sending speak requests over UDP, prefer:
+
+```text
+VSPEAK
+YourAlias
+%message%
+%displayName%
+%userName%
+```
+
+Use **display** (`%displayName%` or a plain `%user%` name) and **login**
+(`%userName%`) on separate lines. Do not put Streamer.bot’s `%user%` object JSON on
+those lines — current builds often expand it to `{"badges":...,"login":...}`, which
+breaks automatic voice rules. Full recipes: [STREAMERBOT.md](STREAMERBOT.md).
 
 ## Queue
 
@@ -101,3 +125,5 @@ be unavailable to unauthenticated checks.
 VoxRelay supplies Speaker.bot-compatible commands and event subscriptions over
 WebSocket, plus local HTTP and UDP commands. It has its own identity and does not
 reproduce every Speaker.bot provider or feature.
+
+See also [RELEASE_NOTES.md](RELEASE_NOTES.md), [LEGAL.md](LEGAL.md), and [ROADMAP.md](../ROADMAP.md).

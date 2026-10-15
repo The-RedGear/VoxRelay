@@ -10,7 +10,13 @@ and before publishing a Windows Release build.
 - [x] [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md) lists Inter OFL + deps
 - [x] [`assets/INTER-LICENSE.txt`](../assets/INTER-LICENSE.txt) ships with fonts
 - [x] [`docs/LEGAL.md`](LEGAL.md) covers MIT summary, trademarks, user duties
-- [ ] Packaged `dist/VoxRelay` includes LICENSE + THIRD_PARTY_NOTICES + docs/LEGAL.md
+- [x] Packaged `dist/VoxRelay` includes LICENSE + THIRD_PARTY_NOTICES + docs/ (incl. LEGAL.md) + root `LEGAL.md` / `RELEASE_NOTES.md` via `windows-build.yml`
+
+## Version identity
+
+- [x] `pyproject.toml` / `__version__` / `version_info.txt` / Settings UI all say **0.5.0**
+- [x] [`docs/RELEASE_NOTES.md`](RELEASE_NOTES.md) drafted for the GitHub Release body
+- [x] USER_GUIDE / CHANGELOG / README aligned to 0.5 preview
 
 ## Security and secrets
 
@@ -33,7 +39,14 @@ and before publishing a Windows Release build.
 
 - [x] README states no affiliation with Streamer.bot / Speaker.bot / cloud vendors
 - [x] README warns about provider ToS and authorized voice use
-- [ ] Release notes remind users that cloud TTS usage is billed by providers
+- [x] Release notes remind users that cloud TTS usage is billed by providers
+
+## Live gates (still manual)
+
+- [ ] Import generated `.sb` actions and test Speak + queue controls
+- [ ] Smoke Windows + VoiceStudio + at least one cloud provider from Playground and UDP
+- [ ] Publish GitHub Release `v0.5.0-preview` with the Windows zip
+- [ ] Flip repo to Public after the Release exists
 
 ## Pre-publish commands
 

@@ -4,8 +4,19 @@
 
 Adds Speaker.bot-compatible cloud TTS engines: ElevenLabs, Azure Speech,
 Google Cloud TTS, IBM Watson, UberDuck, TTS.Monster, Acapela, and CereProc.
-Credentials live under Services > Engines (Polly and Windows stay on their
-existing pages). Secrets use the same Windows DPAPI protection as Polly.
+Each engine has a Services page. Secrets use the same Windows DPAPI protection
+as Polly.
+
+Also in this preview:
+
+- Streamer.bot UDP speak identity handling (display vs login; reject `%user%` JSON blobs)
+- Allowlist / protocol hardening for speak requests
+- Playground multi-line script layout, pill scrollbars, VoiceStudio and Streamer.bot UI cleanup
+- Packaging copies `LICENSE`, notices, `LEGAL.md`, and `docs/` into the Windows zip
+
+The build is **unsigned**. Cloud TTS is billed by each provider. Native Streamer.bot
+imports and live OBS/device/DPI checks remain release gates; see `ROADMAP.md` and
+`docs/RELEASE_NOTES.md`.
 
 ## 0.4.0 preview
 
