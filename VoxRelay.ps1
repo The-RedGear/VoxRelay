@@ -792,18 +792,19 @@ function Hide-ToTray {
     $script:trayIcon.Visible = $true
     $script:trayIcon.Text = 'VoxRelay - Restore'
     Promote-TrayIconInRegistry
-    # Do NOT call Window.Hide() — that can end ShowDialog in this host and kill the app.
-    # Speaker.bot-style: keep the window alive, drop it from the taskbar, minimize it.
+    # The main window runs on Dispatcher.Run(), so it can be genuinely hidden
+    # without ending the application or leaving a borderless title-bar fragment.
     $window.ShowInTaskbar = $false
-    $window.WindowState = 'Minimized'
-    Write-TrayLog 'Hide-ToTray (minimized, process kept alive)'
+    if ($window.WindowState -eq 'Minimized') { $window.WindowState = 'Normal' }
+    $window.Hide()
+    Write-TrayLog 'Hide-ToTray (window hidden)'
 }
 function Restore-FromTray {
     $action = {
         $script:hiddenInTray = $false
-        $window.ShowInTaskbar = $true
-        $window.Visibility = 'Visible'
+        if (-not $window.IsVisible) { $window.Show() }
         $window.WindowState = 'Normal'
+        $window.ShowInTaskbar = $true
         $window.Activate()
         try {
             $window.Topmost = $true
@@ -976,6 +977,7 @@ $window.Add_Closed({
     if ($script:trayEnableTimer) { $script:trayEnableTimer.Stop() }
     Dispose-TrayIcon
     if ($env:VSB_EXTERNAL_BACKEND -ne '1' -and $script:backend -and -not $script:backend.HasExited) { try { $script:backend.Kill() } catch {} }
+    $window.Dispatcher.BeginInvokeShutdown([Windows.Threading.DispatcherPriority]::Background)
 })
 
 Set-ServicesExpanded $true
@@ -995,15 +997,9 @@ $window.Add_ContentRendered({
     $window.ShowInTaskbar = $true
     if ($window.WindowState -eq 'Minimized') { $window.WindowState = 'Normal' }
     $window.Activate()
+    $script:allowHideToTray = $true
+    Write-TrayLog 'allowHideToTray=true'
     Sync-TrayIconMode
-    $script:trayEnableTimer = [Windows.Threading.DispatcherTimer]::new()
-    $script:trayEnableTimer.Interval = [TimeSpan]::FromMilliseconds(1200)
-    $script:trayEnableTimer.Add_Tick({
-        if ($script:trayEnableTimer) { $script:trayEnableTimer.Stop() }
-        $script:allowHideToTray = $true
-        Write-TrayLog 'allowHideToTray=true'
-    })
-    $script:trayEnableTimer.Start()
     $window.Dispatcher.BeginInvoke([action]{
         if (Wait-BackendReady 8000) { Update-BridgeStatus $true; $BottomStatus.Text = 'Bridge ready' }
         else { Update-BridgeStatus $false; $BottomStatus.Text = 'Bridge failed to start. Check Activity / bridge.log' }
@@ -1018,4 +1014,5 @@ $window.Add_StateChanged({
         $window.ShowInTaskbar = $true
     }
 })
-[void]$window.ShowDialog()
+$window.Show()
+[Windows.Threading.Dispatcher]::Run()

@@ -450,7 +450,7 @@
        <TextBlock Text="  /  Voice Automation" Foreground="#B9B2C2" FontSize="12" />
       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal">
-       <Button Name="MinimizeButton" Style="{StaticResource TitleButton}" Content="-" />
+       <Button Name="MinimizeButton" AutomationProperties.AutomationId="MinimizeButton" AutomationProperties.Name="Minimize VoxRelay" Style="{StaticResource TitleButton}" Content="-" />
        <Button Name="MaximizeButton" Style="{StaticResource TitleButton}" Content="[]" />
        <Button Name="CloseButton" Style="{StaticResource TitleButton}" Content="X" />
       </StackPanel>
