@@ -54,11 +54,11 @@ if($PollyRegionBox.Text -ne 'eu-west-3'){throw 'Typed dropdown value did not upd
 $definition=$ast.FindAll({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Show-AliasDialog'},$true)[0]
 $testDialog=$definition.Extent.Text.Replace('function Show-AliasDialog','function Test-AliasDialog')
 $testDialog=$testDialog.Replace('$d.Owner=$window','$d.Owner=$null')
-$testDialog=$testDialog.Replace('[void]$d.ShowDialog()','$script:dialogResult=[pscustomobject]@{SelectedVoice=[string]$p.SelectedItem;SelectedModel=[string]$m.SelectedItem;Output=[string]$aliasOutput.SelectedItem};$d.Close()')
+$testDialog=$testDialog.Replace('[void]$d.ShowDialog()','$voiceKey=if($p.SelectedItem -and $p.SelectedItem.PSObject.Properties[''Key'']){[string]$p.SelectedItem.Key}else{[string]$p.SelectedItem};$script:dialogResult=[pscustomobject]@{SelectedVoice=$voiceKey;SelectedModel=[string]$m.SelectedItem;Output=[string]$aliasOutput.SelectedItem};$d.Close()')
 Invoke-Expression $testDialog
 $script:profileModelOptions=@{}
 $offline=Test-AliasDialog $value
-if(-not $offline.SelectedVoice.EndsWith('[polly|Brian]') -or $offline.SelectedModel -ne 'neural' -or $offline.Output -ne 'Test output'){throw ('Offline alias editing lost voice, model or output: '+($offline | ConvertTo-Json -Compress))}
+if($offline.SelectedVoice -ne 'polly|Brian' -or $offline.SelectedModel -ne 'neural' -or $offline.Output -ne 'Test output'){throw ('Offline alias editing lost voice, model or output: '+($offline | ConvertTo-Json -Compress))}
 $script:profiles=@{'polly|Brian'='Brian - Amazon Polly'};$script:profileModels=@{'polly|Brian'='neural'};$script:profileModelOptions=@{'polly|Brian'=@('standard','neural')}
 $online=Test-AliasDialog $null
 if($online.SelectedModel -ne 'neural'){throw 'Provider-aware model picker did not choose a supported engine'}
