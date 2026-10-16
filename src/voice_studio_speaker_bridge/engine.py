@@ -26,7 +26,6 @@ from .providers import registry
 
 
 class SpeechEngine:
-    AUDIO_CACHE_LIMIT = 30
 
     def __init__(self, settings: Settings, events: EventBus):
         self.settings = settings
@@ -47,11 +46,12 @@ class SpeechEngine:
         self._last_user_request: dict[str, float] = {}
         self.history_path = settings.path.parent / "history.json"
         self.history: list[dict] = self._load_history()
-        self._trim_audio_cache()
+        self._retention_limit = self.settings.history_limit
         self.thread = Thread(target=self._run, name="Speech queue", daemon=True)
         self.queue_path = settings.path.parent / "queue.json"
         if settings.persist_queue:
             self._restore_queue()
+        self._trim_audio_cache()
 
     def _save_queue(self) -> None:
         if not self.settings.persist_queue:
@@ -65,7 +65,8 @@ class SpeechEngine:
                 jobs = ([self._current] if self._current else []) + list(self.pending.queue)
                 values = [{"text": job.text, "alias": job.alias.to_dict(), "name": job.alias.name,
                            "source": job.source, "user": job.user, "priority": job.priority,
-                           "timestamp": job.timestamp}
+                           "timestamp": job.timestamp, "replay_recording": job.replay_recording,
+                           "audio_path": job.audio_path if job.replay_recording else ""}
                           for job in jobs if job and not job.cancelled and job.status not in {"Finished", "Error", "Cancelled", "Skipped", "Removed"}]
             temporary = self.queue_path.with_suffix(".tmp")
             temporary.parent.mkdir(parents=True, exist_ok=True)
@@ -84,6 +85,11 @@ class SpeechEngine:
                     priority=int(value.get("priority", 0)), timestamp=value["timestamp"])
                 age = max(0, (datetime.now().astimezone() - datetime.fromisoformat(job.timestamp.replace("Z", "+00:00"))).total_seconds())
                 job.enqueued_at = monotonic() - age
+                if value.get("replay_recording"):
+                    if not Path(value.get("audio_path", "")).is_file():
+                        continue
+                    job.audio_path = value["audio_path"]
+                    job.replay_recording = True
                 if not self.settings.max_message_age or age < self.settings.max_message_age:
                     restored.append(job)
             if restored:
@@ -112,16 +118,29 @@ class SpeechEngine:
         return candidate
 
     def _trim_audio_cache(self) -> None:
+        with self._admission_lock:
+            self._trim_audio_cache_locked()
+
+    def _trim_audio_cache_locked(self) -> None:
         cache_folder = self.settings.path.parent / "audio_cache"
         if not cache_folder.is_dir():
             return
         try:
+            with self._lock, self.pending.mutex:
+                protected = {Path(job.audio_path).resolve() for job in
+                             ([self._current] if self._current else []) + list(self.pending.queue)
+                             if job and job.audio_path}
             files = sorted(
-                cache_folder.glob("*.wav"),
+                (p for p in cache_folder.iterdir() if p.is_file() and p.suffix.lower() in {".wav", ".mp3", ".ogg", ".flac"}),
                 key=lambda path: (path.stat().st_mtime_ns, path.name.casefold()),
             )
-            for path in files[:-self.AUDIO_CACHE_LIMIT]:
-                path.unlink(missing_ok=True)
+            excess = max(0, len(files) - max(1, self.settings.history_limit))
+            for path in files:
+                if not excess:
+                    break
+                if path.resolve() not in protected:
+                    path.unlink(missing_ok=True)
+                    excess -= 1
         except OSError:
             logging.exception("Could not trim generated audio cache")
 
@@ -161,16 +180,17 @@ class SpeechEngine:
         with self._admission_lock:
             return self._enqueue(text, alias, source, user, priority)
 
-    def _enqueue(self, text: str, alias: VoiceAlias, source: str, user: str, priority: int) -> SpeechJob:
+    def _enqueue(self, text: str, alias: VoiceAlias, source: str, user: str, priority: int, *, recording: str = "") -> SpeechJob:
         if self._stop.is_set():
             raise ValueError("VoxRelay is shutting down")
         if not self._enabled:
             raise ValueError("TTS is disabled")
         self.settings.reload_if_changed()
-        text = self._prepare_ssml(text, user, alias) if alias.ssml else self._prepare_text(text, user)
+        if not recording:
+            text = self._prepare_ssml(text, user, alias) if alias.ssml else self._prepare_text(text, user)
         if not text:
             raise ValueError("Message is empty")
-        if len(text) > self.settings.max_characters:
+        if not recording and len(text) > self.settings.max_characters:
             raise ValueError(f"Message exceeds the {self.settings.max_characters}-character limit")
         if self.pending.qsize() >= self.settings.max_queue:
             raise ValueError(f"Speech queue is full ({self.settings.max_queue} items)")
@@ -178,7 +198,7 @@ class SpeechEngine:
         self._recent_requests = {key: stamp for key, stamp in self._recent_requests.items()
                                  if now - stamp < self.settings.duplicate_window}
         duplicate_key = (user.casefold(), alias.name, text.casefold())
-        if self.settings.duplicate_window and duplicate_key in self._recent_requests:
+        if not recording and self.settings.duplicate_window and duplicate_key in self._recent_requests:
             raise ValueError("This message is already in the recent speech queue")
         if user and self.settings.per_user_queue_limit:
             with self._lock, self.pending.mutex:
@@ -187,7 +207,7 @@ class SpeechEngine:
                             for job in jobs)
             if count >= self.settings.per_user_queue_limit:
                 raise ValueError(f"{user} has reached their queue limit")
-        if self.settings.global_cooldown and now - self._last_global_request < self.settings.global_cooldown:
+        if not recording and self.settings.global_cooldown and now - self._last_global_request < self.settings.global_cooldown:
             raise ValueError("The global speech cooldown is still active")
         user_key = user.casefold().strip()
         if user_key and self.settings.per_user_cooldown:
@@ -195,10 +215,14 @@ class SpeechEngine:
             if now - last < self.settings.per_user_cooldown:
                 raise ValueError(f"{user} is still on speech cooldown")
             self._last_user_request[user_key] = now
-        self._last_global_request = now
-        self._recent_requests[duplicate_key] = now
+        if not recording:
+            self._last_global_request = now
+            self._recent_requests[duplicate_key] = now
         job = SpeechJob(text=text, alias=alias, source=source or "Manual", user=user,
                         priority=max(-100, min(100, int(priority))))
+        if recording:
+            job.audio_path = recording
+            job.replay_recording = True
         with self._lock:
             queue_is_active = (self._current is not None and self._current.status not in {"Finished", "Error", "Cancelled", "Skipped"}) or self.pending.qsize() > 0
             # Register the first job too, before a fast worker can finish it.
@@ -234,15 +258,18 @@ class SpeechEngine:
             raise ValueError("SSML contains an unsupported element")
         plain = "".join(root.itertext())
         # Validate the combined text too, so markup cannot split a blocked word.
-        self._prepare_text(plain, user)
+        self._prepare_text(plain, user, apply_profanity=False)
         for node in nodes:
             for attribute in ("text", "tail"):
                 value = getattr(node, attribute)
                 if value and value.strip():
-                    prepared = self._prepare_text(value, user)
+                    prepared = self._prepare_text(value, user, apply_profanity=False)
                     leading = re.match(r"\s*", value).group()
                     trailing = re.search(r"\s*$", value).group()
                     setattr(node, attribute, leading + prepared + trailing)
+        if self.settings.profanity_enabled:
+            from .profanity import filter_ssml
+            filter_ssml(root, self.settings.profanity_rules)
         return ElementTree.tostring(root, encoding="unicode")
 
 
@@ -269,7 +296,7 @@ class SpeechEngine:
             return ""
         return text
 
-    def _prepare_text(self, text: str, user: str) -> str:
+    def _prepare_text(self, text: str, user: str, *, apply_profanity: bool = True) -> str:
         text = text.strip()
         if self.settings.ignore_command_messages:
             text = re.sub(r"(?<!\S)!\S+", "", text)
@@ -324,6 +351,9 @@ class SpeechEngine:
                         text,
                         flags=re.IGNORECASE,
                     )
+        if apply_profanity and self.settings.profanity_enabled:
+            from .profanity import filter_text
+            text = filter_text(text, self.settings.profanity_rules)
         return text
 
     @staticmethod
@@ -354,18 +384,12 @@ class SpeechEngine:
             return []
 
     def _record_history(self, job: SpeechJob) -> None:
+        if not job.audio_path or not Path(job.audio_path).is_file():
+            return
         entry = self._job_dict(job)
         with self._history_lock:
             self.history.insert(0, entry)
-            removed = self.history[max(1, self.settings.history_limit):]
             del self.history[max(1, self.settings.history_limit):]
-            for old in removed:
-                try:
-                    old_path = Path(str(old.get("audioPath", "")))
-                    if old_path.parent == self.settings.path.parent / "audio_cache":
-                        old_path.unlink(missing_ok=True)
-                except OSError:
-                    logging.exception("Could not remove expired cached audio")
             try:
                 self.history_path.parent.mkdir(parents=True, exist_ok=True)
                 temp = self.history_path.with_suffix(".tmp")
@@ -387,16 +411,14 @@ class SpeechEngine:
             entry = next((item for item in self.history if item.get("id") == speech_id), None)
         if not entry:
             raise ValueError("History item was not found")
-        path = Path(str(entry.get("audioPath", "")))
-        if not path.is_file() or path.resolve().parent != (self.settings.path.parent / "audio_cache").resolve():
-            raise ValueError("This recording has expired from the audio cache. Speak the message again in Playground.")
         alias = self.settings.get_alias(str(entry.get("alias", "")))
         if alias is None:
             alias = VoiceAlias(str(entry.get("alias", "Voice")), provider=str(entry.get("provider", "voicestudio")))
         with self._admission_lock:
-            job = self.enqueue(str(entry.get("text", "")), alias, source="History recording")
-            job.text = str(entry.get("text", ""))
-            job.audio_path = str(path)
+            path = self._history_audio_path(entry)
+            if path is None:
+                raise ValueError("This recording has expired from the audio cache. Speak the message again in Playground.")
+            job = self._enqueue(str(entry.get("text", "")), alias, "History recording", "", 0, recording=str(path))
         return job
 
     def test_output(self, device: str, preview: bool = False) -> SpeechJob:
@@ -418,38 +440,88 @@ class SpeechEngine:
             raise ValueError("Choose a voice save folder in Settings first")
         with self._history_lock:
             entry = next((item for item in self.history if item.get("id") == speech_id), None)
-        if entry is None:
-            raise ValueError("History item was not found")
-        source_text = str(entry.get("audioPath", ""))
-        source = Path(source_text) if source_text else None
-        if source is None or not source.is_file():
-            raise ValueError("Recorded audio is not available for this history item")
-        folder = Path(target_folder).expanduser()
-        folder.mkdir(parents=True, exist_ok=True)
-        alias = re.sub(r"[^A-Za-z0-9._-]+", "_", str(entry.get("alias", "voice"))).strip("._") or "voice"
-        stamp = re.sub(r"[^0-9]", "", str(entry.get("timestamp", "")))[:14]
-        destination = folder / f"{stamp or 'voice'}_{alias}_{speech_id[:8]}.wav"
-        shutil.copy2(source, destination)
-        return str(destination)
+            if entry is None:
+                raise ValueError("History item was not found")
+            source = self._history_audio_path(entry)
+            if source is None or not source.is_file():
+                raise ValueError("Recorded audio is not available for this history item")
+            folder = Path(target_folder).expanduser()
+            folder.mkdir(parents=True, exist_ok=True)
+            alias = re.sub(r"[^A-Za-z0-9._-]+", "_", str(entry.get("alias", "voice"))).strip("._") or "voice"
+            stamp = re.sub(r"[^0-9]", "", str(entry.get("timestamp", "")))[:14]
+            destination = folder / f"{stamp or 'voice'}_{alias}_{speech_id[:8]}.wav"
+            if source.resolve() != destination.resolve():
+                shutil.copy2(source, destination)
+            entry["savedPath"] = str(destination)
+            try:
+                self.history_path.parent.mkdir(parents=True, exist_ok=True)
+                temp = self.history_path.with_suffix(".tmp")
+                temp.write_text(json.dumps(self.history, indent=2), encoding="utf-8")
+                temp.replace(self.history_path)
+            except OSError:
+                logging.exception("Could not save speech history after exporting audio")
+            return str(destination)
 
     def state(self) -> dict:
         if self.settings.reload_if_changed():
             with self._admission_lock:
                 self._save_queue()
+        if self._retention_limit != self.settings.history_limit:
+            self._trim_audio_cache()
+            self._retention_limit = self.settings.history_limit
         with self._lock, self.pending.mutex:
             current = self._job_dict(self._current) if self._current else None
             queued = [self._job_dict(job) for job in self.pending.queue if job is not None and not job.cancelled]
         estimate = sum(item.get("duration", 0)/1000 or len(item["text"])/14 for item in queued)
         if current:
             estimate += self.audio.remaining_seconds if current["status"] == "Playing" else (current["duration"]/1000 or len(current["text"])/14)
+        remaining = 0.0
+        duration_sec = 0.0
+        elapsed = 0.0
+        if current:
+            duration_sec = max(0.0, float(current.get("duration") or 0) / 1000.0)
+            status = str(current.get("status") or "")
+            if status == "Playing":
+                try:
+                    self.audio._sync_play_clock()
+                except Exception:
+                    pass
+                clock_dur = float(getattr(self.audio, "_play_duration", 0.0) or 0.0)
+                if clock_dur > 0:
+                    duration_sec = clock_dur
+                elapsed = max(0.0, float(getattr(self.audio, "elapsed_seconds", 0.0) or 0.0))
+                if duration_sec > 0:
+                    elapsed = max(0.0, min(duration_sec, elapsed))
+                    remaining = max(0.0, duration_sec - elapsed)
+            elif status == "Finished" and duration_sec:
+                elapsed = duration_sec
+                remaining = 0.0
+            elif duration_sec:
+                remaining = duration_sec
+                elapsed = 0.0
         return {"enabled": self._enabled, "paused": self._paused.is_set(), "current": current,
                 "queue": queued, "queueLength": len(queued), "audioWarning": self.audio.warning,
                 "pauseAfterCurrent": self._pause_after_current,
-                "estimatedWaitSeconds": round(estimate, 1)}
+                "estimatedWaitSeconds": round(estimate, 1),
+                "remainingSeconds": round(remaining, 2),
+                "elapsedSeconds": round(elapsed, 2),
+                "durationSeconds": round(duration_sec, 2), "seekRevision": self.audio.seek_revision}
+
+    def _history_audio_path(self, entry: dict) -> Path | None:
+        for key in ("savedPath", "audioPath"):
+            value = str(entry.get(key) or "")
+            if value:
+                path = Path(value)
+                try:
+                    if path.is_file():
+                        return path
+                except OSError:
+                    pass
+        return None
 
     def history_items(self) -> list[dict]:
         with self._history_lock:
-            return list(self.history)
+            return [dict(item) for item in self.history if self._history_audio_path(item) is not None][:self.settings.history_limit]
 
     def clear_history(self) -> None:
         with self._history_lock:
@@ -530,6 +602,14 @@ class SpeechEngine:
         with self._admission_lock:
             self._save_queue()
         return True
+
+    def seek(self, seconds: float, speech_id: str = "") -> dict:
+        with self._lock:
+            if not self._current or self._current.status != "Playing":
+                raise ValueError("Wait for audio playback before seeking")
+            if speech_id and self._current.speech_id != speech_id:
+                raise ValueError("The audio has changed. Seek in the current clip instead.")
+            return self.audio.seek(seconds)
 
     def pause(self) -> None:
         self._paused.set()
@@ -668,7 +748,7 @@ class SpeechEngine:
                 job.status = "Generating"
                 if job.audio_bytes is not None:
                     wav = job.audio_bytes
-                elif job.source == "History recording" and job.audio_path:
+                elif job.replay_recording and job.audio_path:
                     wav = Path(job.audio_path).read_bytes()
                 else:
                     self.events.emit("texttospeech", "generating", self._event_data(job))
@@ -677,10 +757,11 @@ class SpeechEngine:
                     job.status = "Cancelled"
                     continue
                 try:
-                    cache_path = self._cache_file_path(job)
-                    cache_path.write_bytes(wav)
-                    job.audio_path = str(cache_path)
-                    self._trim_audio_cache()
+                    if not job.replay_recording:
+                        cache_path = self._cache_file_path(job)
+                        cache_path.write_bytes(wav)
+                        job.audio_path = str(cache_path)
+                        self._trim_audio_cache()
                 except OSError:
                     logging.exception("Could not cache generated voice audio")
                 if job.cancelled:
@@ -715,6 +796,9 @@ class SpeechEngine:
                     job.status = "Cancelled"
                     continue
                 self.events.emit("texttospeech", "playing", self._event_data(job))
+                # Arm progress BEFORE Playing so UI never sees stale remaining=0 from the prior clip.
+                if job.pcm:
+                    self.audio.arm_progress(job.pcm)
                 job.status = "Playing"
                 # Only explicit preview sources use the preview device.
                 # Matching bare "test" incorrectly sent pronunciation / voice
@@ -746,7 +830,9 @@ class SpeechEngine:
                 self.events.acknowledge_action(job.speech_id)
                 if job.status in {"Cancelled", "Skipped"}:
                     self.events.emit("texttospeech", "cancelled", self._event_data(job))
-                self._record_history(job)
+                # Replays already exist in history — don't flood Recent with duplicates.
+                if not job.replay_recording:
+                    self._record_history(job)
                 with self._lock:
                     self._current = None
                     if self._pause_after_current:
@@ -756,3 +842,4 @@ class SpeechEngine:
                     with self._admission_lock:
                         self._save_queue()
                 self.pending.task_done()
+                self._trim_audio_cache()

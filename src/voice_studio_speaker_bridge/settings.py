@@ -8,6 +8,7 @@ from pathlib import Path
 from threading import RLock
 
 from .models import VoiceAlias
+from .profanity import default_rules, normalize_rules
 
 
 APP_DIR_NAME = "VoxRelay"
@@ -43,6 +44,7 @@ class Settings:
         self.voice_studio_url = "http://127.0.0.1:3900"
         self.api_key = "local"
         self.request_timeout = 120.0
+        self.voicestudio_enabled = True
         self.polly_enabled = False
         self.windows_voices_enabled = True
         self.polly_region = "us-east-1"
@@ -121,6 +123,9 @@ class Settings:
         self.replacements: dict[str, str] = {}
         self.pronunciations: dict[str, str] = {}
         self.hidden_pronunciations: list[str] = []
+        self.profanity_enabled = False
+        self.profanity_hide_words = True
+        self.profanity_rules = default_rules()
         self.user_voice_rules: dict[str, str] = {}
         self.role_voice_rules: dict[str, str] = {}
         self.history_limit = 200
@@ -169,6 +174,8 @@ class Settings:
             self.voice_studio_url = str(data.get("voice_studio_url", self.voice_studio_url)).rstrip("/")
             self.api_key = str(data.get("api_key", self.api_key))
             self.request_timeout = max(1, min(600, float(data.get("request_timeout", self.request_timeout))))
+            # Default True so existing installs keep VoiceStudio available until toggled off.
+            self.voicestudio_enabled = bool(data.get("voicestudio_enabled", True))
             self.polly_enabled = bool(data.get("polly_enabled", self.polly_enabled))
             self.windows_voices_enabled = bool(data.get("windows_voices_enabled", True))
             self.polly_region = str(data.get("polly_region", self.polly_region)).strip() or "us-east-1"
@@ -247,6 +254,9 @@ class Settings:
             self.replacements = {str(key): str(value) for key, value in (data.get("replacements") or {}).items()}
             self.pronunciations = {str(key): str(value) for key, value in (data.get("pronunciations") or {}).items()}
             self.hidden_pronunciations = [str(value) for value in (data.get("hidden_pronunciations") or [])]
+            self.profanity_enabled = bool(data.get("profanity_enabled", False))
+            self.profanity_hide_words = bool(data.get("profanity_hide_words", True))
+            self.profanity_rules = normalize_rules(data.get("profanity_rules"))
             self.user_voice_rules = {str(key).casefold(): str(value) for key, value in (data.get("user_voice_rules") or {}).items()}
             self.role_voice_rules = {str(key).casefold(): str(value) for key, value in (data.get("role_voice_rules") or {}).items()}
             self.history_limit = max(1, min(100000, int(data.get("history_limit", self.history_limit))))
@@ -330,6 +340,7 @@ class Settings:
                 "voice_studio_url": self.voice_studio_url.rstrip("/"),
                 "api_key": self.api_key,
                 "request_timeout": self.request_timeout,
+                "voicestudio_enabled": self.voicestudio_enabled,
                 "polly_enabled": self.polly_enabled,
                 "windows_voices_enabled": self.windows_voices_enabled,
                 "polly_region": self.polly_region,
@@ -397,6 +408,9 @@ class Settings:
                 "replacements": self.replacements,
                 "pronunciations": self.pronunciations,
                 "hidden_pronunciations": self.hidden_pronunciations,
+                "profanity_enabled": self.profanity_enabled,
+                "profanity_hide_words": self.profanity_hide_words,
+                "profanity_rules": self.profanity_rules,
                 "user_voice_rules": self.user_voice_rules,
                 "role_voice_rules": self.role_voice_rules,
                 "history_limit": self.history_limit,

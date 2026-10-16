@@ -1,6 +1,7 @@
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System.Xaml,System.Windows.Forms,System.Drawing,System.Security
 $appRoot=Split-Path -Parent $PSScriptRoot
+$resourceRoot=$appRoot
 $configDir=Join-Path $appRoot ('data/ui-test-'+[guid]::NewGuid().ToString('N'))
 [IO.Directory]::CreateDirectory($configDir) | Out-Null
 $configPath=Join-Path $configDir 'settings.json'
@@ -10,11 +11,15 @@ $ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $appRoot 'Vox
 foreach($definition in $ast.FindAll({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst]},$true)){
     Invoke-Expression $definition.Extent.Text
 }
+Initialize-RoundedChrome
 $window=Load-Xaml (Join-Path $appRoot 'VoxRelay.xaml')
 [xml]$markup=Get-Content -LiteralPath (Join-Path $appRoot 'VoxRelay.xaml') -Raw
 foreach($node in $markup.SelectNodes('//*[@Name]')){Set-Variable -Name $node.GetAttribute('Name') -Value $window.FindName($node.GetAttribute('Name'))}
 $script:profiles=@{};$script:profileModels=@{};$script:servicesExpanded=$true;$script:loadingSettings=$false
 Apply-AppFont $window
+. (Join-Path $resourceRoot 'assets\RuleEditors.ps1')
+Install-NumericEditors
+Install-ProfanityEditor
 Refresh-Grid
 if($AliasGrid.Items.Count -ne 1){throw 'Default alias did not load'}
 $value=[pscustomobject]@{Name='Test voice';Provider='polly';VoiceId='Brian';Model='neural';Speed=1;Volume=1;Group='Test';Language='en-GB';Instruct='';OutputDevice='Test output'}
@@ -31,18 +36,20 @@ Save-Rules
 $saved=Read-Settings
 if(@($saved.routing_rules).Count -ne 1 -or $saved.routing_rules[0].priority -ne 25){throw 'Routing rule did not persist'}
 $script:backendOnline=$true
-$script:testHistory=@([pscustomobject]@{id='stable';timestamp='2026-10-15T12:00:00Z';status='Finished';alias='Test voice';source='Test';user='';text='hello';audioPath=''})
+$recordingPath=Join-Path $configDir 'test-recording.wav'
+[IO.File]::WriteAllBytes($recordingPath,[byte[]](82,73,70,70))
+$script:testHistory=@([pscustomobject]@{id='stable';timestamp='2026-10-15T12:00:00Z';status='Finished';alias='Test voice';source='Test';user='';text='hello';audioPath=$recordingPath})
 function Invoke-BridgeGet([string]$path,[int]$timeoutSec=2){
     if($path -eq '/api/state'){return [pscustomobject]@{result=[pscustomobject]@{queue=@();current=$null;queueLength=0;estimatedWaitSeconds=0;paused=$false}}}
     if($path -eq '/api/history'){return [pscustomobject]@{result=[pscustomobject]@{history=$script:testHistory}}}
 }
-Refresh-ServiceState
+Refresh-ServiceState -Snapshot (Invoke-BridgeGet '/api/state').result
 $HistoryGrid.SelectedIndex=0
 $originalSource=$HistoryGrid.ItemsSource
-Refresh-ServiceState
+Refresh-ServiceState -Snapshot (Invoke-BridgeGet '/api/state').result
 if(-not[object]::ReferenceEquals($originalSource,$HistoryGrid.ItemsSource) -or $HistoryGrid.SelectedItem.Id -ne 'stable'){throw 'Unchanged history lost its selection or collection'}
-$script:testHistory=@([pscustomobject]@{id='new';timestamp='2026-10-15T12:01:00Z';status='Finished';alias='Test voice';source='Test';user='';text='new';audioPath=''})+$script:testHistory
-Refresh-ServiceState
+$script:testHistory=@([pscustomobject]@{id='new';timestamp='2026-10-15T12:01:00Z';status='Finished';alias='Test voice';source='Test';user='';text='new';audioPath=$recordingPath})+$script:testHistory
+Refresh-ServiceState -Snapshot (Invoke-BridgeGet '/api/state').result
 if($HistoryGrid.SelectedItem.Id -ne 'stable'){throw 'New history entry deselected the existing selection'}
 $PollyRegionBox.ApplyTemplate() | Out-Null
 $editable=$PollyRegionBox.Template.FindName('PART_EditableTextBox',$PollyRegionBox)

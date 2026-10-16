@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from threading import Condition, RLock, Event
 from time import monotonic
 
@@ -20,6 +21,14 @@ class AudioPlayer:
         self._paused = Event()
         self.warning = ""
         self.remaining_seconds = 0.0
+        self.elapsed_seconds = 0.0
+        self._play_duration = 0.0
+        self._play_origin = 0.0
+        self._play_hold = 0.0
+        self._clock_running = False
+        self._submitted_seconds = 0.0
+        self._seek_target = None
+        self.seek_revision = 0
 
     @staticmethod
     def list_devices() -> list[str]:
@@ -67,37 +76,99 @@ class AudioPlayer:
         return pcm, duration_ms
 
     @staticmethod
-    def _stream_pcm(source: bytes, is_playing, is_paused=lambda: False, progress=lambda index: None):
+    def _stream_pcm(source: bytes, is_playing, is_paused=lambda: False, progress=lambda index: None, seek_position=lambda: None):
         required_frames = yield b""
         index = 0
-        while index < len(source) and is_playing():
+        while is_playing():
+            target = seek_position()
+            if target is not None:
+                index = max(0, min(len(source), int(target))) // 2 * 2
             required_bytes = required_frames * 2
             if is_paused():
                 # Silence preserves the stream position and keeps the device alive.
                 required_frames = yield bytes(required_bytes)
                 continue
             data = source[index:index + required_bytes]
-            index += required_bytes
-            progress(min(index, len(source)))
             if not data:
                 break
+            index += len(data)
+            progress(index)
             required_frames = yield data
+
+
+    def arm_progress(self, pcm: bytes | int) -> float:
+        """Reset progress to the start of this PCM before status becomes Playing."""
+        nbytes = len(pcm) if isinstance(pcm, (bytes, bytearray)) else int(pcm)
+        total = max(0.0, nbytes / (2 * SAMPLE_RATE))
+        with self._condition:
+            self._play_duration = total
+            self._play_origin = 0.0
+            self._play_hold = 0.0
+            self._clock_running = False
+            self._submitted_seconds = 0.0
+            self._seek_target = None
+            self.elapsed_seconds = 0.0
+            self.remaining_seconds = total
+        return total
+
+    def _sync_play_clock(self) -> None:
+        """Elapsed/remaining from wall clock over known PCM duration."""
+        total = float(self._play_duration or 0.0)
+        if total <= 0:
+            self.elapsed_seconds = 0.0
+            self.remaining_seconds = 0.0
+            return
+        if self._clock_running and not self._paused.is_set():
+            elapsed = self._play_hold + (monotonic() - self._play_origin)
+        else:
+            elapsed = self._play_hold
+        elapsed = max(0.0, min(total, self._submitted_seconds, elapsed))
+        self.elapsed_seconds = elapsed
+        self.remaining_seconds = max(0.0, total - elapsed)
 
     def play(self, pcm: bytes, cancel_event: Event | None = None) -> bool:
         with self._condition:
             if cancel_event is not None and cancel_event.is_set():
                 return False
             self.playing = True
-            self.remaining_seconds = len(pcm) / (2 * SAMPLE_RATE)
+            total = len(pcm) / (2 * SAMPLE_RATE)
+            self._play_duration = total
+            self._play_hold = 0.0
+            self._play_origin = 0.0
+            self._clock_running = False
+            self._submitted_seconds = 0.0
+            self._seek_target = None
+            self.elapsed_seconds = 0.0
+            self.remaining_seconds = total
 
         def finished():
             with self._condition:
+                self._sync_play_clock()
+                if self.playing and not (cancel_event is not None and cancel_event.is_set()):
+                    self._play_hold = self._play_duration
+                    self.elapsed_seconds = self._play_duration
+                    self.remaining_seconds = 0.0
+                else:
+                    self._play_hold = self.elapsed_seconds
+                self._clock_running = False
                 self.playing = False
                 self._condition.notify_all()
 
         device = None
         def progress(index):
-            self.remaining_seconds = max(0, (len(pcm)-index)/(2*SAMPLE_RATE))
+            with self._condition:
+                if self._seek_target is not None:
+                    return
+                self._submitted_seconds = index / (2 * SAMPLE_RATE)
+                # Device creation can take time. Begin timing only once it asks for PCM.
+                if not self._clock_running and not self._paused.is_set():
+                    self._play_origin = monotonic()
+                    self._clock_running = True
+        def seek_position():
+            with self._condition:
+                target = self._seek_target
+                self._seek_target = None
+                return target
         try:
             device = miniaudio.PlaybackDevice(
                 output_format=miniaudio.SampleFormat.SIGNED16,
@@ -108,7 +179,7 @@ class AudioPlayer:
             )
             stream = self._stream_pcm(pcm,
                 lambda: self.playing and not (cancel_event is not None and cancel_event.is_set()),
-                self._paused.is_set, progress)
+                self._paused.is_set, progress, seek_position)
             next(stream)
             callback_stream = miniaudio.stream_with_callbacks(stream, end_callback=finished)
             next(callback_stream)
@@ -117,6 +188,7 @@ class AudioPlayer:
                 device.start(callback_stream)
             remaining = len(pcm) / (2 * SAMPLE_RATE) + 5
             last_tick = monotonic()
+            revision = self.seek_revision
             with self._condition:
                 while self.playing:
                     self._condition.wait(timeout=0.05)
@@ -124,6 +196,10 @@ class AudioPlayer:
                     if not self._paused.is_set():
                         remaining -= now-last_tick
                     last_tick = now
+                    self._sync_play_clock()
+                    if revision != self.seek_revision:
+                        revision = self.seek_revision
+                        remaining = self.remaining_seconds + 5
                     if remaining <= 0:
                         self.warning = "Audio output stopped responding. Reconnect the device or choose another output."
                         self.playing = False
@@ -136,6 +212,11 @@ class AudioPlayer:
             finished()
             return False
         finally:
+            with self._condition:
+                self._sync_play_clock()
+                self._play_hold = self.elapsed_seconds
+                self._clock_running = False
+                self.playing = False
             with self._device_lock:
                 if device is not None:
                     try:
@@ -144,14 +225,49 @@ class AudioPlayer:
                         logging.exception("Could not close the output device")
                 self.device = None
 
+    def seek(self, seconds: float) -> dict:
+        seconds = float(seconds)
+        if not math.isfinite(seconds):
+            raise ValueError("Playback position must be a finite number")
+        with self._condition:
+            if not self.playing or self._play_duration <= 0:
+                raise ValueError("No audio is currently playing")
+            position = max(0.0, min(self._play_duration, seconds))
+            self._seek_target = int(position * SAMPLE_RATE) * 2
+            self._play_hold = self._seek_target / (2 * SAMPLE_RATE)
+            self._submitted_seconds = self._play_hold
+            self._play_origin = monotonic()
+            self._clock_running = False
+            self.elapsed_seconds = self._play_hold
+            self.remaining_seconds = self._play_duration - self.elapsed_seconds
+            self.seek_revision += 1
+            self._condition.notify_all()
+            return {"elapsedSeconds": self.elapsed_seconds, "seekRevision": self.seek_revision}
+
     def pause(self) -> None:
-        self._paused.set()
+        with self._condition:
+            if self._clock_running and not self._paused.is_set():
+                self._sync_play_clock()
+                self._play_hold = self.elapsed_seconds
+                self._clock_running = False
+                self._sync_play_clock()
+            self._paused.set()
 
     def resume(self) -> None:
-        self._paused.clear()
+        with self._condition:
+            if not self._paused.is_set():
+                return
+            self._paused.clear()
+            self._play_origin = monotonic()
+            self._clock_running = self.playing and self._submitted_seconds > 0
+            self._sync_play_clock()
 
     def stop(self) -> None:
         with self._condition:
+            if self._clock_running and not self._paused.is_set():
+                self._sync_play_clock()
+                self._play_hold = self.elapsed_seconds
+            self._clock_running = False
             self.playing = False
             self._condition.notify_all()
         # A device stop can wait for its audio callback. Never hold the callback's

@@ -150,7 +150,7 @@ class BridgeServers:
 
             def do_POST(self) -> None:
                 routes = {"/speak": "Speak", "/stop": "Stop", "/clear": "Clear",
-                          "/pause": "Pause", "/resume": "Resume", "/skip": "Stop",
+                          "/pause": "Pause", "/resume": "Resume", "/skip": "Stop", "/api/playback/seek": "Seek",
                           "/pause-after-current": "PauseAfterCurrent", "/clear-all": "ClearAll",
                           "/api/profiles/load": "LoadProfile",
                           "/api/history/clear": "ClearHistory", "/api/history/save": "SaveHistoryAudio", "/api/history/replay": "ReplayHistory", "/api/queue/remove": "RemoveSpeech",

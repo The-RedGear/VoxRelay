@@ -71,6 +71,7 @@ class FeatureTests(unittest.TestCase):
         self.assertRegex(path.name, r"^Sgt_Johnson_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}-456\.wav$")
 
     def test_audio_cache_keeps_only_newest_thirty_files(self):
+        self.settings.history_limit = 30
         cache = Path(self.temp.name) / "audio_cache"
         cache.mkdir()
         for index in range(35):

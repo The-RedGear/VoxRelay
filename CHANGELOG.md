@@ -2,6 +2,15 @@
 
 ## 0.5.0 preview
 
+- History media-bar playback uses the selected recording without copying or
+  regenerating it. Missing recordings are hidden; History and cache share one limit.
+- Whole-row History selection, wrapped playlist rows and rounded frames.
+- Collapsible profanity rules with per-word toggles, variants, replacement
+  alternatives, remove/block actions, and words hidden by default.
+- Sliders with exact-value entry for limits and cooldowns.
+- Smoother playback progress, seeking, responsive polling, collapsible setup guides,
+  rounded control states and locally bundled Poppins typography.
+
 Adds Speaker.bot-compatible cloud TTS engines: ElevenLabs, Azure Speech,
 Google Cloud TTS, IBM Watson, UberDuck, TTS.Monster, Acapela, and CereProc.
 Each engine has a Services page. Secrets use the same Windows DPAPI protection

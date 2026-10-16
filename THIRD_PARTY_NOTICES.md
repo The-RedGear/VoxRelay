@@ -5,6 +5,15 @@ it. VoxRelay itself is licensed under the MIT License (see [`LICENSE`](LICENSE))
 
 ## Bundled assets
 
+### Poppins typeface
+
+VoxRelay uses **Poppins** by the Poppins Project Authors (Indian Type Foundry,
+Jonny Pinhorn, and Ninad Kale), bundled locally for offline use under the SIL Open
+Font License, Version 1.1.
+
+- Source: https://github.com/google/fonts/tree/main/ofl/poppins
+- Full copyright and license: [`assets/fonts/Poppins/OFL.txt`](assets/fonts/Poppins/OFL.txt)
+
 ### Inter typeface
 
 VoxRelay includes the **Inter** typeface by Rasmus Andersson.

@@ -18,6 +18,9 @@ jobs:
       - name: Verify desktop UI
         shell: powershell
         run: powershell.exe -STA -NoProfile -ExecutionPolicy Bypass -File tests/test_wpf_functions.ps1
+      - name: Verify History and Rules controls
+        shell: powershell
+        run: powershell.exe -STA -NoProfile -ExecutionPolicy Bypass -File tests/test_history_rules_ui.ps1
       - name: Package
         run: python -m PyInstaller --noconfirm VoxRelay.spec
       - name: Include user documentation

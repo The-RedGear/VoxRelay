@@ -1,7 +1,8 @@
-﻿Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System.Xaml
+Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System.Xaml
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Security
+Add-Type -AssemblyName WindowsFormsIntegration
 [System.Windows.Forms.Application]::EnableVisualStyles()
 Add-Type -TypeDefinition @'
 using System;
@@ -13,7 +14,13 @@ public static class VoxRelayTaskbarIdentity {
 '@
 [void][VoxRelayTaskbarIdentity]::SetCurrentProcessExplicitAppUserModelID('VoxRelay.Desktop')
 
-$appRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+# Bundled UI assets live next to this script (_internal when frozen).
+# Portable data always lives beside the install root (parent of _internal).
+$resourceRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$appRoot = $resourceRoot
+if ([IO.Path]::GetFileName($resourceRoot) -eq '_internal') {
+    $appRoot = Split-Path -Parent $resourceRoot
+}
 
 # NotifyIcon requires STA. Relaunch ourselves if needed.
 if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') {
@@ -23,15 +30,25 @@ if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') {
     $psi.WorkingDirectory = $appRoot
     $psi.UseShellExecute = $false
     if ($env:VSB_EXTERNAL_BACKEND) { $psi.EnvironmentVariables['VSB_EXTERNAL_BACKEND'] = $env:VSB_EXTERNAL_BACKEND }
+    if ($env:VOXRELAY_DATA_DIR) { $psi.EnvironmentVariables['VOXRELAY_DATA_DIR'] = $env:VOXRELAY_DATA_DIR }
     [void][System.Diagnostics.Process]::Start($psi)
     exit 0
 }
 $configDir = if ($env:VOXRELAY_DATA_DIR) { $env:VOXRELAY_DATA_DIR } else { Join-Path $appRoot 'data' }
+# Keep UI + backend on the same portable data folder (beside the app).
+$env:VOXRELAY_DATA_DIR = $configDir
 $legacyConfigDir = Join-Path $env:LOCALAPPDATA 'VoiceStudioSpeakerBridge'
+$legacyAppDir = Join-Path $env:LOCALAPPDATA 'VoxRelay'
 if (-not (Test-Path -LiteralPath $configDir)) {
     New-Item -ItemType Directory -Path $configDir -Force | Out-Null
-    if (Test-Path -LiteralPath (Join-Path $legacyConfigDir 'settings.json')) {
-        Copy-Item -LiteralPath (Join-Path $legacyConfigDir 'settings.json') -Destination (Join-Path $configDir 'settings.json')
+    foreach ($legacyPath in @(
+        (Join-Path $legacyConfigDir 'settings.json'),
+        (Join-Path $legacyAppDir 'settings.json')
+    )) {
+        if (Test-Path -LiteralPath $legacyPath) {
+            Copy-Item -LiteralPath $legacyPath -Destination (Join-Path $configDir 'settings.json')
+            break
+        }
     }
 }
 $configPath = Join-Path $configDir 'settings.json'
@@ -45,13 +62,175 @@ $script:httpPort = 7582
 $script:backendOnline = $false
 $script:backendFailUntil = [datetime]::MinValue
 
+function Initialize-RoundedChrome {
+    if ('VoxRelayRoundedChrome' -as [type]) { return }
+    Add-Type -ReferencedAssemblies @('PresentationFramework','PresentationCore','WindowsBase','System.Xaml') -TypeDefinition @'
+using System;
+using System.Globalization;
+using System.Runtime.CompilerServices;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
+
+public static class VoxRelayMotion {
+    private static bool initialized;
+    public static void Initialize() {
+        if (initialized) return;
+        initialized = true;
+        EventManager.RegisterClassHandler(typeof(Expander), Expander.ExpandedEvent, new RoutedEventHandler(Expanded), true);
+        EventManager.RegisterClassHandler(typeof(CheckBox), ToggleButton.CheckedEvent, new RoutedEventHandler(Checked), true);
+        EventManager.RegisterClassHandler(typeof(DataGridRow), Selector.SelectedEvent, new RoutedEventHandler(Selected), true);
+        EventManager.RegisterClassHandler(typeof(ListBoxItem), Selector.SelectedEvent, new RoutedEventHandler(Selected), true);
+        EventManager.RegisterClassHandler(typeof(ComboBoxItem), Selector.SelectedEvent, new RoutedEventHandler(Selected), true);
+        EventManager.RegisterClassHandler(typeof(TextBox), Keyboard.GotKeyboardFocusEvent, new KeyboardFocusChangedEventHandler(Focused), true);
+        EventManager.RegisterClassHandler(typeof(PasswordBox), Keyboard.GotKeyboardFocusEvent, new KeyboardFocusChangedEventHandler(Focused), true);
+        EventManager.RegisterClassHandler(typeof(ToolTip), ToolTip.OpenedEvent, new RoutedEventHandler(Opened), true);
+        EventManager.RegisterClassHandler(typeof(ContextMenu), ContextMenu.OpenedEvent, new RoutedEventHandler(Opened), true);
+    }
+    public static void Reveal(UIElement element, double start, int milliseconds) {
+        if (element == null || !SystemParameters.ClientAreaAnimation) return;
+        double opacity = (double)element.GetAnimationBaseValue(UIElement.OpacityProperty);
+        double from = element.Opacity < opacity ? element.Opacity : opacity*start;
+        DoubleAnimation fade = new DoubleAnimation(from, opacity, TimeSpan.FromMilliseconds(milliseconds));
+        fade.EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut };
+        fade.FillBehavior = FillBehavior.Stop;
+        element.BeginAnimation(UIElement.OpacityProperty, fade, HandoffBehavior.SnapshotAndReplace);
+    }
+    private static UIElement Part(Control control, params string[] names) {
+        if (control.Template == null) return null;
+        foreach(string name in names) { UIElement element=control.Template.FindName(name,control) as UIElement; if(element!=null) return element; }
+        return null;
+    }
+    private static void Expanded(object sender, RoutedEventArgs args) {
+        if (args.OriginalSource != sender) return;
+        Reveal(Part((Control)sender,"ExpandedContent"),0.82,140);
+    }
+    private static void Checked(object sender, RoutedEventArgs args) {
+        if (args.OriginalSource == sender) Reveal(Part((Control)sender,"Check"),0.45,110);
+    }
+    private static void Selected(object sender, RoutedEventArgs args) {
+        if (args.OriginalSource == sender) Reveal(Part((Control)sender,"RowShell","ItemShell","Item"),0.7,120);
+    }
+    private static void Focused(object sender, KeyboardFocusChangedEventArgs args) {
+        if (args.NewFocus == sender) Reveal(Part((Control)sender,"Field"),0.9,110);
+    }
+    private static void Opened(object sender, RoutedEventArgs args) { Reveal(sender as UIElement,0.9,110); }
+}
+
+public sealed class VoxRelayMarkerPosition : IMultiValueConverter {
+    public object Convert(object[] values, Type target, object parameter, CultureInfo culture) {
+        if (values.Length < 2 || !(values[0] is double) || !(values[1] is double)) return new Thickness(0);
+        double edge = (double)values[0], width = (double)values[1];
+        return new Thickness(Math.Max(0, Math.Min(Math.Max(0, width - 8), edge - 4)), 0, 0, 0);
+    }
+    public object[] ConvertBack(object value, Type[] targets, object parameter, CultureInfo culture) { throw new NotSupportedException(); }
+}
+
+public static class VoxRelayRoundedChrome {
+    private static readonly ConditionalWeakTable<Window, object> windows = new ConditionalWeakTable<Window, object>();
+    public static void Attach(Window window) {
+        object existing;
+        if (windows.TryGetValue(window, out existing)) return;
+        windows.Add(window, new object());
+        window.Loaded += delegate { Scan(window); };
+        window.ContentRendered += delegate { Scan(window); };
+        if (window.IsLoaded) Scan(window);
+    }
+    private static void Scan(DependencyObject node) {
+        Border border = node as Border;
+        if (border != null) Loaded(border, null);
+        System.Windows.Controls.Primitives.Popup popup = node as System.Windows.Controls.Primitives.Popup;
+        if (popup != null && popup.Child != null) Scan(popup.Child);
+        int count = VisualTreeHelper.GetChildrenCount(node);
+        for (int i=0; i<count; i++) Scan(VisualTreeHelper.GetChild(node,i));
+    }
+    private sealed class State {
+        public Rect Bounds = Rect.Empty;
+        public CornerRadius Radius;
+        public UIElement Child;
+        public FrameworkElement ObservedChild;
+        public SizeChangedEventHandler ChildSizeHandler;
+    }
+    private static readonly ConditionalWeakTable<Border, State> states = new ConditionalWeakTable<Border, State>();
+    private static bool initialized;
+    public static void Initialize() {
+        if (initialized) return;
+        initialized = true;
+        EventManager.RegisterClassHandler(typeof(Border), FrameworkElement.LoadedEvent, new RoutedEventHandler(Loaded), true);
+    }
+    private static void Loaded(object sender, RoutedEventArgs args) {
+        Border border = sender as Border;
+        if (border == null) return;
+        CornerRadius radius = border.CornerRadius;
+        if (border.Child == null || (radius.TopLeft == 0 && radius.TopRight == 0 && radius.BottomLeft == 0 && radius.BottomRight == 0)) return;
+        State state;
+        if (!states.TryGetValue(border, out state)) {
+            state = new State(); states.Add(border, state);
+            border.Loaded += Loaded;
+            border.SizeChanged += delegate { Update(border, state); };
+        }
+        Update(border, state);
+    }
+    private static void Update(Border border, State state) {
+        UIElement child = border.Child;
+        FrameworkElement sizedChild = child as FrameworkElement;
+        if (state.ObservedChild != sizedChild) {
+            if (state.ObservedChild != null && state.ChildSizeHandler != null) state.ObservedChild.SizeChanged -= state.ChildSizeHandler;
+            state.ObservedChild = sizedChild;
+            state.ChildSizeHandler = delegate { Update(border,state); };
+            if (sizedChild != null) sizedChild.SizeChanged += state.ChildSizeHandler;
+        }
+        CornerRadius r = border.CornerRadius;
+        if (child == null || border.ActualWidth <= 0 || border.ActualHeight <= 0) return;
+        if (r.TopLeft == 0 && r.TopRight == 0 && r.BottomLeft == 0 && r.BottomRight == 0) return;
+        try {
+            Point origin = child.TranslatePoint(new Point(0,0), border);
+            Thickness t = border.BorderThickness;
+            Rect bounds = new Rect(t.Left-origin.X, t.Top-origin.Y,
+                Math.Max(0, border.ActualWidth-t.Left-t.Right), Math.Max(0, border.ActualHeight-t.Top-t.Bottom));
+            if (state.Child == child && state.Bounds == bounds && state.Radius == r) return;
+            double limit = Math.Min(bounds.Width, bounds.Height)/2;
+            double tl = Math.Min(limit,Math.Max(0,r.TopLeft-Math.Max(t.Left,t.Top)));
+            double tr = Math.Min(limit,Math.Max(0,r.TopRight-Math.Max(t.Right,t.Top)));
+            double br = Math.Min(limit,Math.Max(0,r.BottomRight-Math.Max(t.Right,t.Bottom)));
+            double bl = Math.Min(limit,Math.Max(0,r.BottomLeft-Math.Max(t.Left,t.Bottom)));
+            double x=bounds.X, y=bounds.Y, right=bounds.Right, bottom=bounds.Bottom;
+            StreamGeometry geometry = new StreamGeometry();
+            using(StreamGeometryContext c = geometry.Open()) {
+                c.BeginFigure(new Point(x+tl,y),true,true);
+                c.LineTo(new Point(right-tr,y),true,false); Arc(c,new Point(right,y+tr),tr);
+                c.LineTo(new Point(right,bottom-br),true,false); Arc(c,new Point(right-br,bottom),br);
+                c.LineTo(new Point(x+bl,bottom),true,false); Arc(c,new Point(x,bottom-bl),bl);
+                c.LineTo(new Point(x,y+tl),true,false); Arc(c,new Point(x+tl,y),tl);
+            }
+            geometry.Freeze(); child.SetCurrentValue(UIElement.ClipProperty,geometry);
+            state.Child=child; state.Bounds=bounds; state.Radius=r;
+        } catch (InvalidOperationException) { }
+    }
+    private static void Arc(StreamGeometryContext c, Point end, double radius) {
+        if (radius > 0) c.ArcTo(end,new Size(radius,radius),0,false,SweepDirection.Clockwise,true,false);
+        else c.LineTo(end,true,false);
+    }
+}
+'@
+    [VoxRelayRoundedChrome]::Initialize()
+    [VoxRelayMotion]::Initialize()
+}
+Initialize-RoundedChrome
+
 function Load-Xaml([string]$path) {
     # Load via XmlReader so UTF-8 markup is not corrupted by PowerShell's [xml] cast.
     $settings = [System.Xml.XmlReaderSettings]::new()
     $settings.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
     $reader = [System.Xml.XmlReader]::Create($path, $settings)
     try {
-        return [Windows.Markup.XamlReader]::Load($reader)
+        $loaded = [Windows.Markup.XamlReader]::Load($reader)
+        if ($loaded -is [Windows.Window]) { [VoxRelayRoundedChrome]::Attach($loaded) }
+        return $loaded
     } finally {
         $reader.Dispose()
     }
@@ -71,11 +250,35 @@ function Set-ControlAccessibility($target) {
         foreach ($child in [Windows.LogicalTreeHelper]::GetChildren($target)) { if ($child -is [Windows.DependencyObject]) { Set-ControlAccessibility $child } }
     }
 }
+function Get-DisplayText([string]$text) {
+    if ($script:profanityMask -and -not $script:profanityShow.IsChecked) {
+        return $script:profanityMask.Replace($text,[Text.RegularExpressions.MatchEvaluator]{param($m) '*' * [Math]::Max(4,$m.Length)})
+    }
+    return $text
+}
 function Apply-AppFont($target) {
-    $fontFolder = [Uri]::new(((Join-Path $appRoot 'assets') + [IO.Path]::DirectorySeparatorChar))
-    $target.FontFamily = [Windows.Media.FontFamily]::new($fontFolder, './#Inter Variable')
+    if ($target -is [Windows.Window]) { [VoxRelayRoundedChrome]::Attach($target) }
+    if (-not $script:appFontFamily) {
+        $fontFolder = [Uri]::new(((Join-Path $resourceRoot 'assets\fonts\Poppins') + [IO.Path]::DirectorySeparatorChar))
+        $script:appFontFamily = [Windows.Media.FontFamily]::new($fontFolder, './#Poppins')
+    }
+    $target.FontFamily = $script:appFontFamily
+    $target.Resources['AppFontFamily'] = $script:appFontFamily
+    $target.Resources[[Windows.SystemFonts]::MessageFontFamilyKey] = $script:appFontFamily
     Set-ControlAccessibility $target
     if ($target -is [Windows.Window] -and $target -ne $window) {
+        # Dialogs use the same rounded control states as the main window.
+        foreach ($controlType in @([Windows.Controls.Button],[Windows.Controls.TextBox],[Windows.Controls.PasswordBox],[Windows.Controls.ComboBox],[Windows.Controls.ComboBoxItem],[Windows.Controls.ListBox],[Windows.Controls.ListBoxItem],[Windows.Controls.CheckBox],[Windows.Controls.Slider],[Windows.Controls.Primitives.ScrollBar],[Windows.Controls.Primitives.ResizeGrip],[Windows.Controls.ToolTip],[Windows.Controls.ContextMenu],[Windows.Controls.MenuItem],[Windows.Controls.Separator])) {
+            $sharedStyle = $window.TryFindResource($controlType)
+            if ($sharedStyle) { $target.Resources[$controlType] = $sharedStyle }
+        }
+        foreach ($name in @('Save','Speak','PreviewImport')) {
+            $primary = $target.FindName($name)
+            if ($primary -is [Windows.Controls.Button]) { $primary.Style = $window.FindResource('PrimaryButton') }
+        }
+        $target.UseLayoutRounding = $true
+        $target.SnapsToDevicePixels = $true
+        $target.Add_ContentRendered({param($sender,$e) [VoxRelayMotion]::Reveal($sender.Content,0.96,130)})
         $target.MaxHeight = [Windows.SystemParameters]::WorkArea.Height - 24
         $target.Icon=$window.Icon
         $target.Add_KeyDown({param($sender,$e) if($e.Key -eq 'Escape'){$sender.Close()}})
@@ -92,6 +295,7 @@ function Ensure-SettingsFile {
     # Seed a minimal file so the UI never binds against a missing config.
     @{
         voice_studio_url='http://127.0.0.1:3900'; api_key='local'; request_timeout=120
+        voicestudio_enabled=$true
         polly_enabled=$false; polly_region='us-east-1'; polly_profile=''; polly_access_key_encrypted=''; polly_secret_key_encrypted=''
         ws_address='127.0.0.1'; ws_port=7581; http_address='127.0.0.1'; http_port=7582
         udp_address='0.0.0.0'; udp_port=6670; enable_udp=$true
@@ -160,11 +364,16 @@ function Start-Backend {
     $psi.FileName = $python
     $psi.Arguments = '-m voice_studio_speaker_bridge --headless'
     $psi.WorkingDirectory = $appRoot
-    $psi.UseShellExecute = $true
+    # UseShellExecute=false so PYTHONPATH / VOXRELAY_DATA_DIR reach the child.
+    $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $false
-    # .NET Framework uses EnvironmentVariables; .NET (Core) also exposes Environment.
-    try { $psi.EnvironmentVariables['PYTHONPATH'] = (Join-Path $appRoot 'src') } catch {}
-    try { $psi.Environment['PYTHONPATH'] = (Join-Path $appRoot 'src') } catch {}
+    $srcPath = Join-Path $appRoot 'src'
+    $env:PYTHONPATH = $srcPath
+    $env:VOXRELAY_DATA_DIR = $configDir
+    try { $psi.EnvironmentVariables['PYTHONPATH'] = $srcPath } catch {}
+    try { $psi.Environment['PYTHONPATH'] = $srcPath } catch {}
+    try { $psi.EnvironmentVariables['VOXRELAY_DATA_DIR'] = $configDir } catch {}
+    try { $psi.Environment['VOXRELAY_DATA_DIR'] = $configDir } catch {}
     $script:backend = [System.Diagnostics.Process]::Start($psi)
 }
 function Wait-BackendReady([int]$timeoutMs = 8000) {
@@ -224,18 +433,20 @@ function Enable-RoundedClip {
     & $handler $Element $null
 }
 
-$window = Load-Xaml (Join-Path $appRoot 'VoxRelay.xaml')
+$window = Load-Xaml (Join-Path $resourceRoot 'VoxRelay.xaml')
+$window.UseLayoutRounding = $true
+$window.SnapsToDevicePixels = $true
 $window.MinWidth = [Math]::Min(980,[Windows.SystemParameters]::WorkArea.Width-24)
 $window.Width = [Math]::Min(1180,[Windows.SystemParameters]::WorkArea.Width-24)
 $window.MinHeight = [Math]::Min(640,[Windows.SystemParameters]::WorkArea.Height-24)
 $window.Height = [Math]::Min(760,[Windows.SystemParameters]::WorkArea.Height-24)
-$windowIconPath = Join-Path $appRoot 'assets\VoxRelay.ico'
+$windowIconPath = Join-Path $resourceRoot 'assets\VoxRelay.ico'
 if (Test-Path -LiteralPath $windowIconPath) {
     try { $window.Icon = [System.Windows.Media.Imaging.BitmapFrame]::Create([Uri]::new($windowIconPath)) } catch {}
 }
 Apply-AppFont $window
 # Keep custom scrollbar thumbs as grab-able pills (Track math otherwise shrinks them to ~width).
-[EventManager]::RegisterClassHandler(
+[System.Windows.EventManager]::RegisterClassHandler(
     [System.Windows.Controls.Primitives.ScrollBar],
     [System.Windows.FrameworkElement]::LoadedEvent,
     [System.Windows.RoutedEventHandler]{
@@ -255,15 +466,15 @@ Apply-AppFont $window
         } catch {}
     })
 $controlNames = @(
- 'AppTitleBar','MinimizeButton','MaximizeButton','CloseButton','BridgeStatusButton','RefreshButton','PageTitle','PageSubtitle','SideStatus','BottomStatus',
+ 'AppTitleBar','AppVersionLabel','AboutVersionText','AboutGitHubButton','AboutTwitchButton','AboutYouTubeButton','AboutXButton','AboutInstagramButton','AboutFacebookButton','AboutTikTokButton','AboutDiscordButton','AboutLogoHost','AboutLogoImage','MinimizeButton','MaximizeButton','CloseButton','BridgeStatusButton','ServiceStatusPopup','ServiceStatusList','RefreshButton','PageTitle','PageSubtitle','SideStatus','BottomStatus','NowPlayingBar','NowPlayingTitle','NowPlayingSubtitle','NowPlayingHistoryButton','QuickHistoryPopup','QuickHistoryList','NowPlayingPrevButton','NowPlayingPlayPauseButton','NowPlayingPlayPauseGlyph','NowPlayingNoteHost','NowPlayingLoadingRotate','NowPlayingLoadingGlyph','NowPlayingLoadingHost','NowPlayingSkipButton','NowPlayingProgress','NowPlayingProgressFill','NowPlayingProgressTrack','NowPlayingElapsedText','NowPlayingRemainingText','NowPlayingClearButton','NowPlayingStopClearButton',
  'VoicesNav','PlaygroundNav','QueueNav','HistoryNav','RulesNav','PronunciationNav','ServicesToggle','ServicesChevronPath','ServicesNavPanel',
  'StreamerBotNav','VoiceStudioNav','PollyNav','ElevenLabsNav','AzureNav','GoogleNav','WatsonNav','UberDuckNav','TtsMonsterNav','AcapelaNav','CereProcNav','ActivityNav','SettingsNav',
  'VoicesPage','PlaygroundPage','QueuePage','HistoryPage','RulesPage','PronunciationPage','StreamerBotPage','VoiceStudioPage','PollyPage','ElevenLabsPage','AzurePage','GooglePage','WatsonPage','UberDuckPage','TtsMonsterPage','AcapelaPage','CereProcPage','SettingsPage','ActivityPage',
- 'AddButton','EditButton','RemoveButton','TestButton','AliasGrid','PlayVoiceList','PlaygroundText','PlaySpeedBox','PlayVolumeBox','PlayStyleBox','CharacterCount','PlayButton','PlayStopButton',
+ 'AddButton','EditButton','RemoveButton','TestButton','SaveVoicesButton','AliasGrid','PlayVoiceList','PlaygroundText','PlaySpeedBox','PlayVolumeBox','PlayStyleBox','CharacterCount','PlayButton','PlayStopButton',
  'QueueGrid','PauseQueueButton','ResumeQueueButton','SkipQueueButton','RemoveQueueButton','QueueUpButton','QueueDownButton','ClearQueueButton',
- 'HistoryGrid','ReplayHistoryButton','SaveHistoryAudioButton','ClearHistoryButton','BlockedWordsBox','ReplacementsBox','BlocklistBox','AllowlistBox','PlaylistGrid','AddPlaylistButton','EditPlaylistButton','RemovePlaylistButton','TestPlaylistButton','VoiceRulesGrid','VoiceRuleFieldBox','VoiceRuleValueBox','VoiceRuleAliasBox','AddVoiceRuleButton','UpdateVoiceRuleButton','RemoveVoiceRuleButton','TestVoiceRuleButton','MaxQueueBox','UserCooldownBox','GlobalCooldownBox','BlockLinksCheck','StripLinksCheck','BlockCapsCheck','CollapseRepeatsCheck','IgnoreCommandsCheck','IgnoreMentionsCheck','StripNonAsciiCheck','StripEmojiCheck','BlockAsciiArtCheck','SaveRulesButton',
+ 'HistoryGrid','ReplayHistoryButton','ShowHistoryAudioButton','SaveHistoryAudioButton','ClearHistoryButton','BlockedWordsBox','ReplacementsBox','BlocklistBox','AllowlistBox','PlaylistGrid','AddPlaylistButton','EditPlaylistButton','RemovePlaylistButton','TestPlaylistButton','VoiceRulesGrid','VoiceRuleFieldBox','VoiceRuleValueBox','VoiceRuleAliasBox','AddVoiceRuleButton','UpdateVoiceRuleButton','RemoveVoiceRuleButton','TestVoiceRuleButton','MaxQueueBox','UserCooldownBox','GlobalCooldownBox','BlockLinksCheck','StripLinksCheck','BlockCapsCheck','CollapseRepeatsCheck','IgnoreCommandsCheck','IgnoreMentionsCheck','StripNonAsciiCheck','StripEmojiCheck','BlockAsciiArtCheck','SaveRulesButton',
  'PronunciationGrid','AddPronunciationButton','EditPronunciationButton','RemovePronunciationButton','PronunciationUpButton','PronunciationDownButton','PronunciationVoiceList','TestPronunciationButton','ActivityList',
- 'UrlBox','KeyBox','RequestTimeoutBox','VoiceStudioStatus','SaveVoiceStudioButton','TestVoiceStudioButton',
+ 'UrlBox','KeyBox','RequestTimeoutBox','VoiceStudioEnabledCheck','VoiceStudioStatus','SaveVoiceStudioButton','TestVoiceStudioButton',
  'PollyEnabledCheck','PollyRegionBox','PollyProfileBox','PollyAccessKeyBox','PollySecretKeyBox','PollyCredentialStatus','SavePollyButton','TestPollyButton','ClearPollyCredentialsButton',
  'ElevenLabsEnabledCheck','ElevenLabsApiKeyBox','ElevenLabsStatus','AzureEnabledCheck','AzureKeyBox','AzureRegionBox','AzureStatus','GoogleEnabledCheck','GoogleApiKeyBox','GoogleServiceAccountBox','GoogleStatus','WatsonEnabledCheck','WatsonApiKeyBox','WatsonServiceUrlBox','WatsonStatus','UberDuckEnabledCheck','UberDuckApiKeyBox','UberDuckStatus','TtsMonsterEnabledCheck','TtsMonsterOverlayBox','TtsMonsterTokenBox','TtsMonsterStatus','AcapelaEnabledCheck','AcapelaAccountBox','AcapelaPasswordBox','AcapelaAppNameBox','AcapelaStatus','CereProcEnabledCheck','CereProcUsernameBox','CereProcPasswordBox','CereProcStatus',
  'SaveElevenLabsButton','TestElevenLabsButton','ClearElevenLabsButton','SaveAzureButton','TestAzureButton','ClearAzureButton','SaveGoogleButton','TestGoogleButton','ClearGoogleButton','SaveWatsonButton','TestWatsonButton','ClearWatsonButton','SaveUberDuckButton','TestUberDuckButton','ClearUberDuckButton','SaveTtsMonsterButton','TestTtsMonsterButton','ClearTtsMonsterButton','SaveAcapelaButton','TestAcapelaButton','ClearAcapelaButton','SaveCereProcButton','TestCereProcButton','ClearCereProcButton',
@@ -272,17 +483,23 @@ $controlNames = @(
  'TestStreamerBotQueuedButton','TestStreamerBotQueueAddedButton','TestStreamerBotPlayingButton','TestStreamerBotFinishedButton','SaveStreamerBotButton','QueueControlCommandBox','QueueControlPayloadBox','QueueControlHint','CopyQueueControlButton','TestQueueControlButton','SaveButton','CopyPayloadButton','TestConnectionButton','MinimizeToTrayCheck','BottomStatusDot'
 )
 $controlNames | ForEach-Object { Set-Variable -Name $_ -Value $window.FindName($_) }
+$NowPlayingSeekThumb = $window.FindName('NowPlayingSeekThumb')
+if ($NowPlayingSeekThumb) {
+    $markerBinding = [Windows.Data.MultiBinding]::new()
+    $markerBinding.Converter = [VoxRelayMarkerPosition]::new()
+    $edgeBinding = [Windows.Data.Binding]::new('ActualWidth'); $edgeBinding.Source = $NowPlayingProgressFill
+    $trackBinding = [Windows.Data.Binding]::new('ActualWidth'); $trackBinding.Source = $NowPlayingProgressTrack
+    [void]$markerBinding.Bindings.Add($edgeBinding); [void]$markerBinding.Bindings.Add($trackBinding)
+    [void][Windows.Data.BindingOperations]::SetBinding($NowPlayingSeekThumb,[Windows.FrameworkElement]::MarginProperty,$markerBinding)
+}
 $extraControls = @('PauseAfterQueueButton','ClearAllQueueButton','StreamVolumeSlider','PreviewVolumeSlider','NormalizeAudioCheck','FadeAudioCheck','PerUserQueueLimitBox','MessageAgeBox','DuplicateWindowBox','SetupWindowsButton','SetupVoiceStudioButton','SetupPollyButton','SetupElevenLabsButton','SetupAzureButton','SetupGoogleButton','SetupWatsonButton','SetupUberDuckButton','SetupTtsMonsterButton','SetupAcapelaButton','SetupCereProcButton','SetupOutputButton','SetupVoiceButton','SetupStreamerBotButton','BackupSettingsButton','ExportPresetsButton','ImportPresetsButton','ExportDiagnosticsButton','BackupListBox','RestoreBackupButton')
 $extraControls | ForEach-Object { Set-Variable -Name $_ -Value $window.FindName($_) }
 @('AliasSearchBox','AliasProviderFilter','FavoritesOnlyCheck','ToggleFavoriteButton','PersistQueueCheck','FinishSetupButton') | ForEach-Object { Set-Variable -Name $_ -Value $window.FindName($_) }
-# Do NOT rounded-clip scrollable hosts — RectangleGeometry clips the scrollbar
-# thumb into a "half circle" against the top-right corner. Border.CornerRadius
-# still paints the chrome; only the geometry clip was cutting the thumb.
+# Inset scrolling content so the rounded outline never cuts into scrollbar thumbs.
 @('AliasGridHost','QueueGridHost','HistoryGridHost') | ForEach-Object {
     $hostBorder = $window.FindName($_)
     if ($hostBorder) {
-        $hostBorder.ClipToBounds = $false
-        $hostBorder.Clip = $null
+        $hostBorder.Padding = [Windows.Thickness]::new(4)
     }
 }
 
@@ -297,6 +514,50 @@ $CheckUpdatesOnStartupCheck=$window.FindName('CheckUpdatesOnStartupCheck')
 $QueueSummaryText=$window.FindName('QueueSummaryText')
 $WindowsVoicesCheck=$window.FindName('WindowsVoicesCheck')
 $PlaySsmlCheck=$window.FindName('PlaySsmlCheck')
+
+function Get-VoxRelayVersion {
+    foreach ($candidate in @(
+        (Join-Path $appRoot 'src\voice_studio_speaker_bridge\__init__.py'),
+        (Join-Path $resourceRoot 'src\voice_studio_speaker_bridge\__init__.py'),
+        (Join-Path (Split-Path -Parent $appRoot) 'VoxRelay-src\src\voice_studio_speaker_bridge\__init__.py')
+    )) {
+        if (-not (Test-Path -LiteralPath $candidate)) { continue }
+        $match = Select-String -LiteralPath $candidate -Pattern '__version__\s*=\s*"([^"]+)"' | Select-Object -First 1
+        if ($match) { return [string]$match.Matches[0].Groups[1].Value }
+    }
+    return '0.5.0'
+}
+$script:appVersion = Get-VoxRelayVersion
+if ($AppVersionLabel) { $AppVersionLabel.Text = $script:appVersion }
+if ($AboutVersionText) { $AboutVersionText.Text = 'Developer' }
+
+function Install-AboutLogo {
+    $target = $AboutLogoImage
+    if (-not $target) { return }
+
+    $png = Join-Path $resourceRoot 'assets\redgear-logo.png'
+    $gif = Join-Path $resourceRoot 'assets\redgear-logo.gif'
+    $path = $(if (Test-Path -LiteralPath $png) { $png } elseif (Test-Path -LiteralPath $gif) { $gif } else { $null })
+    if (-not $path) { return }
+
+    try {
+        $bytes = [IO.File]::ReadAllBytes($path)
+        $ms = [IO.MemoryStream]::new($bytes)
+        $bmp = [Windows.Media.Imaging.BitmapImage]::new()
+        $bmp.BeginInit()
+        $bmp.CacheOption = [Windows.Media.Imaging.BitmapCacheOption]::OnLoad
+        $bmp.StreamSource = $ms
+        $bmp.EndInit()
+        $bmp.Freeze()
+        $ms.Dispose()
+        $target.Source = $bmp
+        $target.Stretch = [Windows.Media.Stretch]::Uniform
+    } catch {
+        try { ("logo load failed: " + $_.Exception.Message + "`n" + $path) | Out-File -LiteralPath (Join-Path $configDir 'logo-error.txt') -Encoding utf8 } catch {}
+    }
+}
+Install-AboutLogo
+
 $EventTestBox=$window.FindName('EventTestBox');$SimulateEventButton=$window.FindName('SimulateEventButton')
 $ExportVoiceAliasBox=$window.FindName('ExportVoiceAliasBox');$ExportStreamerBotButton=$window.FindName('ExportStreamerBotButton')
 $SavePageButton=$window.FindName('SavePageButton')
@@ -312,9 +573,489 @@ $script:trayHost = $null
 $script:hiddenInTray = $false
 $script:allowHideToTray = $false
 
-function Animate-In($element) {
+function New-EaseOut {
+    $ease = [Windows.Media.Animation.CubicEase]::new()
+    $ease.EasingMode = [Windows.Media.Animation.EasingMode]::EaseOut
+    return $ease
+}
+function Ensure-TranslateTransform($element) {
+    if (-not $element) { return $null }
+    $current = $element.RenderTransform
+    if ($current -is [Windows.Media.TranslateTransform]) { return $current }
+    if ($current -is [Windows.Media.TransformGroup] -and $current.Children.Count -gt 0 -and $current.Children[0] -is [Windows.Media.TranslateTransform]) {
+        return $current.Children[0]
+    }
+    $translate = [Windows.Media.TranslateTransform]::new(0, 0)
+    $element.RenderTransform = $translate
+    if (-not $element.RenderTransformOrigin -or ($element.RenderTransformOrigin.X -eq 0 -and $element.RenderTransformOrigin.Y -eq 0)) {
+        $element.RenderTransformOrigin = [Windows.Point]::new(0, 0)
+    }
+    return $translate
+}
+function Animate-Opacity($element, [double]$from, [double]$to, [int]$ms, [bool]$forever = $false) {
+    if (-not $element) { return }
     $element.BeginAnimation([Windows.UIElement]::OpacityProperty, $null)
+    $anim = [Windows.Media.Animation.DoubleAnimation]::new($from, $to, [TimeSpan]::FromMilliseconds($ms))
+    $anim.EasingFunction = New-EaseOut
+    if ($forever) {
+        $anim.AutoReverse = $true
+        $anim.RepeatBehavior = [Windows.Media.Animation.RepeatBehavior]::Forever
+    }
+    $element.BeginAnimation([Windows.UIElement]::OpacityProperty, $anim)
+}
+function Animate-In($element) {
+    if (-not $element) { return }
+    if (-not [Windows.SystemParameters]::ClientAreaAnimation) { return }
+    $element.BeginAnimation([Windows.UIElement]::OpacityProperty, $null)
+    $translate = Ensure-TranslateTransform $element
+    if ($translate) { $translate.BeginAnimation([Windows.Media.TranslateTransform]::YProperty, $null) }
+    $ease = New-EaseOut
+    $fade = [Windows.Media.Animation.DoubleAnimation]::new(0.94, 1.0, [TimeSpan]::FromMilliseconds(130))
+    $fade.EasingFunction = $ease
     $element.Opacity = 1
+    $element.BeginAnimation([Windows.UIElement]::OpacityProperty, $fade)
+    if ($translate) {
+        $slide = [Windows.Media.Animation.DoubleAnimation]::new(4.0, 0.0, [TimeSpan]::FromMilliseconds(150))
+        $slide.EasingFunction = $ease
+        $translate.BeginAnimation([Windows.Media.TranslateTransform]::YProperty, $slide)
+    }
+}
+function Resolve-VoxDocsPath([string]$relative) {
+    foreach ($root in @($appRoot, $resourceRoot)) {
+        $candidate = Join-Path $root $relative
+        if (Test-Path -LiteralPath $candidate) { return $candidate }
+    }
+    return $null
+}
+function Open-VoxLink([string]$target) {
+    if ([string]::IsNullOrWhiteSpace($target)) { return }
+    try {
+        if ($target.StartsWith('docs:', [StringComparison]::OrdinalIgnoreCase)) {
+            $path = Resolve-VoxDocsPath ('docs\' + $target.Substring(5))
+            if (-not $path) { throw "Could not find $target" }
+            Start-Process -FilePath $path | Out-Null
+        } else {
+            Start-Process $target | Out-Null
+        }
+        $BottomStatus.Text = 'Opened help link'
+    } catch { $BottomStatus.Text = $_.Exception.Message }
+}
+function New-ServiceLinkButton([string]$label, [string]$target) {
+    $btn = [Windows.Controls.Button]::new()
+    $btn.Content = $label
+    $btn.Tag = $target
+    $btn.Margin = [Windows.Thickness]::new(0, 0, 10, 8)
+    $btn.Padding = [Windows.Thickness]::new(12, 0, 12, 0)
+    $btn.MinHeight = 34
+    $btn.Cursor = [Windows.Input.Cursors]::Hand
+    $btn.ToolTip = $target
+    $btn.Add_Click({
+        param($sender, $e)
+        Open-VoxLink ([string]$sender.Tag)
+    })
+    return $btn
+}
+function New-ServiceGuideCard([string]$title, [string[]]$steps, $links) {
+    $card = [Windows.Controls.Border]::new()
+    $card.Background = [Windows.Media.BrushConverter]::new().ConvertFromString('#E6282231')
+    $card.BorderBrush = [Windows.Media.BrushConverter]::new().ConvertFromString('#B6A3FF')
+    $card.BorderThickness = [Windows.Thickness]::new(1)
+    $card.CornerRadius = [Windows.CornerRadius]::new(12)
+    $card.Padding = [Windows.Thickness]::new(14)
+    $card.Margin = [Windows.Thickness]::new(0, 0, 0, 14)
+    $card.Tag = 'ServiceGuideCard'
+
+    $expander = [Windows.Controls.Expander]::new()
+    $expander.Header = $title
+    $expander.IsExpanded = $false
+    $expander.HorizontalContentAlignment = 'Stretch'
+    $expander.FontSize = 15
+    [Windows.Automation.AutomationProperties]::SetName($expander, $title)
+
+    $stack = [Windows.Controls.StackPanel]::new()
+    $heading = [Windows.Controls.TextBlock]::new()
+    $heading.Text = $title
+    $heading.FontSize = 15
+    $heading.FontWeight = [Windows.FontWeights]::SemiBold
+    $heading.Foreground = [Windows.Media.BrushConverter]::new().ConvertFromString('#F6F3FA')
+    $stack.Margin = [Windows.Thickness]::new(22, 10, 0, 0)
+
+    $intro = [Windows.Controls.TextBlock]::new()
+    $intro.Text = if ($title -like 'Streamer.bot*') { 'Start with speech. Playback actions for avatars or scenes are optional and use a separate connection.' } else { 'Expand this guide whenever you need help. Your connection fields stay below it.' }
+    $intro.Foreground = [Windows.Media.BrushConverter]::new().ConvertFromString('#B9B2C2')
+    $intro.TextWrapping = 'Wrap'
+    $intro.Margin = [Windows.Thickness]::new(0, 4, 0, 10)
+    $intro.FontSize = 12
+    [void]$stack.Children.Add($intro)
+
+    $n = 1
+    foreach ($step in @($steps)) {
+        if ([string]::IsNullOrWhiteSpace($step)) { continue }
+        $line = [Windows.Controls.TextBlock]::new()
+        $line.Text = "$n. $step"
+        $line.TextWrapping = 'Wrap'
+        $line.Foreground = [Windows.Media.BrushConverter]::new().ConvertFromString('#F6F3FA')
+        $line.Margin = [Windows.Thickness]::new(0, 0, 0, 12)
+        $line.LineHeight = 21
+        $line.FontSize = 13
+        [void]$stack.Children.Add($line)
+        $n++
+    }
+
+    if (@($links).Count -gt 0) {
+        $linkLabel = [Windows.Controls.TextBlock]::new()
+        $linkLabel.Text = 'Helpful links'
+        $linkLabel.Foreground = [Windows.Media.BrushConverter]::new().ConvertFromString('#B9B2C2')
+        $linkLabel.Margin = [Windows.Thickness]::new(0, 8, 0, 8)
+        $linkLabel.FontSize = 12
+        $linkLabel.FontWeight = [Windows.FontWeights]::SemiBold
+        [void]$stack.Children.Add($linkLabel)
+
+        $linkRow = [Windows.Controls.WrapPanel]::new()
+        foreach ($link in @($links)) {
+            if (-not $link) { continue }
+            [void]$linkRow.Children.Add((New-ServiceLinkButton $link.Label $link.Url))
+        }
+        [void]$stack.Children.Add($linkRow)
+    }
+
+    $expander.Content = $stack
+    $card.Child = $expander
+    return $card
+}
+function Add-StreamerBotGuideDetails($hostPanel) {
+    $sections = [ordered]@{
+        'Message sources: chat, !tts commands, and rewards' = @(
+            'Twitch chat: use Twitch > Chat > Chat Message on VoxRelay - Speak. Keep %message% on line 3 of its UDP Broadcast sub-action.',
+            '!tts command: create a command named !tts with the Start match option. Add Core > Commands > Command Triggered to VoxRelay - Speak and select that command. Change line 3 of the UDP payload to %rawInput% so !tts Hello speaks Hello.',
+            'Channel points: create a reward with User Input Required enabled. Add its Twitch reward-redemption trigger to VoxRelay - Speak. Change line 3 to %rawInput%.',
+            'Use a separate copy of Speak for different message sources. Test with the actual chat command or redemption; a manual test does not automatically provide chat variables.'
+        )
+        'Optional: make an avatar or scene react to playback' = @(
+            'This is VoxRelay sending actions back to Streamer.bot. It is separate from incoming speech and is not needed to hear TTS.',
+            'In Streamer.bot, open Servers/Clients > HTTP Server. Start it, enable Auto Start, and note its host and port. The usual local address is http://127.0.0.1:7474.',
+            'Create Streamer.bot actions for the effects you want, such as Avatar Show and Avatar Hide. In VoxRelay, enable playback actions, enter that HTTP address, and put the exact action names in the matching fields. Save, then use each Test button.',
+            'Queued runs when the first audio is ready. Playing runs when the queue first starts speaking. Finished runs when the queue ends, after the end delay. Added while speaking handles another message joining an active session.',
+            'For an avatar: put Avatar Show in Queued, set Delay before playback to give it time to appear, and put Avatar Hide in Finished. Use Delay after playback to keep it visible briefly afterward.'
+        )
+        'Troubleshooting: find where the message stops' = @(
+            'Nothing appears in VoxRelay Queue: check that the Streamer.bot action and trigger are enabled, the UDP listener is enabled in VoxRelay, and the UDP Broadcast port matches VoxRelay. Restart VoxRelay after changing listener settings.',
+            'The words %message% or %rawInput% are spoken: the trigger did not supply that variable. Use the matching message source above, or add a message argument to the Core > Test trigger.',
+            'The queue advances but there is no sound: test the alias directly in Voices and check Settings > Audio output. A cloud engine may also need credentials or credits.',
+            'Speech works but avatar actions do not: check Streamer.bot HTTP Server is running, the HTTP address matches it, playback actions are enabled, and action names match exactly. Port 7474 is for callbacks; the UDP port (usually 6670) is for incoming speech.',
+            'A line is spoken twice: check for overlapping chat and command triggers, two UDP Broadcast sub-actions, or a second TTS action attached to the same event.'
+        )
+        'Manual setup and what the ports mean' = @(
+            'The import is the easiest route. If building an action yourself, add Core > Network > UDP Broadcast in Streamer.bot, use VoxRelay''s UDP port, and paste the speech payload from this page. Keep each payload field on its own line.',
+            'You do not need to start Streamer.bot''s UDP server to send UDP Broadcast messages to VoxRelay. You do not need a WebSocket connection for this setup either.',
+            'The WebSocket port belongs to VoxRelay and is only for custom integrations. The HTTP address on this page belongs to Streamer.bot and is only used for optional playback actions.',
+            'The imported Pause, Resume, Skip, and Clear actions can use hotkeys, buttons, or commands. Remove item and Move item need a real %ttsId% argument; they do not select a row in VoxRelay automatically.'
+        )
+    }
+    foreach ($title in $sections.Keys) {
+        $section = [Windows.Controls.Expander]::new()
+        $section.Header = $title
+        $section.IsExpanded = $false
+        $section.Margin = [Windows.Thickness]::new(0,8,0,0)
+        $section.FontSize = 13
+        $body = [Windows.Controls.StackPanel]::new()
+        $body.Margin = [Windows.Thickness]::new(22,10,0,0)
+        foreach ($text in $sections[$title]) {
+            $line = [Windows.Controls.TextBlock]::new()
+            $line.Text = $text; $line.TextWrapping = 'Wrap'; $line.LineHeight = 21
+            $line.Margin = [Windows.Thickness]::new(0,0,0,12)
+            $body.Children.Add($line) | Out-Null
+        }
+        $section.Content = $body
+        $hostPanel.Children.Add($section) | Out-Null
+    }
+}
+
+function Organize-StreamerBotSetup {
+    $connection = $UdpBox.Parent.Parent.Parent
+    if ($connection.Tag -eq 'StreamerBotSetupOrganized') { return }
+    $portGrid = $UdpBox.Parent.Parent
+    $websocket = $WsBox.Parent
+    $callbacks = $StreamerBotHttpUrlBox.Parent
+    [void]$portGrid.Children.Remove($websocket)
+    [void]$portGrid.Children.Remove($callbacks)
+    [Windows.Controls.Grid]::SetColumn($websocket,0)
+    [Windows.Controls.Grid]::SetColumn($callbacks,0)
+    $portGrid.ColumnDefinitions.Clear()
+    [void]$portGrid.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new())
+    $UdpBox.Parent.MaxWidth = 220
+    $UdpBox.Parent.HorizontalAlignment = 'Left'
+    $UdpBox.MinWidth = 200
+    $callbackHost = $EnableStreamerBotActionsCheck.Parent
+    $callbacks.Margin = [Windows.Thickness]::new(0,14,0,0)
+    $callbacks.MaxWidth = 420
+    $callbacks.HorizontalAlignment = 'Left'
+    $StreamerBotHttpUrlBox.MinWidth = 300
+    $callbackHost.Children.Insert(3,$callbacks)
+
+    $manual = [Windows.Controls.StackPanel]::new()
+    $manual.Margin = [Windows.Thickness]::new(22,10,0,0)
+    $websocket.MaxWidth = 220
+    $websocket.HorizontalAlignment = 'Left'
+    $manual.Children.Add($websocket) | Out-Null
+    $index = $connection.Children.IndexOf($StreamerPayloadBox) - 1
+    $move = @($connection.Children[$index],$StreamerPayloadBox,$connection.Children[$index+2],$CopyPayloadButton)
+    foreach ($element in $move) { [void]$connection.Children.Remove($element); $manual.Children.Add($element) | Out-Null }
+    $advanced = [Windows.Controls.Expander]::new()
+    $advanced.Header = 'Manual payload and advanced connection'
+    $advanced.IsExpanded = $false
+    $advanced.Margin = [Windows.Thickness]::new(0,16,0,0)
+    $advanced.Content = $manual
+    $connection.Children.Add($advanced) | Out-Null
+    $connection.Tag = 'StreamerBotSetupOrganized'
+}
+
+function Install-ServiceGuides {
+    Organize-StreamerBotSetup
+    $guides = [ordered]@{
+        streamerbot = @{
+            Page = $StreamerBotPage
+            Title = 'Streamer.bot setup - start here'
+            Steps = @(
+                'Check your voice first. In Voices, add an alias and use Test voice. Continue once you can hear it.',
+                'Allow incoming speech below: check Listen for Streamer.bot UDP speak requests, leave UDP port at 6670 unless another app uses it, and click Save connection. Restart VoxRelay if you changed the port or enabled the listener.',
+                'In Send speech from Streamer.bot below, choose your voice and click Export actions (.sb). VoxRelay copies the import code and also saves a file.',
+                'In Streamer.bot, click Import on the top toolbar. Paste the copied code into Import String (or drag the .sb file into that box), review the VoxRelay actions, and click Import. The actions do not run until you give them a trigger.',
+                'For a first test, select VoxRelay - Speak in Streamer.bot. Add a Core > Test trigger with a message argument such as Hello from Streamer.bot. Right-click that trigger and choose Test Trigger. Watch VoxRelay Queue and listen for your chosen voice.',
+                'Choose what should speak. For Twitch chat, add Twitch > Chat > Chat Message to VoxRelay - Speak; it provides %message%. For a !tts command or channel-point reward, expand Message sources below for the correct text variable. Add only the trigger you want.'
+            )
+            Links = @(
+                @{ Label = 'Import instructions'; Url = 'https://docs.streamer.bot/guide/core/import-export' }
+                @{ Label = 'VoxRelay Streamer.bot guide'; Url = 'docs:STREAMERBOT.md' }
+                @{ Label = 'User guide'; Url = 'docs:USER_GUIDE.md' }
+            )
+        }
+        voicestudio = @{
+            Page = $VoiceStudioPage
+            Title = 'VoiceStudio quick setup'
+            Steps = @(
+                'Start VoiceStudio locally and confirm its HTTP API is listening.',
+                'Turn Enabled on, paste the base URL (often http://127.0.0.1:3900 or :7860) and optional API key.',
+                'Save, then Test connection. Refresh Voices and add an alias on the Voices page.'
+            )
+            Links = @(
+                @{ Label = 'User guide (providers)'; Url = 'docs:USER_GUIDE.md' }
+                @{ Label = 'Provider notes'; Url = 'docs:PROVIDERS.md' }
+            )
+        }
+        polly = @{
+            Page = $PollyPage
+            Title = 'Amazon Polly quick setup'
+            Steps = @(
+                'In AWS IAM, create an access key for a user/role that can call Amazon Polly.',
+                'Paste Access Key ID + Secret below (session token only if using temporary credentials).',
+                'Pick the AWS region where Polly is enabled, turn Enabled on, then Save and Test & load voices.'
+            )
+            Links = @(
+                @{ Label = 'Create AWS access keys'; Url = 'https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html' }
+                @{ Label = 'Amazon Polly console'; Url = 'https://console.aws.amazon.com/polly/home' }
+                @{ Label = 'IAM console'; Url = 'https://console.aws.amazon.com/iam/home#/security_credentials' }
+            )
+        }
+        elevenlabs = @{
+            Page = $ElevenLabsPage
+            Title = 'ElevenLabs quick setup'
+            Steps = @(
+                'Sign in at ElevenLabs and open your profile API key settings.',
+                'Copy an API key, paste it below, enable the service, then Save and Test & load voices.',
+                'Create a Voices alias that points at an ElevenLabs voice_id from the refreshed list.'
+            )
+            Links = @(
+                @{ Label = 'ElevenLabs API keys'; Url = 'https://elevenlabs.io/app/settings/api-keys' }
+                @{ Label = 'ElevenLabs docs'; Url = 'https://elevenlabs.io/docs/api-reference/introduction' }
+            )
+        }
+        azure = @{
+            Page = $AzurePage
+            Title = 'Azure Speech quick setup'
+            Steps = @(
+                'In Azure Portal, create a Speech resource (Cognitive Services / AI Services).',
+                'Copy the subscription key and region (for example eastus) into the fields below.',
+                'Enable, Save, then Test & load voices and add a Voices alias.'
+            )
+            Links = @(
+                @{ Label = 'Create Speech resource'; Url = 'https://portal.azure.com/#create/Microsoft.CognitiveServicesSpeechServices' }
+                @{ Label = 'Azure Speech docs'; Url = 'https://learn.microsoft.com/azure/ai-services/speech-service/overview' }
+                @{ Label = 'Azure Portal'; Url = 'https://portal.azure.com/' }
+            )
+        }
+        google = @{
+            Page = $GooglePage
+            Title = 'Google Cloud TTS quick setup'
+            Steps = @(
+                'In Google Cloud Console, enable the Cloud Text-to-Speech API for your project.',
+                'Create an API key or service-account JSON, then paste the values VoxRelay asks for below.',
+                'Enable, Save, Test & load voices, then add a Voices alias.'
+            )
+            Links = @(
+                @{ Label = 'Enable Text-to-Speech API'; Url = 'https://console.cloud.google.com/apis/library/texttospeech.googleapis.com' }
+                @{ Label = 'API credentials'; Url = 'https://console.cloud.google.com/apis/credentials' }
+                @{ Label = 'Cloud TTS docs'; Url = 'https://cloud.google.com/text-to-speech/docs' }
+            )
+        }
+        watson = @{
+            Page = $WatsonPage
+            Title = 'IBM Watson TTS quick setup'
+            Steps = @(
+                'Create an IBM Cloud Text to Speech service instance and open its credentials.',
+                'Copy the API key and service URL into the fields below.',
+                'Enable, Save, Test & load voices, then add a Voices alias.'
+            )
+            Links = @(
+                @{ Label = 'IBM Text to Speech'; Url = 'https://cloud.ibm.com/catalog/services/text-to-speech' }
+                @{ Label = 'Watson TTS docs'; Url = 'https://cloud.ibm.com/docs/text-to-speech' }
+            )
+        }
+        uberduck = @{
+            Page = $UberDuckPage
+            Title = 'UberDuck quick setup'
+            Steps = @(
+                'Create an UberDuck account and generate an API key from the dashboard.',
+                'Paste the key below, enable the service, Save, then Test & load voices.',
+                'Add a Voices alias for the UberDuck voice you want in chat.'
+            )
+            Links = @(
+                @{ Label = 'UberDuck'; Url = 'https://uberduck.ai/' }
+                @{ Label = 'UberDuck API docs'; Url = 'https://docs.uberduck.ai/' }
+            )
+        }
+        ttsmonster = @{
+            Page = $TtsMonsterPage
+            Title = 'TTS.Monster quick setup'
+            Steps = @(
+                'Sign in to TTS.Monster and open your overlay / developer token settings.',
+                'Paste the overlay URL and token VoxRelay asks for below.',
+                'Enable, Save, Test & load voices, then create a Voices alias.'
+            )
+            Links = @(
+                @{ Label = 'TTS.Monster'; Url = 'https://tts.monster/' }
+                @{ Label = 'TTS.Monster dashboard'; Url = 'https://tts.monster/dashboard' }
+            )
+        }
+        acapela = @{
+            Page = $AcapelaPage
+            Title = 'Acapela quick setup'
+            Steps = @(
+                'Get Acapela account credentials (and app name if your plan requires it).',
+                'Enter them below, enable the service, Save, then Test & load voices.',
+                'Add a Voices alias pointing at an Acapela voice from the list.'
+            )
+            Links = @(
+                @{ Label = 'Acapela Group'; Url = 'https://www.acapela-group.com/' }
+                @{ Label = 'Acapela Cloud'; Url = 'https://acapela-box.com/' }
+            )
+        }
+        cereproc = @{
+            Page = $CereProcPage
+            Title = 'CereProc quick setup'
+            Steps = @(
+                'Create a CereProc account and note your username/password for the API.',
+                'Enter credentials below, enable the service, Save, then Test & load voices.',
+                'Add a Voices alias for the CereProc voice you want to use.'
+            )
+            Links = @(
+                @{ Label = 'CereProc'; Url = 'https://www.cereproc.com/' }
+                @{ Label = 'CereVoice Cloud'; Url = 'https://www.cereproc.com/en/products/cloud' }
+            )
+        }
+    }
+
+    foreach ($key in $guides.Keys) {
+        $guide = $guides[$key]
+        $page = $guide.Page
+        if (-not $page) { continue }
+        $hostPanel = $page.Content
+        if ($hostPanel -isnot [Windows.Controls.Panel]) { continue }
+        # Avoid double-insert on hot reload.
+        $existing = @($hostPanel.Children | Where-Object { $_.Tag -eq 'ServiceGuideCard' })
+        foreach ($old in $existing) { [void]$hostPanel.Children.Remove($old) }
+        $card = New-ServiceGuideCard $guide.Title $guide.Steps $guide.Links
+        if ($key -eq 'streamerbot') { Add-StreamerBotGuideDetails $card.Child.Content }
+        $hostPanel.Children.Insert(0, $card)
+        if ($key -eq 'streamerbot') {
+            $exportCard = $window.FindName('StreamerExportCard')
+            if ($exportCard) { [void]$hostPanel.Children.Remove($exportCard); $hostPanel.Children.Insert(2,$exportCard) }
+        }
+    }
+}
+try { Install-ServiceGuides } catch { if ($BottomStatus) { $BottomStatus.Text = 'Could not load service setup tips: ' + $_.Exception.Message } }
+function Animate-PageHeading {
+    $hostPanel = $window.FindName('PageHeadingHost')
+    if (-not $hostPanel) { return }
+    Animate-In $hostPanel
+}
+function Start-AmbientMotion {
+    if ($script:ambientMotionStarted) { return }
+    $script:ambientMotionStarted = $true
+    $glowA = $window.FindName('AmbientGlowA')
+    $glowB = $window.FindName('AmbientGlowB')
+    $wave = $window.FindName('TitleWavePath')
+    if ($glowA) {
+        Animate-Opacity $glowA 0.55 0.95 5200 $true
+        $t = Ensure-TranslateTransform $glowA
+        if ($t) {
+            $drift = [Windows.Media.Animation.DoubleAnimation]::new(-18.0, 18.0, [TimeSpan]::FromSeconds(14))
+            $drift.AutoReverse = $true
+            $drift.RepeatBehavior = [Windows.Media.Animation.RepeatBehavior]::Forever
+            $t.BeginAnimation([Windows.Media.TranslateTransform]::XProperty, $drift)
+        }
+    }
+    if ($glowB) {
+        Animate-Opacity $glowB 0.4 0.85 6800 $true
+        $t = Ensure-TranslateTransform $glowB
+        if ($t) {
+            $drift = [Windows.Media.Animation.DoubleAnimation]::new(14.0, -14.0, [TimeSpan]::FromSeconds(17))
+            $drift.AutoReverse = $true
+            $drift.RepeatBehavior = [Windows.Media.Animation.RepeatBehavior]::Forever
+            $t.BeginAnimation([Windows.Media.TranslateTransform]::YProperty, $drift)
+        }
+    }
+    if ($wave) { Animate-Opacity $wave 0.55 1.0 2400 $true }
+}
+function Set-StatusPulse([bool]$online, [string]$target = 'connection') {
+    $ring = $window.FindName('SideStatusPulseRing')
+    $core = $window.FindName('SideStatusPulseCore')
+    $dot = $BottomStatusDot
+    if (-not $script:pulseStates) { $script:pulseStates = @{} }
+    $elements = if ($target -eq 'playback') { @($dot) } else { @($ring) }
+    foreach ($el in $elements) {
+        if (-not $el) { continue }
+        if ($script:pulseStates.ContainsKey($el) -and $script:pulseStates[$el] -eq $online) { continue }
+        $script:pulseStates[$el] = $online
+        $scale = $el.RenderTransform
+        if ($scale -isnot [Windows.Media.ScaleTransform]) {
+            $scale = [Windows.Media.ScaleTransform]::new(1, 1)
+            $el.RenderTransform = $scale
+            $el.RenderTransformOrigin = [Windows.Point]::new(0.5, 0.5)
+        }
+        $scale.BeginAnimation([Windows.Media.ScaleTransform]::ScaleXProperty, $null)
+        $scale.BeginAnimation([Windows.Media.ScaleTransform]::ScaleYProperty, $null)
+        $el.BeginAnimation([Windows.UIElement]::OpacityProperty, $null)
+        if ($online) {
+            $pulse = [Windows.Media.Animation.DoubleAnimation]::new(1.0, 1.35, [TimeSpan]::FromMilliseconds(1100))
+            $pulse.AutoReverse = $true
+            $pulse.EasingFunction = [Windows.Media.Animation.SineEase]::new()
+            $pulse.EasingFunction.EasingMode = 'EaseInOut'
+            $pulse.RepeatBehavior = [Windows.Media.Animation.RepeatBehavior]::Forever
+            $scale.BeginAnimation([Windows.Media.ScaleTransform]::ScaleXProperty, $pulse)
+            $scale.BeginAnimation([Windows.Media.ScaleTransform]::ScaleYProperty, $pulse)
+            Animate-Opacity $el 0.55 1.0 1100 $true
+        } else {
+            $scale.ScaleX = 1
+            $scale.ScaleY = 1
+            $el.Opacity = 1
+        }
+    }
+    if ($target -ne 'playback' -and $core -and (-not $script:pulseStates.ContainsKey($core) -or $script:pulseStates[$core] -ne $online)) {
+        $script:pulseStates[$core] = $online
+        $core.BeginAnimation([Windows.UIElement]::OpacityProperty, $null)
+        if ($online) { Animate-Opacity $core 0.7 1.0 1100 $true } else { $core.Opacity = 1 }
+    }
 }
 
 function Set-ServicesExpanded([bool]$expanded) {
@@ -324,24 +1065,325 @@ function Set-ServicesExpanded([bool]$expanded) {
     $ServicesChevronPath.Data = [Windows.Media.Geometry]::Parse($(if ($expanded) { 'M3,5 L13,5 L8,11 Z' } else { 'M5,3 L11,8 L5,13 Z' }))
 }
 
+function Get-StatusBrush([string]$state) {
+    $brush = [Windows.Media.BrushConverter]::new()
+    switch ($state) {
+        'ok' { return $brush.ConvertFromString('#4ADE80') }
+        'warn' { return $brush.ConvertFromString('#FACC15') }
+        default { return $brush.ConvertFromString('#F472B6') }
+    }
+}
+function Get-ServicePageMap {
+    return @{
+        bridge = 'settings'
+        streamerbot = 'streamerbot'
+        voicestudio = 'voicestudio'
+        windows = 'settings'
+        polly = 'polly'
+        elevenlabs = 'elevenlabs'
+        azure = 'azure'
+        google = 'google'
+        watson = 'watson'
+        uberduck = 'uberduck'
+        ttsmonster = 'ttsmonster'
+        acapela = 'acapela'
+        cereproc = 'cereproc'
+    }
+}
+function Get-ServiceStatusListPanel {
+    if ($script:serviceStatusListRef -is [Windows.Controls.Panel]) { return $script:serviceStatusListRef }
+    $popup = $window.FindName('ServiceStatusPopup')
+    if (-not $popup) { $popup = $ServiceStatusPopup }
+    if (-not $popup -or -not $popup.Child) { return $null }
+    $node = $popup.Child
+    # Walk: Border -> root StackPanel -> ServiceStatusList host
+    $queue = New-Object System.Collections.Generic.Queue[object]
+    $queue.Enqueue($node)
+    while ($queue.Count -gt 0) {
+        $current = $queue.Dequeue()
+        if ($current -is [Windows.Controls.Panel] -and ([string]$current.Tag -eq 'ServiceStatusListHost' -or [string]$current.Name -eq 'ServiceStatusList')) {
+            $script:serviceStatusListRef = $current
+            return $current
+        }
+        if ($current -is [Windows.Controls.Decorator] -and $current.Child) { $queue.Enqueue($current.Child) }
+        elseif ($current -is [Windows.Controls.Panel]) {
+            foreach ($child in @($current.Children)) { $queue.Enqueue($child) }
+        }
+    }
+    return $null
+}
+function Build-ServiceHealthRows([bool]$online, $voices, $errors) {
+    $rows = New-Object System.Collections.Generic.List[object]
+    $voiceProviders = @{}
+    foreach ($v in @($voices)) {
+        if ($null -eq $v) { continue }
+        $key = [string]$v.provider
+        if ($key) { $voiceProviders[$key] = $true }
+    }
+    $failed = @{}
+    foreach ($err in @($errors)) {
+        if ($null -eq $err) { continue }
+        $text = [string]$err
+        if ($text -match '^([^:]+):\s*') { $failed[$Matches[1].Trim()] = $true }
+    }
+    $pages = Get-ServicePageMap
+    try { $s = Read-Settings } catch { $s = $null }
+
+    # Core bridge always listed.
+    $bridgeState = if ($online) { 'ok' } else { 'bad' }
+    [void]$rows.Add([pscustomobject]@{ Id = 'bridge'; Name = 'VoxRelay bridge'; State = $bridgeState; Page = 'settings'; Detail = $(if ($online) { 'HTTP / UDP ready' } else { 'Offline' }) })
+
+    # Only enabled integrations / engines.
+    $udpOn = $false
+    if ($s -and $null -ne $s.enable_udp) { $udpOn = [bool]$s.enable_udp }
+    if ($udpOn) {
+        $sbState = if ($online) { 'ok' } else { 'bad' }
+        [void]$rows.Add([pscustomobject]@{ Id = 'streamerbot'; Name = 'Streamer.bot'; State = $sbState; Page = 'streamerbot'; Detail = 'UDP speak' })
+    }
+
+    $providerMeta = @(
+        @{ Id = 'voicestudio'; Name = 'VoiceStudio'; EnabledProp = 'voicestudio_enabled' }
+        @{ Id = 'windows'; Name = 'Windows voices'; EnabledProp = 'windows_voices_enabled' }
+        @{ Id = 'polly'; Name = 'Amazon Polly'; EnabledProp = 'polly_enabled' }
+        @{ Id = 'elevenlabs'; Name = 'ElevenLabs'; EnabledProp = 'elevenlabs_enabled' }
+        @{ Id = 'azure'; Name = 'Azure Speech'; EnabledProp = 'azure_enabled' }
+        @{ Id = 'google'; Name = 'Google Cloud TTS'; EnabledProp = 'google_enabled' }
+        @{ Id = 'watson'; Name = 'IBM Watson'; EnabledProp = 'watson_enabled' }
+        @{ Id = 'uberduck'; Name = 'UberDuck'; EnabledProp = 'uberduck_enabled' }
+        @{ Id = 'ttsmonster'; Name = 'TTS.Monster'; EnabledProp = 'ttsmonster_enabled' }
+        @{ Id = 'acapela'; Name = 'Acapela'; EnabledProp = 'acapela_enabled' }
+        @{ Id = 'cereproc'; Name = 'CereProc'; EnabledProp = 'cereproc_enabled' }
+    )
+    foreach ($meta in $providerMeta) {
+        $enabled = $false
+        if ($s -and $meta.EnabledProp) {
+            try {
+                $raw = $s.($meta.EnabledProp)
+                # Missing key: VoiceStudio/Windows default on; cloud engines default off.
+                if ($null -eq $raw) {
+                    $enabled = $meta.EnabledProp -in @('voicestudio_enabled','windows_voices_enabled')
+                } else { $enabled = [bool]$raw }
+            } catch { $enabled = $false }
+        }
+        if (-not $enabled) { continue }
+        $state = 'warn'
+        $detail = 'No voices yet'
+        if (-not $online) {
+            $state = 'bad'
+            $detail = 'Bridge offline'
+        } elseif ($failed.ContainsKey([string]$meta.Name)) {
+            $state = 'bad'
+            $detail = 'Check credentials'
+        } elseif ($voiceProviders.ContainsKey([string]$meta.Id)) {
+            $state = 'ok'
+            $detail = 'Voices available'
+        }
+        $page = [string]$pages[[string]$meta.Id]
+        if (-not $page) { $page = 'settings' }
+        [void]$rows.Add([pscustomobject]@{ Id = [string]$meta.Id; Name = [string]$meta.Name; State = $state; Page = $page; Detail = $detail })
+    }
+    return @($rows.ToArray())
+}
+function Apply-ServiceStatusSummary($rows) {
+    $list = @($rows)
+    if ($list.Count -eq 0) {
+        if ($SideStatus) { $SideStatus.Text = 'No services' }
+        return
+    }
+    $ok = @($list | Where-Object { $_.State -eq 'ok' }).Count
+    $bad = @($list | Where-Object { $_.State -eq 'bad' }).Count
+    $total = $list.Count
+    $summaryState = if ($bad -eq 0 -and $ok -eq $total) { 'ok' } elseif ($ok -eq 0) { 'bad' } else { 'warn' }
+    $label = switch ($summaryState) {
+        'ok' { 'Connected' }
+        'warn' { 'Partially Connected' }
+        default { 'Disconnected' }
+    }
+    $text = "$label ($ok/$total)"
+    $brush = Get-StatusBrush $summaryState
+    if ($SideStatus) {
+        $SideStatus.Text = $text
+        $SideStatus.Foreground = [Windows.Media.BrushConverter]::new().ConvertFromString('#F6F3FA')
+    }
+    $core = $window.FindName('SideStatusPulseCore')
+    $ring = $window.FindName('SideStatusPulseRing')
+    if ($core) { $core.Fill = $brush }
+    if ($ring) {
+        $ring.Fill = switch ($summaryState) {
+            'ok' { [Windows.Media.BrushConverter]::new().ConvertFromString('#334ADE80') }
+            'warn' { [Windows.Media.BrushConverter]::new().ConvertFromString('#33FACC15') }
+            default { [Windows.Media.BrushConverter]::new().ConvertFromString('#33F472B6') }
+        }
+    }
+    try { Set-StatusPulse ($summaryState -ne 'bad') } catch {}
+    $script:serviceHealthRows = $list
+    $script:serviceHealthSummary = $text
+}
+function New-ServiceStatusRow($item) {
+    $row = [Windows.Controls.Border]::new()
+    $row.Background = [Windows.Media.Brushes]::Transparent
+    $row.CornerRadius = [Windows.CornerRadius]::new(6)
+    $row.Padding = [Windows.Thickness]::new(10, 9, 10, 9)
+    $row.Cursor = [Windows.Input.Cursors]::Hand
+    $row.Tag = $item
+    $row.ToolTip = [string]$item.Detail
+
+    $grid = [Windows.Controls.Grid]::new()
+    $colDot = [Windows.Controls.ColumnDefinition]::new(); $colDot.Width = [Windows.GridLength]::new(14)
+    $colName = [Windows.Controls.ColumnDefinition]::new(); $colName.Width = [Windows.GridLength]::new(1, [Windows.GridUnitType]::Star)
+    $colChevron = [Windows.Controls.ColumnDefinition]::new(); $colChevron.Width = [Windows.GridLength]::Auto
+    [void]$grid.ColumnDefinitions.Add($colDot)
+    [void]$grid.ColumnDefinitions.Add($colName)
+    [void]$grid.ColumnDefinitions.Add($colChevron)
+
+    $dot = [Windows.Shapes.Ellipse]::new()
+    $dot.Width = 8
+    $dot.Height = 8
+    $dot.Fill = Get-StatusBrush ([string]$item.State)
+    $dot.VerticalAlignment = [Windows.VerticalAlignment]::Center
+    $dot.IsHitTestVisible = $false
+    [Windows.Controls.Grid]::SetColumn($dot, 0)
+    [void]$grid.Children.Add($dot)
+
+    $name = [Windows.Controls.TextBlock]::new()
+    $name.Text = [string]$item.Name
+    $name.Foreground = [Windows.Media.BrushConverter]::new().ConvertFromString('#F6F3FA')
+    $name.FontSize = 13
+    $name.Margin = [Windows.Thickness]::new(10, 0, 8, 0)
+    $name.VerticalAlignment = [Windows.VerticalAlignment]::Center
+    $name.IsHitTestVisible = $false
+    [Windows.Controls.Grid]::SetColumn($name, 1)
+    [void]$grid.Children.Add($name)
+
+    $chevron = [Windows.Shapes.Path]::new()
+    $chevron.Data = [Windows.Media.Geometry]::Parse('M10 6L8.59 7.41L13.17 12l-4.58 4.59L10 18l6-6z')
+    $chevron.Fill = [Windows.Media.BrushConverter]::new().ConvertFromString('#B9B2C2')
+    $chevron.Stretch = [Windows.Media.Stretch]::Uniform
+    $chevron.Width = 10
+    $chevron.Height = 10
+    $chevron.VerticalAlignment = [Windows.VerticalAlignment]::Center
+    $chevron.IsHitTestVisible = $false
+    [Windows.Controls.Grid]::SetColumn($chevron, 2)
+    [void]$grid.Children.Add($chevron)
+
+    $row.Child = $grid
+    $row.Add_MouseEnter({
+        param($sender, $e)
+        $sender.Background = [Windows.Media.BrushConverter]::new().ConvertFromString('#33282231')
+    })
+    $row.Add_MouseLeave({
+        param($sender, $e)
+        $sender.Background = [Windows.Media.Brushes]::Transparent
+    })
+    $row.Add_MouseLeftButtonUp({
+        param($sender, $e)
+        $data = $sender.Tag
+        $popup = $window.FindName('ServiceStatusPopup')
+        if (-not $popup) { $popup = $ServiceStatusPopup }
+        if ($popup) { $popup.IsOpen = $false }
+        if ($data -and $data.Page) {
+            if ($data.Page -in @('streamerbot','voicestudio','polly','elevenlabs','azure','google','watson','uberduck','ttsmonster','acapela','cereproc')) {
+                Set-ServicesExpanded $true
+            }
+            Set-Page ([string]$data.Page)
+        }
+        $e.Handled = $true
+    })
+    return $row
+}
+function Render-ServiceStatusMenu($rows) {
+    $list = Get-ServiceStatusListPanel
+    if (-not $list) { throw 'Status list host not found' }
+    $list.Children.Clear()
+    foreach ($row in @($rows)) {
+        if ($null -eq $row) { continue }
+        [void]$list.Children.Add((New-ServiceStatusRow $row))
+    }
+}
+function Get-CachedServiceVoices {
+    $voices = @()
+    if ($script:profiles -and $script:profiles.Count -gt 0) {
+        foreach ($key in @($script:profiles.Keys)) {
+            $provider = ([string]$key).Split('|')[0]
+            if ($provider) { $voices += [pscustomobject]@{ provider = $provider } }
+        }
+    }
+    return $voices
+}
+function Refresh-ServiceHealth([bool]$probeBridge = $true) {
+    $online = [bool]$script:backendOnline
+    if ($probeBridge) {
+        try {
+            Invoke-RestMethod -Uri ((Get-BridgeBaseUri) + '/api/state') -TimeoutSec 1 | Out-Null
+            $online = $true
+            $script:backendOnline = $true
+            $script:backendFailUntil = [datetime]::MinValue
+        } catch {
+            $online = $false
+            $script:backendOnline = $false
+        }
+    }
+    $voices = Get-CachedServiceVoices
+    $errors = @($script:lastVoiceErrors)
+    $rows = Build-ServiceHealthRows $online $voices $errors
+    Apply-ServiceStatusSummary $rows
+    return $rows
+}
+function Show-ServiceStatusMenu($placementTarget) {
+    $popup = $window.FindName('ServiceStatusPopup')
+    if (-not $popup) { $popup = $ServiceStatusPopup }
+    if (-not $popup) { return }
+    if ($popup.IsOpen -and $placementTarget -and [object]::ReferenceEquals($popup.PlacementTarget, $placementTarget)) {
+        $popup.IsOpen = $false
+        return
+    }
+    if ($placementTarget) {
+        $popup.PlacementTarget = $placementTarget
+        $popup.Placement = [Windows.Controls.Primitives.PlacementMode]::Top
+    }
+    # Open first so Popup visual tree exists, then fill from cache (no /api/voices stall).
+    $popup.IsOpen = $true
+    try {
+        $rows = Refresh-ServiceHealth $false
+        if (-not @($rows).Count) { $rows = Refresh-ServiceHealth $true }
+        Render-ServiceStatusMenu $rows
+    } catch {
+        $list = Get-ServiceStatusListPanel
+        if ($list) {
+            $list.Children.Clear()
+            $err = [Windows.Controls.TextBlock]::new()
+            $err.Text = 'Could not build status list'
+            $err.Foreground = Get-StatusBrush 'bad'
+            $err.Margin = [Windows.Thickness]::new(10, 8, 10, 8)
+            $err.TextWrapping = 'Wrap'
+            [void]$list.Children.Add($err)
+        }
+        if ($BottomStatus) { $BottomStatus.Text = 'Status menu: ' + $_.Exception.Message }
+    }
+    $window.Dispatcher.BeginInvoke([Action]{
+        try {
+            if (-not $popup.IsOpen) { return }
+            $rows = Refresh-ServiceHealth $true
+            Render-ServiceStatusMenu $rows
+        } catch {}
+    }, [Windows.Threading.DispatcherPriority]::Background) | Out-Null
+}
 function Update-BridgeStatus([bool]$online) {
     $script:backendOnline = [bool]$online
-    $brush = [Windows.Media.BrushConverter]::new()
-    $ok = $brush.ConvertFromString('#58DDA8')
-    $bad = $brush.ConvertFromString('#FF7B72')
-    if ($online) {
-        $SideStatus.Text = 'Connected'
-        $SideStatus.Foreground = $ok
-        if ($BottomStatusDot) { $BottomStatusDot.Fill = $ok }
-    } else {
-        $SideStatus.Text = 'Offline'
-        $SideStatus.Foreground = $bad
-        if ($BottomStatusDot) { $BottomStatusDot.Fill = $bad }
+    try {
+        $voices = Get-CachedServiceVoices
+        $errors = @($script:lastVoiceErrors)
+        Apply-ServiceStatusSummary (Build-ServiceHealthRows $online $voices $errors)
+    } catch {
+        if ($SideStatus) { $SideStatus.Text = $(if ($online) { 'Connected' } else { 'Offline' }) }
+        try { Set-StatusPulse $online } catch {}
     }
 }
 
 function Set-Page([string]$page) {
-    $SavePageButton.Visibility=if($page -in @('settings','rules','streamerbot','voicestudio','polly','elevenlabs','azure','google','watson','uberduck','ttsmonster','acapela','cereproc')){'Visible'}else{'Collapsed'}
+    if ($script:activePage -eq $page) { return }
+    $script:activePage = $page
+    $SavePageButton.Visibility=if($page -in @('settings','rules','pronunciation','streamerbot','voicestudio','polly','elevenlabs','azure','google','watson','uberduck','ttsmonster','acapela','cereproc')){'Visible'}else{'Collapsed'}
     $SavePageButton.Tag=$page
     $pages = @{
         voices=$VoicesPage; playground=$PlaygroundPage; queue=$QueuePage; history=$HistoryPage; rules=$RulesPage; pronunciation=$PronunciationPage;
@@ -357,13 +1399,14 @@ function Set-Page([string]$page) {
         voices=@('Voices','Aliases and voice profiles'); playground=@('Playground','Try a line before it hits chat');
         queue=@('Queue','What is waiting to speak'); history=@('History','Recent speech jobs');
         rules=@('Rules','Filters, replacements, and cooldowns'); pronunciation=@('Pronunciation','Custom spoken forms');
-        streamerbot=@('Streamer.bot','UDP, actions, and lifecycle hooks'); voicestudio=@('VoiceStudio','Local TTS connection');
+        streamerbot=@('Streamer.bot','Connect speech, then add optional playback actions.'); voicestudio=@('VoiceStudio','Local TTS connection');
         polly=@('Amazon Polly','Cloud voices'); elevenlabs=@('ElevenLabs','Cloud TTS credentials'); azure=@('Azure Speech','Cloud TTS credentials'); google=@('Google Cloud TTS','Cloud TTS credentials'); watson=@('IBM Watson','Cloud TTS credentials'); uberduck=@('UberDuck','Cloud TTS credentials'); ttsmonster=@('TTS.Monster','Cloud TTS credentials'); acapela=@('Acapela','Cloud TTS credentials'); cereproc=@('CereProc','Cloud TTS credentials'); settings=@('Settings','Ports, devices, and tray');
         activity=@('Activity','Speech events and application log')
     }
     if ($titles.ContainsKey($page)) { $PageTitle.Text = $titles[$page][0]; $PageSubtitle.Text = $titles[$page][1] }
     if ($page -eq 'activity') { Refresh-Activity }
-    if ($page -in @('queue','history')) { Refresh-ServiceState }
+    if ($page -in @('queue','history')) { $script:playerStateNext = 0; $script:playerHistoryNext = 0 }
+    Animate-PageHeading
     Animate-In $pages[$page]
 }
 
@@ -480,6 +1523,9 @@ function Refresh-Grid([switch]$VoicesOnly) {
     $UrlBox.Text = [string]$settings.voice_studio_url
     $KeyBox.Text = [string]$settings.api_key
     $RequestTimeoutBox.Text = [string]$(if ($null -ne $settings.request_timeout) { $settings.request_timeout } else { 120 })
+    if ($VoiceStudioEnabledCheck) {
+        $VoiceStudioEnabledCheck.IsChecked = $null -eq $settings.voicestudio_enabled -or [bool]$settings.voicestudio_enabled
+    }
     $PollyEnabledCheck.IsChecked = [bool]$settings.polly_enabled
     $WindowsVoicesCheck.IsChecked = $null -eq $settings.windows_voices_enabled -or [bool]$settings.windows_voices_enabled
 
@@ -529,6 +1575,7 @@ function Refresh-Grid([switch]$VoicesOnly) {
     $MaxCharactersSettingBox.Text = [string]$(if ($null -ne $settings.max_characters) { $settings.max_characters } else { 500 })
     $MaxQueueSettingBox.Text = [string]$(if ($null -ne $settings.max_queue) { $settings.max_queue } else { 25 })
     $HistoryLimitBox.Text = [string]$(if ($null -ne $settings.history_limit) { $settings.history_limit } else { 200 })
+    Load-ProfanityRules $settings
     $StreamVolumeSlider.Value = if ($null -ne $settings.stream_volume) { [double]$settings.stream_volume } else { 1 }
     $PreviewVolumeSlider.Value = if ($null -ne $settings.preview_volume) { [double]$settings.preview_volume } else { 1 }
     $NormalizeAudioCheck.IsChecked = [bool]$settings.normalize_audio
@@ -604,21 +1651,29 @@ function Refresh-Voices {
     $BottomStatus.Text = 'Loading voices...'
     $RefreshButton.IsEnabled = $false
     $script:voiceWebClient = [Net.WebClient]::new()
+    $script:voiceWebClient.Proxy = $null
     $script:voiceRefreshTask = $script:voiceWebClient.DownloadStringTaskAsync([Uri]((Get-BridgeBaseUri) + '/api/voices'))
+    $script:voiceDeviceClient = [Net.WebClient]::new()
+    $script:voiceDeviceClient.Proxy = $null
+    $script:voiceDeviceTask = $script:voiceDeviceClient.DownloadStringTaskAsync([Uri]((Get-BridgeBaseUri) + '/api/devices'))
+    $script:voiceDeviceStarted = [datetime]::UtcNow
     $script:voiceRefreshTimer = [Windows.Threading.DispatcherTimer]::new()
     $script:voiceRefreshTimer.Interval = [TimeSpan]::FromMilliseconds(150)
     $script:voiceRefreshTimer.Add_Tick({
         if (-not $script:voiceRefreshTask.IsCompleted) { return }
+        if (-not $script:voiceDeviceTask.IsCompleted -and ([datetime]::UtcNow - $script:voiceDeviceStarted).TotalSeconds -lt 5) { return }
         $script:voiceRefreshTimer.Stop()
         try {
             $result = $script:voiceRefreshTask.GetAwaiter().GetResult() | ConvertFrom-Json
-            Complete-VoiceRefresh $result
+            $devices = $null
+            if ($script:voiceDeviceTask.IsCompleted) { try { $devices = $script:voiceDeviceTask.GetAwaiter().GetResult() | ConvertFrom-Json } catch {} }
+            Complete-VoiceRefresh $result $devices
         } catch { $BottomStatus.Text = 'Could not load voices. Check Services and try again.' }
-        finally { $script:voiceWebClient.Dispose(); $RefreshButton.IsEnabled = $true }
+        finally { $script:voiceWebClient.Dispose(); $script:voiceDeviceClient.CancelAsync(); $script:voiceDeviceClient.Dispose(); $RefreshButton.IsEnabled = $true }
     })
     $script:voiceRefreshTimer.Start()
 }
-function Complete-VoiceRefresh($result) {
+function Complete-VoiceRefresh($result, $deviceResult = $null) {
     try {
         $s = Read-Settings
         $voices = @($result.voices)
@@ -637,28 +1692,37 @@ function Complete-VoiceRefresh($result) {
             $script:profileModels[$key] = [string]$v.model
             $script:profileModelOptions[$key] = if(@($v.engines).Count -and $v.engines){@($v.engines)}else{@([string]$v.model)}
         }
+        $currentOutput = [string]$OutputDeviceBox.SelectedItem
+        $currentPreview = [string]$PreviewDeviceBox.SelectedItem
+        $devices = if ($deviceResult) { @($deviceResult.devices | Sort-Object -Unique) } else { @($OutputDeviceBox.Items | Where-Object { $_ -ne '[Default]' }) }
         $OutputDeviceBox.Items.Clear(); $PreviewDeviceBox.Items.Clear()
         [void]$OutputDeviceBox.Items.Add('[Default]')
         [void]$PreviewDeviceBox.Items.Add('[Same as stream output]')
         [void]$PreviewDeviceBox.Items.Add('[Default]')
         try {
-            $deviceResult = Invoke-BridgeGet '/api/devices' 3
-            foreach ($device in @($deviceResult.devices | Sort-Object -Unique)) {
+            foreach ($device in $devices) {
                 [void]$OutputDeviceBox.Items.Add([string]$device)
                 [void]$PreviewDeviceBox.Items.Add([string]$device)
             }
         } catch {}
-        $selectedDevice = if ([string]::IsNullOrWhiteSpace([string]$s.output_device)) { '[Default]' } else { [string]$s.output_device }
+        $selectedDevice = if ($currentOutput) { $currentOutput } elseif ([string]::IsNullOrWhiteSpace([string]$s.output_device)) { '[Default]' } else { [string]$s.output_device }
         if(-not$OutputDeviceBox.Items.Contains($selectedDevice)){[void]$OutputDeviceBox.Items.Add($selectedDevice)}
         $OutputDeviceBox.SelectedItem = $selectedDevice
         if ($OutputDeviceBox.SelectedIndex -lt 0) { $OutputDeviceBox.SelectedIndex = 0 }
-        $selectedPreview = if ([string]::IsNullOrWhiteSpace([string]$s.preview_output_device)) { '[Same as stream output]' } else { [string]$s.preview_output_device }
+        $selectedPreview = if ($currentPreview) { $currentPreview } elseif ([string]::IsNullOrWhiteSpace([string]$s.preview_output_device)) { '[Same as stream output]' } else { [string]$s.preview_output_device }
         if(-not$PreviewDeviceBox.Items.Contains($selectedPreview)){[void]$PreviewDeviceBox.Items.Add($selectedPreview)}
         $PreviewDeviceBox.SelectedItem = $selectedPreview
         if ($PreviewDeviceBox.SelectedIndex -lt 0) { $PreviewDeviceBox.SelectedIndex = 0 }
-        Update-BridgeStatus $true
+        $script:backendOnline = $true
+        $script:serviceHealthAge = Get-Date
+        $script:lastVoiceErrors = @($result.errors)
+        try {
+            Apply-ServiceStatusSummary (Build-ServiceHealthRows $true @($result.voices) @($script:lastVoiceErrors))
+        } catch {
+            try { Update-BridgeStatus $true } catch {}
+        }
         $message = ($script:profiles.Count.ToString() + ' voices found')
-        if (@($result.errors).Count) { $message += '; ' + (@($result.errors) -join ' | ') }
+        if (@($script:lastVoiceErrors).Count) { $message += '; ' + (@($script:lastVoiceErrors) -join ' | ') }
         if($script:settingsRecovered){$message += '; Settings recovered from backup. Save to repair.'}
         $BottomStatus.Text = $message
         Refresh-Grid -VoicesOnly
@@ -669,51 +1733,640 @@ function Complete-VoiceRefresh($result) {
     }
 }
 function Refresh-Activity {
+    if ($script:activityTask -and -not $script:activityTask.IsCompleted) { return }
+    if ($script:activityTask) { Complete-ActivityRefresh }
+    $script:activityClient = [Net.WebClient]::new()
+    $script:activityClient.Proxy = $null
+    $script:activityStarted = [datetime]::UtcNow
+    $script:activityTask = $script:activityClient.DownloadStringTaskAsync([Uri]((Get-BridgeBaseUri) + '/api/events'))
+}
+function Complete-ActivityRefresh {
+    if (-not $script:activityTask -or -not $script:activityTask.IsCompleted) { return }
     try {
-        $timeline = (Invoke-BridgeGet '/api/events' 1).events
+        $timeline = ($script:activityTask.GetAwaiter().GetResult() | ConvertFrom-Json).events
         $signature = @($timeline | ForEach-Object { $_.time + $_.event }) -join '|'
         if ($signature -ne $script:lastEventSignature) {
             $EventTimelineGrid.ItemsSource = @($timeline | ForEach-Object { [pscustomobject]@{Time=([datetime]$_.time).ToLocalTime().ToString('HH:mm:ss');Event=$_.source+'.'+$_.event;Alias=$(if($_.data.alias){$_.data.alias}else{$_.data.integration});Id=$_.data.id} })
             $script:lastEventSignature = $signature
         }
     } catch {}
-    $ActivityList.Items.Clear()
+    finally { $script:activityClient.Dispose(); $script:activityTask = $null }
     if (Test-Path -LiteralPath $logPath) {
-        Get-Content -LiteralPath $logPath -Tail 80 -ErrorAction SilentlyContinue | ForEach-Object { [void]$ActivityList.Items.Add($_) }
+        $modified = [IO.File]::GetLastWriteTimeUtc($logPath)
+        if ($modified -ne $script:activityLogModified) {
+            $ActivityList.ItemsSource = @(Get-Content -LiteralPath $logPath -Tail 80 -ErrorAction SilentlyContinue | ForEach-Object { Get-DisplayText $_ })
+            $script:activityLogModified = $modified
+        }
     }
 }
-function Refresh-ServiceState {
-    if ($script:queueDragging -or [Windows.Input.Mouse]::LeftButton -eq 'Pressed') { return }
-    if (-not $script:backendOnline -and [datetime]::UtcNow -lt $script:backendFailUntil) { return }
+$script:glyphPause = 'M6 19h4V5H6zm8-14v14h4V5z'
+$script:glyphPlay = 'M8 5v14l11-7z'
+$script:glyphMusicNote = 'M12 3v10.55c-.59-.34-1.27-.55-2-.55c-2.21 0-4 1.79-4 4s1.79 4 4 4s4-1.79 4-4V7h4V3h-6z'
+$script:glyphLoading = 'M12 3c4.97 0 9 4.03 9 9'
+$script:nowPlayingLoading = $false
+$script:nowPlayingMode = 'idle'
+$script:lastHistorySpeechId = ''
+$script:recentHistoryItems = @()
+
+
+$script:statusFlashUntil = [datetime]::MinValue
+$script:lastFlashedStatus = ''
+$script:quickHistoryListRef = $null
+
+function Get-QuickHistoryListPanel {
+    if ($script:quickHistoryListRef -is [Windows.Controls.Panel]) { return $script:quickHistoryListRef }
+    $popup = $window.FindName('QuickHistoryPopup')
+    if (-not $popup) { $popup = $QuickHistoryPopup }
+    if ($popup -and $popup.Child) {
+        $current = $popup.Child
+        $stack = New-Object System.Collections.Generic.Stack[object]
+        $stack.Push($current)
+        while ($stack.Count -gt 0) {
+            $current = $stack.Pop()
+            if ($current -is [Windows.Controls.Panel] -and ([string]$current.Tag -eq 'QuickHistoryListHost' -or [string]$current.Name -eq 'QuickHistoryList')) {
+                $script:quickHistoryListRef = $current
+                return $current
+            }
+            if ($current -is [Windows.Controls.Panel]) {
+                foreach ($child in @($current.Children)) { $stack.Push($child) }
+            } elseif ($current -is [Windows.Controls.Decorator] -and $current.Child) {
+                $stack.Push($current.Child)
+            } elseif ($current -is [Windows.Controls.ContentControl] -and $current.Content -is [Windows.DependencyObject]) {
+                $stack.Push($current.Content)
+            }
+        }
+    }
+    if ($QuickHistoryList) { $script:quickHistoryListRef = $QuickHistoryList; return $QuickHistoryList }
+    return $null
+}
+
+function New-QuickHistoryRow($item) {
+    $row = [Windows.Controls.Border]::new()
+    $row.Background = [Windows.Media.Brushes]::Transparent
+    $row.CornerRadius = [Windows.CornerRadius]::new(6)
+    $row.Padding = [Windows.Thickness]::new(10, 8, 10, 8)
+    $row.Cursor = [Windows.Input.Cursors]::Hand
+    $row.Tag = $item
+    $tip = [string]$item.Text
+    if (-not $tip) { $tip = [string]$item.Alias }
+    $row.ToolTip = $tip
+
+    $grid = [Windows.Controls.Grid]::new()
+    $colMain = [Windows.Controls.ColumnDefinition]::new(); $colMain.Width = [Windows.GridLength]::new(1, [Windows.GridUnitType]::Star)
+    $colAction = [Windows.Controls.ColumnDefinition]::new(); $colAction.Width = [Windows.GridLength]::Auto
+    [void]$grid.ColumnDefinitions.Add($colMain)
+    [void]$grid.ColumnDefinitions.Add($colAction)
+
+    $stack = [Windows.Controls.StackPanel]::new()
+    $title = [Windows.Controls.TextBlock]::new()
+    $alias = [string]$item.Alias
+    if (-not $alias) { $alias = 'Voice' }
+    $status = [string]$item.Status
+    $title.Text = if ($status) { "$alias - $status" } else { $alias }
+    $title.Foreground = [Windows.Media.BrushConverter]::new().ConvertFromString('#F6F3FA')
+    $title.FontSize = 13
+    $title.FontWeight = [Windows.FontWeights]::SemiBold
+    $title.TextTrimming = [Windows.TextTrimming]::CharacterEllipsis
+    $title.IsHitTestVisible = $false
+    [void]$stack.Children.Add($title)
+
+    $sub = [Windows.Controls.TextBlock]::new()
+    $msg = [string]$item.Text
+    if ($msg.Length -gt 72) { $msg = $msg.Substring(0, 71) + '…' }
+    if (-not $msg) { $msg = [string]$item.Time }
+    $sub.Text = $msg
+    $sub.Foreground = [Windows.Media.BrushConverter]::new().ConvertFromString('#B9B2C2')
+    $sub.FontSize = 11
+    $sub.Margin = [Windows.Thickness]::new(0, 2, 0, 0)
+    $sub.TextTrimming = [Windows.TextTrimming]::CharacterEllipsis
+    $sub.IsHitTestVisible = $false
+    [void]$stack.Children.Add($sub)
+    [Windows.Controls.Grid]::SetColumn($stack, 0)
+    [void]$grid.Children.Add($stack)
+
+    $play = [Windows.Shapes.Path]::new()
+    $play.Data = [Windows.Media.Geometry]::Parse('M8 5v14l11-7z')
+    $play.Fill = [Windows.Media.BrushConverter]::new().ConvertFromString('#B6A3FF')
+    $play.Stretch = [Windows.Media.Stretch]::Uniform
+    $play.Width = 11
+    $play.Height = 11
+    $play.VerticalAlignment = [Windows.VerticalAlignment]::Center
+    $play.Margin = [Windows.Thickness]::new(10, 0, 0, 0)
+    $play.IsHitTestVisible = $false
+    [Windows.Controls.Grid]::SetColumn($play, 1)
+    [void]$grid.Children.Add($play)
+
+    $row.Child = $grid
+    $row.Add_MouseEnter({
+        param($sender, $e)
+        $sender.Background = [Windows.Media.BrushConverter]::new().ConvertFromString('#33282231')
+    })
+    $row.Add_MouseLeave({
+        param($sender, $e)
+        $sender.Background = [Windows.Media.Brushes]::Transparent
+    })
+    $row.Add_MouseLeftButtonUp({
+        param($sender, $e)
+        $data = $sender.Tag
+        $popup = $window.FindName('QuickHistoryPopup')
+        if (-not $popup) { $popup = $QuickHistoryPopup }
+        if ($popup) { $popup.IsOpen = $false }
+        if ($data -and $data.Id) {
+            try {
+                Invoke-BridgePost '/api/history/replay' @{ speechId = [string]$data.Id } | Out-Null
+                $BottomStatus.Text = 'Queued ' + $(if ($data.Alias) { [string]$data.Alias } else { 'history audio' })
+                Refresh-ServiceState
+            } catch { $BottomStatus.Text = $_.Exception.Message }
+        }
+        $e.Handled = $true
+    })
+    return $row
+}
+
+function Render-QuickHistoryMenu($items) {
+    $list = Get-QuickHistoryListPanel
+    if (-not $list) { throw 'Quick history list host not found' }
+    $list.Children.Clear()
+    $rows = @($items | Select-Object -First 10)
+    if ($rows.Count -eq 0) {
+        $empty = [Windows.Controls.TextBlock]::new()
+        $empty.Text = 'No recent history yet'
+        $empty.Foreground = [Windows.Media.BrushConverter]::new().ConvertFromString('#B9B2C2')
+        $empty.Margin = [Windows.Thickness]::new(10, 8, 10, 8)
+        [void]$list.Children.Add($empty)
+    } else {
+        foreach ($row in $rows) {
+            if ($null -eq $row) { continue }
+            [void]$list.Children.Add((New-QuickHistoryRow $row))
+        }
+    }
+    $footer = [Windows.Controls.Border]::new()
+    $footer.Background = [Windows.Media.Brushes]::Transparent
+    $footer.CornerRadius = [Windows.CornerRadius]::new(6)
+    $footer.Padding = [Windows.Thickness]::new(10, 10, 10, 8)
+    $footer.Margin = [Windows.Thickness]::new(0, 4, 0, 0)
+    $footer.Cursor = [Windows.Input.Cursors]::Hand
+    $footerText = [Windows.Controls.TextBlock]::new()
+    $footerText.Text = 'Open History page'
+    $footerText.Foreground = [Windows.Media.BrushConverter]::new().ConvertFromString('#C9BCFF')
+    $footerText.FontSize = 12
+    $footerText.FontWeight = [Windows.FontWeights]::SemiBold
+    $footerText.IsHitTestVisible = $false
+    $footer.Child = $footerText
+    $footer.Add_MouseEnter({ param($s,$e) $s.Background = [Windows.Media.BrushConverter]::new().ConvertFromString('#33282231') })
+    $footer.Add_MouseLeave({ param($s,$e) $s.Background = [Windows.Media.Brushes]::Transparent })
+    $footer.Add_MouseLeftButtonUp({
+        param($s, $e)
+        $popup = $window.FindName('QuickHistoryPopup')
+        if (-not $popup) { $popup = $QuickHistoryPopup }
+        if ($popup) { $popup.IsOpen = $false }
+        Set-Page 'history'
+        $e.Handled = $true
+    })
+    [void]$list.Children.Add($footer)
+}
+
+function Show-QuickHistoryMenu {
+    $popup = $window.FindName('QuickHistoryPopup')
+    if (-not $popup) { $popup = $QuickHistoryPopup }
+    if (-not $popup -or -not $NowPlayingHistoryButton) { return }
+    if ($popup.IsOpen) {
+        $popup.IsOpen = $false
+        return
+    }
+    $popup.PlacementTarget = $NowPlayingHistoryButton
+    $popup.Placement = [Windows.Controls.Primitives.PlacementMode]::Top
+    $popup.IsOpen = $true
     try {
-        $selectedQueueId = if ($QueueGrid.SelectedItem) { [string]$QueueGrid.SelectedItem.Id } else { '' }
-        $selectedHistoryId = if ($HistoryGrid.SelectedItem) { [string]$HistoryGrid.SelectedItem.Id } else { '' }
-        $state = (Invoke-BridgeGet '/api/state' 1).result
-        $QueueSummaryText.Text = ('{0} waiting / approx. {1:0}s' -f $state.queueLength,$state.estimatedWaitSeconds) + $(if($state.paused){' / Paused'}else{''})
-        $queueRows = New-Object System.Collections.ObjectModel.ObservableCollection[object]
-        if ($state.current) { $queueRows.Add([pscustomobject]@{ Id=$state.current.id; Status=$state.current.status; Alias=$state.current.alias; User=$state.current.user; Text=$state.current.text }) }
-        foreach ($item in @($state.queue)) { $queueRows.Add([pscustomobject]@{ Id=$item.id; Status=$item.status; Alias=$item.alias; User=$item.user; Text=$item.text }) }
-        $queueSignature = $queueRows | ConvertTo-Json -Depth 5 -Compress
-        if ($queueSignature -ne $script:lastQueueSignature) {
-            $QueueGrid.ItemsSource = $queueRows
-            if ($selectedQueueId) { $QueueGrid.SelectedItem = @($queueRows | Where-Object { $_.Id -eq $selectedQueueId })[0] }
-            $script:lastQueueSignature = $queueSignature
+        $items = @($script:recentHistoryItems)
+        if ($items.Count -eq 0) {
+            try {
+                $history = (Invoke-BridgeGet '/api/history' 1).result.history
+                $items = @($history | Select-Object -First 10 | ForEach-Object {
+                    $time = ''
+                    try { $time = ([datetime]$_.timestamp).ToLocalTime().ToString('g') } catch { $time = [string]$_.timestamp }
+                    [pscustomobject]@{ Id=$_.id; Time=$time; Status=$_.status; Alias=$_.alias; Text=(Get-DisplayText $_.text) }
+                })
+                $script:recentHistoryItems = $items
+            } catch {}
         }
-        if ($state.audioWarning) { $BottomStatus.Text = [string]$state.audioWarning }
-        $history = (Invoke-BridgeGet '/api/history' 1).result.history
-        $historyRows = New-Object System.Collections.ObjectModel.ObservableCollection[object]
-        foreach ($item in @($history)) {
-            $time = ''
-            try { $time = ([datetime]$item.timestamp).ToLocalTime().ToString('g') } catch { $time = [string]$item.timestamp }
-            $historyRows.Add([pscustomobject]@{ Id=$item.id; Time=$time; Status=$item.status; Alias=$item.alias; Source=$item.source; User=$item.user; Text=$item.text; AudioPath=$item.audioPath })
+        Render-QuickHistoryMenu $items
+    } catch {
+        $list = Get-QuickHistoryListPanel
+        if ($list) {
+            $list.Children.Clear()
+            $err = [Windows.Controls.TextBlock]::new()
+            $err.Text = 'Could not load history'
+            $err.Foreground = Get-StatusBrush 'bad'
+            $err.Margin = [Windows.Thickness]::new(10, 8, 10, 8)
+            [void]$list.Children.Add($err)
         }
-        $historySignature = $historyRows | ConvertTo-Json -Depth 5 -Compress
-        if ($historySignature -ne $script:lastHistorySignature) {
-            $HistoryGrid.ItemsSource = $historyRows
-            if ($selectedHistoryId) { $HistoryGrid.SelectedItem = @($historyRows | Where-Object { $_.Id -eq $selectedHistoryId })[0] }
-            $script:lastHistorySignature = $historySignature
+        if ($BottomStatus) { $BottomStatus.Text = 'History menu: ' + $_.Exception.Message }
+    }
+}
+
+
+function Start-NowPlayingLoadingSpin {
+    # Only start once - Refresh-ServiceState polls often and must not restart the storyboard.
+    if ($script:nowPlayingLoading) { return }
+    try {
+        if ($NowPlayingNoteHost) { $NowPlayingNoteHost.Visibility = 'Collapsed' }
+        elseif ($NowPlayingGlyph) { $NowPlayingGlyph.Visibility = 'Collapsed' }
+        if ($NowPlayingLoadingHost) { $NowPlayingLoadingHost.Visibility = 'Visible' }
+        $rotate = $NowPlayingLoadingRotate
+        if (-not $rotate -and $NowPlayingLoadingHost) {
+            try { $rotate = $NowPlayingLoadingHost.FindName('NowPlayingLoadingRotate') } catch {}
+        }
+        if ($rotate -is [Windows.Media.RotateTransform]) {
+            $anim = [Windows.Media.Animation.DoubleAnimation]::new(0, 360, [Windows.Duration]::new([TimeSpan]::FromSeconds(1.0)))
+            $anim.RepeatBehavior = [Windows.Media.Animation.RepeatBehavior]::Forever
+            $rotate.BeginAnimation([Windows.Media.RotateTransform]::AngleProperty, $anim)
+        }
+        $script:nowPlayingLoading = $true
+    } catch {
+        $script:nowPlayingLoading = $false
+    }
+}
+
+function Stop-NowPlayingLoadingSpin {
+    if (-not $script:nowPlayingLoading) { return }
+    try {
+        if ($NowPlayingLoadingRotate -is [Windows.Media.RotateTransform]) {
+            $NowPlayingLoadingRotate.BeginAnimation([Windows.Media.RotateTransform]::AngleProperty, $null)
+            $NowPlayingLoadingRotate.Angle = 0
         }
     } catch {}
+    try {
+        if ($NowPlayingLoadingHost) { $NowPlayingLoadingHost.Visibility = 'Collapsed' }
+        if ($NowPlayingNoteHost) { $NowPlayingNoteHost.Visibility = 'Visible' }
+        elseif ($NowPlayingGlyph) { $NowPlayingGlyph.Visibility = 'Visible' }
+    } catch {}
+    $script:nowPlayingLoading = $false
+}
+
+
+function Update-NowPlayingBar($state, $lastHistory) {
+    if (-not $NowPlayingTitle) { return }
+    $script:lastPlaybackState = $state
+    $selectedRecording = Get-HistoryPlaybackTarget
+    if (-not $state.current -and $selectedRecording) { $lastHistory = $selectedRecording }
+    $incomingKey = if ($state.current) { [string]$state.current.id } else { '' }
+    if ($script:progressSeeking) {
+        if ($incomingKey -eq $script:seekSpeechKey) { return }
+        $script:progressSeeking = $false
+        $NowPlayingProgressTrack.ReleaseMouseCapture()
+    }
+    if ($incomingKey -and $incomingKey -eq $script:progressSpeechKey -and [int]$state.seekRevision -lt [int]$script:progressSeekRevision) { return }
+    $seekChanged = ([int]$state.seekRevision -ne [int]$script:progressSeekRevision)
+    $script:progressSeekRevision = [int]$state.seekRevision
+    $paused = $false
+    try { $paused = [bool]$state.paused } catch {}
+    $current = $null
+    try { $current = $state.current } catch {}
+    $waiting = 0
+    try { $waiting = [int]$state.queueLength } catch {}
+
+    $jobStatus = ''
+    if ($current) {
+        try { $jobStatus = [string]$current.status } catch {}
+        if (-not $jobStatus) { try { $jobStatus = [string]$current.Status } catch {} }
+    }
+
+    # Spinner ONLY while this job is actively generating audio — not Waiting/Queued/Ready.
+    $isGenerating = ($jobStatus -eq 'Generating')
+
+    # Title = alias. Subtitle = spoken line. No status suffixes.
+    if ($current) {
+        $alias = ''
+        try { $alias = [string]$current.alias } catch {}
+        if (-not $alias) { $alias = 'Voice' }
+        $msg = ''
+        try { $msg = [string]$current.text } catch {}
+        $NowPlayingTitle.Text = $alias
+        $NowPlayingSubtitle.Text = $(if ($msg) { Get-DisplayText $msg } elseif ($isGenerating) { 'Generating…' } else { '' })
+        if ($jobStatus -eq 'Playing') {
+            $script:nowPlayingMode = if ($paused) { 'paused' } else { 'playing' }
+        } elseif ($isGenerating) {
+            $script:nowPlayingMode = 'generating'
+        } elseif ($paused) {
+            $script:nowPlayingMode = 'paused'
+        } else {
+            $script:nowPlayingMode = 'ready'
+        }
+    } elseif ($lastHistory) {
+        $alias = ''
+        try { $alias = [string]$lastHistory.Alias } catch {}
+        if (-not $alias) { try { $alias = [string]$lastHistory.alias } catch {} }
+        if (-not $alias) { $alias = 'Voice' }
+        $msg = ''
+        try { $msg = [string]$lastHistory.Text } catch {}
+        if (-not $msg) { try { $msg = [string]$lastHistory.text } catch {} }
+        $NowPlayingTitle.Text = $alias
+        $NowPlayingSubtitle.Text = $(if ($msg) { Get-DisplayText $msg } else { '' })
+        $script:nowPlayingMode = if ($paused) { 'paused' } else { 'idle' }
+    } else {
+        $NowPlayingTitle.Text = if ($paused) { 'Paused' } else { 'Nothing playing' }
+        $NowPlayingSubtitle.Text = if ($waiting -gt 0) { '{0} waiting' -f $waiting } else { 'Queue empty' }
+        $script:nowPlayingMode = if ($paused) { 'paused' } else { 'idle' }
+    }
+    $script:nowPlayingSubtitleText = [string]$NowPlayingSubtitle.Text
+
+    # Loading icon
+    if ($isGenerating) {
+        if (-not $script:nowPlayingLoading) { Start-NowPlayingLoadingSpin }
+    } else {
+        Stop-NowPlayingLoadingSpin
+    }
+
+    # Hide bottom flash over subtitle unless actively flashing
+    try {
+        $flashText = if ($BottomStatus) { [string]$BottomStatus.Text } else { '' }
+        if ($flashText -and [datetime]::UtcNow -lt $script:statusFlashUntil) {
+            if ($NowPlayingSubtitle) { $NowPlayingSubtitle.Visibility = 'Collapsed' }
+            if ($BottomStatus) { $BottomStatus.Visibility = 'Visible' }
+        } else {
+            if ($BottomStatus) { $BottomStatus.Visibility = 'Collapsed' }
+            if ($NowPlayingSubtitle) { $NowPlayingSubtitle.Visibility = 'Visible' }
+        }
+    } catch {}
+
+    # Play/pause glyph
+    $playPath = $script:glyphPlay
+    $playTip = 'Play'
+    $playEnabled = $true
+    switch ($script:nowPlayingMode) {
+        'playing' { $playPath = $script:glyphPause; $playTip = 'Pause' }
+        'paused'  { $playPath = $script:glyphPlay;  $playTip = 'Resume' }
+        'generating' { $playPath = $script:glyphPause; $playTip = 'Pause queue' }
+        'ready' { $playPath = $script:glyphPause; $playTip = 'Pause queue' }
+        default {
+            if ($selectedRecording) { $playTip = 'Play selected recording' }
+            elseif ($script:lastHistorySpeechId) { $playTip = 'Replay last audio' }
+            else { $playEnabled = $false; $playTip = 'Nothing to play' }
+        }
+    }
+    try {
+        if ($NowPlayingPlayPauseGlyph -and $playPath -and $script:lastPlayerGlyph -ne $playPath) {
+            $NowPlayingPlayPauseGlyph.Data = [Windows.Media.Geometry]::Parse([string]$playPath)
+            $script:lastPlayerGlyph = $playPath
+        }
+    } catch {}
+    if ($NowPlayingPlayPauseButton) {
+        $NowPlayingPlayPauseButton.ToolTip = $playTip
+        [Windows.Automation.AutomationProperties]::SetName($NowPlayingPlayPauseButton, $playTip)
+        $NowPlayingPlayPauseButton.IsEnabled = $playEnabled
+        $NowPlayingPlayPauseButton.Tag = $script:nowPlayingMode
+    }
+
+    # Progress
+    $durationSec = 0.0
+    $bridgeElapsed = 0.0
+    try { $durationSec = [double]$state.durationSeconds } catch {}
+    try { $bridgeElapsed = [double]$state.elapsedSeconds } catch {}
+    if ($durationSec -le 0 -and $current) {
+        try { $durationSec = [double]$current.duration / 1000.0 } catch {}
+    }
+
+    $currentPlaying = ($jobStatus -eq 'Playing')
+    $playingNow = ($currentPlaying -and -not $paused)
+
+    $speechKey = ''
+    if ($current) {
+        try {
+            if ($current.id) { $speechKey = [string]$current.id }
+            else { $speechKey = ([string]$current.alias) + '|' + ([string]$current.text) }
+        } catch {}
+    }
+    $trackChanged = ($speechKey -ne [string]$script:progressSpeechKey)
+    if ($trackChanged -and -not $current -and $script:progressSpeechKey) { $script:playerHistoryNext = 0 }
+    $wasPlaying = [bool]$script:progressPlaying
+    $script:progressSpeechKey = $speechKey
+
+    # Every snapshot owns its duration, including zero while the next clip generates.
+    $script:progressDurationSec = [Math]::Max(0.0, $durationSec)
+
+    if ($trackChanged) {
+        $script:progressAnchorElapsed = 0
+        $script:progressAnchorUtc = [datetime]::UtcNow
+        Set-NowPlayingProgressVisual 0
+    }
+
+    $localElapsed = Get-NowPlayingElapsed
+    if ($trackChanged -or $seekChanged -or -not $playingNow -or -not $wasPlaying) {
+        $script:progressAnchorElapsed = if ($currentPlaying) { [Math]::Max(0.0, $bridgeElapsed) } else { 0.0 }
+        $script:progressCorrection = 0.0
+    } else {
+        # Preserve the displayed position at each poll, then gently correct clock drift.
+        $script:progressAnchorElapsed = $localElapsed
+        $script:progressCorrection = [Math]::Max(-0.4, [Math]::Min(0.4, $bridgeElapsed - $localElapsed))
+    }
+    $script:progressAnchorUtc = [datetime]::UtcNow
+    $script:progressAnchorTicks = [Diagnostics.Stopwatch]::GetTimestamp()
+
+    $script:progressPlaying = $playingNow
+    $script:canSeekPlayback = ($currentPlaying -and $durationSec -gt 0)
+    if ($NowPlayingProgressTrack) { $NowPlayingProgressTrack.IsEnabled = $script:canSeekPlayback }
+    if ($NowPlayingSeekThumb) { $NowPlayingSeekThumb.Visibility = if ($script:canSeekPlayback) { 'Visible' } else { 'Collapsed' } }
+    if (-not $script:progressSeeking) { Update-NowPlayingProgressUi }
+
+    if ($NowPlayingPrevButton) { $NowPlayingPrevButton.IsEnabled = ([bool]$script:lastHistorySpeechId -and -not $current -and $waiting -eq 0) }
+    if ($NowPlayingSkipButton) { $NowPlayingSkipButton.IsEnabled = [bool]$current }
+    if ($NowPlayingClearButton) { $NowPlayingClearButton.IsEnabled = ($waiting -gt 0) }
+    if ($NowPlayingStopClearButton) { $NowPlayingStopClearButton.IsEnabled = ([bool]$current -or $waiting -gt 0 -or $paused) }
+
+    try {
+        $dotBrush = switch ($script:nowPlayingMode) {
+            'playing' { '#4ADE80' }
+            'paused' { '#FACC15' }
+            default { '#B9B2C2' }
+        }
+        if ($BottomStatusDot) { $BottomStatusDot.Fill = [Windows.Media.BrushConverter]::new().ConvertFromString($dotBrush) }
+    } catch {}
+    try { Set-StatusPulse ($script:nowPlayingMode -eq 'playing') 'playback' } catch {}
+}
+
+
+function Refresh-ServiceState($Snapshot = $null, [bool]$FromPoll = $false) {
+    if (-not $Snapshot) { $script:playerStateNext = 0; $script:playerHistoryNext = 0; return }
+    # Do not block the media bar on mouse-down / queue drag — only skip grid mutations.
+    $skipGrids = $false
+    try {
+        if ($script:queueDragging -or [Windows.Input.Mouse]::LeftButton -eq 'Pressed') { $skipGrids = $true }
+    } catch {}
+    if (-not $script:backendOnline -and [datetime]::UtcNow -lt $script:backendFailUntil) { return }
+
+    $state = $null
+    $lastHistory = $null
+    try {
+        $state = if ($Snapshot) { $Snapshot } else { (Invoke-BridgeGet '/api/state' 1).result }
+        $script:backendOnline = $true
+    } catch {
+        $script:backendOnline = $false
+        $script:backendFailUntil = [datetime]::UtcNow.AddSeconds(2)
+        return
+    }
+
+    # MEDIA BAR FIRST — never gated behind history/queue work.
+    try {
+        if ($script:recentHistoryItems -and @($script:recentHistoryItems).Count -gt 0) {
+            $lastHistory = @($script:recentHistoryItems)[0]
+        }
+    } catch {}
+    try {
+        Update-NowPlayingBar $state $lastHistory
+    } catch {
+        try {
+            if ($BottomStatus) { $BottomStatus.Text = 'Player UI: ' + $_.Exception.Message; $BottomStatus.Visibility = 'Visible' }
+        } catch {}
+    }
+
+    if ($skipGrids) { return }
+
+    try {
+        if ($QueueSummaryText) {
+            $QueueSummaryText.Text = ('{0} waiting / approx. {1:0}s' -f $state.queueLength,$state.estimatedWaitSeconds) + $(if($state.paused){' / Paused'}else{''})
+        }
+        if ($state.audioWarning -and $BottomStatus) { $BottomStatus.Text = [string]$state.audioWarning; $BottomStatus.Visibility = 'Visible' }
+    } catch {}
+
+    try {
+        $selectedQueueId = if ($QueueGrid -and $QueueGrid.SelectedItem) { [string]$QueueGrid.SelectedItem.Id } else { '' }
+        $queueRows = New-Object System.Collections.ObjectModel.ObservableCollection[object]
+        if ($state.current) {
+            $queueRows.Add([pscustomobject]@{ Id=$state.current.id; Status=$state.current.status; Alias=$state.current.alias; User=$state.current.user; Text=(Get-DisplayText $state.current.text) })
+        }
+        foreach ($item in @($state.queue)) {
+            $queueRows.Add([pscustomobject]@{ Id=$item.id; Status=$item.status; Alias=$item.alias; User=$item.user; Text=(Get-DisplayText $item.text) })
+        }
+        $queueSignature = ($queueRows | ForEach-Object { '{0}|{1}|{2}' -f $_.Id,$_.Status,$_.Text }) -join ';'
+        if ($queueSignature -ne $script:lastQueueSignature) {
+            if ($QueueGrid) {
+                $QueueGrid.ItemsSource = $queueRows
+                if ($selectedQueueId) { $QueueGrid.SelectedItem = @($queueRows | Where-Object { $_.Id -eq $selectedQueueId })[0] }
+            }
+            $script:lastQueueSignature = $queueSignature
+        }
+    } catch {}
+
+    if ($FromPoll -and $script:playerHistoryRenderedRevision -eq $script:playerHistoryRevision) { return }
+    try {
+        $selectedHistoryId = if ($HistoryGrid -and $HistoryGrid.SelectedItem) { [string]$HistoryGrid.SelectedItem.Id } else { '' }
+        $history = if ($FromPoll) { $script:playerHistorySnapshot } else { (Invoke-BridgeGet '/api/history' 1).result.history }
+        $historyRows = New-Object System.Collections.ObjectModel.ObservableCollection[object]
+        $lastHistory = $null
+        foreach ($item in @($history)) {
+            if (-not $item) { continue }
+            $time = ''
+            try { $time = ([datetime]$item.timestamp).ToLocalTime().ToString('g') } catch { $time = [string]$item.timestamp }
+            $audioPath = [string]$item.audioPath
+            $savedPath = [string]$item.savedPath
+            $savedExists = $false
+            $cacheExists = $false
+            try { if ($savedPath) { $savedExists = Test-Path -LiteralPath $savedPath } } catch {}
+            try { if ($audioPath) { $cacheExists = Test-Path -LiteralPath $audioPath } } catch {}
+            if (-not ($savedExists -or $cacheExists)) { continue }
+            $audioLabel = if ($savedExists) { 'Saved' } elseif ($cacheExists) { 'Cached' } else { 'Gone' }
+            $row = [pscustomobject]@{
+                Id=$item.id; Time=$time; Status=$item.status; Alias=$item.alias; Source=$item.source
+                User=$item.user; Text=(Get-DisplayText $item.text); AudioPath=$audioPath; SavedPath=$savedPath
+                AudioLabel=$audioLabel; HasAudio=$true; DurationMs=$item.duration
+            }
+            [void]$historyRows.Add($row)
+            if (-not $lastHistory) { $lastHistory = $row }
+        }
+        if ($lastHistory) { $script:lastHistorySpeechId = [string]$lastHistory.Id } else { $script:lastHistorySpeechId = '' }
+        try { $script:recentHistoryItems = @($historyRows | Select-Object -First 10) } catch { $script:recentHistoryItems = @() }
+        $historySignature = ($historyRows | ForEach-Object { '{0}|{1}|{2}|{3}' -f $_.Id,$_.Status,$_.AudioLabel,$_.SavedPath }) -join ';'
+        if ($historySignature -ne $script:lastHistorySignature) {
+            if ($HistoryGrid) {
+                $HistoryGrid.ItemsSource = $historyRows
+                if ($selectedHistoryId) { $HistoryGrid.SelectedItem = @($historyRows | Where-Object { $_.Id -eq $selectedHistoryId })[0] }
+            }
+            $script:lastHistorySignature = $historySignature
+        }
+        Sync-HistoryAudioButton
+        if ($FromPoll) { $script:playerHistoryRenderedRevision = $script:playerHistoryRevision }
+        # Refresh bar again with real lastHistory (alias/line for idle state)
+        try { Update-NowPlayingBar $state $lastHistory } catch {}
+    } catch {}
+}
+
+function Get-HistoryPlaybackTarget {
+    if ($HistoryPage -and $HistoryPage.Visibility -eq 'Visible' -and $HistoryGrid.SelectedItem -and $HistoryGrid.SelectedItem.HasAudio) { return $HistoryGrid.SelectedItem }
+    return $null
+}
+
+function Sync-HistoryAudioButton {
+    if (-not $ShowHistoryAudioButton) { return }
+    $row = $HistoryGrid.SelectedItem
+    if ($ReplayHistoryButton) { $ReplayHistoryButton.IsEnabled = [bool]($row -and $row.HasAudio) }
+    $available = $false
+    $tip = 'Select a history row with cached or saved audio'
+    if ($row) {
+        $savedPath = [string]$row.SavedPath
+        $audioPath = [string]$row.AudioPath
+        $savedFolder = if ($savedPath) { [IO.Path]::GetDirectoryName($savedPath) } else { '' }
+        if ($savedFolder -and (Test-Path -LiteralPath $savedFolder)) {
+            $available = $true
+            $tip = 'Open the saved-audio folder'
+        } elseif ($audioPath -and (Test-Path -LiteralPath $audioPath)) {
+            $available = $true
+            $tip = 'Reveal the cached WAV in Explorer'
+        } else {
+            $tip = 'Audio file is no longer on disk (cache expired or never recorded)'
+        }
+    }
+    $ShowHistoryAudioButton.IsEnabled = $available
+    $ShowHistoryAudioButton.ToolTip = $tip
+}
+
+function Open-InExplorer([string]$target, [switch]$SelectFile) {
+    if ([string]::IsNullOrWhiteSpace($target)) { throw 'Missing file path' }
+    if ($SelectFile) {
+        if (-not (Test-Path -LiteralPath $target)) { throw 'File was not found' }
+        Start-Process -FilePath 'explorer.exe' -ArgumentList ('/select,"{0}"' -f $target)
+        return
+    }
+    if (-not (Test-Path -LiteralPath $target)) { throw 'Folder was not found' }
+    Start-Process -FilePath 'explorer.exe' -ArgumentList ('"{0}"' -f $target)
+}
+
+function Show-HistoryAudioLocation {
+    $row = $HistoryGrid.SelectedItem
+    if (-not $row) { $BottomStatus.Text = 'Select a history item first'; return }
+    $savedPath = [string]$row.SavedPath
+    $audioPath = [string]$row.AudioPath
+    try {
+        # Saved exports open the destination folder (Settings → voice save folder).
+        if ($savedPath) {
+            $folder = [IO.Path]::GetDirectoryName($savedPath)
+            if ($folder -and (Test-Path -LiteralPath $folder)) {
+                Open-InExplorer $folder
+                $BottomStatus.Text = if (Test-Path -LiteralPath $savedPath) { 'Opened saved audio folder' } else { 'Opened saved audio folder (file missing)' }
+                return
+            }
+        }
+        $settings = Read-Settings
+        $saveFolder = [string]$settings.voice_save_folder
+        if ($saveFolder -and (Test-Path -LiteralPath $saveFolder)) {
+            $idPrefix = ([string]$row.Id).Substring(0, [Math]::Min(8, ([string]$row.Id).Length))
+            $match = Get-ChildItem -LiteralPath $saveFolder -Filter ("*_" + $idPrefix + ".wav") -File -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($match) {
+                Open-InExplorer ([IO.Path]::GetDirectoryName($match.FullName))
+                $BottomStatus.Text = 'Opened saved audio folder'
+                return
+            }
+        }
+        # Still-cached generations: reveal the WAV in Explorer.
+        if ($audioPath -and (Test-Path -LiteralPath $audioPath)) {
+            Open-InExplorer $audioPath -SelectFile
+            $BottomStatus.Text = 'Opened cached audio file'
+            return
+        }
+        $BottomStatus.Text = 'Audio file is no longer available for this history item'
+    } catch {
+        $BottomStatus.Text = $_.Exception.Message
+    }
 }
 
 function Invoke-BridgePost([string]$path, $body = @{}) {
@@ -768,14 +2421,24 @@ function Save-Alias($oldName, $value) {
     Write-Settings $s
     Refresh-Grid -VoicesOnly
 }
-function Save-AliasEnabled($row) {
-    if (-not $row -or -not $row.Name) { return }
+function Mark-VoicesDirty {
+    $script:voicesDirty = $true
+    if ($BottomStatus) { $BottomStatus.Text = 'ON/OFF changed - click Save voices to keep them' }
+}
+function Save-VoiceToggles {
     try {
         $s = Read-Settings
-        if (-not $s.aliases.PSObject.Properties[$row.Name]) { return }
-        Set-JsonProperty $s.aliases.($row.Name) 'enabled' ([bool]$row.Enabled)
+        if (-not $s.aliases) { throw 'No aliases in settings.' }
+        $count = 0
+        foreach ($row in @($AliasGrid.ItemsSource)) {
+            if (-not $row -or -not $row.Name) { continue }
+            if (-not $s.aliases.PSObject.Properties[[string]$row.Name]) { continue }
+            Set-JsonProperty $s.aliases.([string]$row.Name) 'enabled' ([bool]$row.Enabled)
+            $count++
+        }
         Write-Settings $s
-        $BottomStatus.Text = if ($row.Enabled) { $row.Name + ' included in random Speak' } else { $row.Name + ' excluded from random Speak' }
+        $script:voicesDirty = $false
+        $BottomStatus.Text = 'Saved ' + $count + ' voice ON/OFF state(s) to data\settings.json'
     } catch { $BottomStatus.Text = $_.Exception.Message }
 }
 function Get-ExportSpeakAlias {
@@ -787,6 +2450,32 @@ function Get-ExportSpeakAlias {
     }
     if ($selected.StartsWith('playlist:',[StringComparison]::OrdinalIgnoreCase)) { return $selected }
     return $selected
+}
+function Update-StreamerSpeakPayload {
+    if (-not $StreamerPayloadBox -or -not $ExportVoiceAliasBox) { return }
+    $alias = Get-ExportSpeakAlias
+    if (-not $alias) { $alias = 'Your voice alias' }
+    $StreamerPayloadBox.Text = "VSPEAK`r`n$alias`r`n%message%`r`n%displayName%`r`n%userName%"
+}
+function Export-StreamerBotActions {
+    try {
+        $alias = Get-ExportSpeakAlias
+        if (-not $alias) { throw 'Add a voice in Voices first, then choose it here.' }
+        $saved = Read-Settings
+        if (-not $saved.enable_udp) { throw 'Enable the UDP listener and save the connection settings first. Restart VoxRelay if you just enabled it.' }
+        if ([int]$UdpBox.Text -ne [int]$saved.udp_port) { throw 'Save the UDP port and restart VoxRelay before exporting actions.' }
+        $result = Invoke-BridgePost '/api/maintenance/streamerbot-export' @{ alias=$alias }
+        $path = [string]$result.result.path
+        $code = Get-Content -LiteralPath $path -Raw -Encoding UTF8
+        [Windows.Clipboard]::SetText($code)
+        $script:lastStreamerExportPath = $path
+        $message = 'Import code copied. In Streamer.bot, click Import and paste into Import String. File: ' + $path
+        $window.FindName('StreamerExportStatus').Text = $message
+        $BottomStatus.Text = 'Streamer.bot import code copied'
+    } catch {
+        $window.FindName('StreamerExportStatus').Text = $_.Exception.Message
+        $BottomStatus.Text = $_.Exception.Message
+    }
 }
 function Get-PlaylistSpeakLabels($settings) {
     $labels = New-Object System.Collections.Generic.List[string]
@@ -949,8 +2638,28 @@ function Save-Rules {
         Set-JsonProperty $s 'strip_non_ascii' ([bool]$StripNonAsciiCheck.IsChecked)
         Set-JsonProperty $s 'strip_emojis' ([bool]$StripEmojiCheck.IsChecked)
         Set-JsonProperty $s 'block_ascii_art' ([bool]$BlockAsciiArtCheck.IsChecked)
+        Set-JsonProperty $s 'profanity_enabled' ([bool]$script:profanityEnabled.IsChecked)
+        Set-JsonProperty $s 'profanity_hide_words' (-not [bool]$script:profanityShow.IsChecked)
+        Set-JsonProperty $s 'profanity_rules' @(Get-ProfanityRules)
         Write-Settings $s
-        $BottomStatus.Text = 'Rules saved'
+        $BottomStatus.Text = 'Rules saved to data\settings.json'
+    } catch { $BottomStatus.Text = $_.Exception.Message }
+}
+function Save-Pronunciations {
+    try {
+        $s = Read-Settings
+        $map = [ordered]@{}
+        $hidden = New-Object System.Collections.Generic.List[string]
+        foreach ($row in @($PronunciationGrid.ItemsSource)) {
+            if (-not $row -or -not [string]$row.Written) { continue }
+            $written = [string]$row.Written
+            $map[$written] = [string]$row.Spoken
+            if ([bool]$row.Hidden) { [void]$hidden.Add($written) }
+        }
+        Set-JsonProperty $s 'pronunciations' ([pscustomobject]$map)
+        Set-JsonProperty $s 'hidden_pronunciations' @($hidden)
+        Write-Settings $s
+        $BottomStatus.Text = 'Pronunciations saved to data\settings.json'
     } catch { $BottomStatus.Text = $_.Exception.Message }
 }
 function Save-Pronunciation($oldWritten, $value) {
@@ -964,6 +2673,20 @@ function Save-Pronunciation($oldWritten, $value) {
     Set-JsonProperty $s 'hidden_pronunciations' $hidden
     Write-Settings $s
     Refresh-Grid
+    $BottomStatus.Text = 'Pronunciation saved to data\settings.json'
+}
+function Move-Pronunciation([int]$delta) {
+    $items = $PronunciationGrid.ItemsSource
+    $row = $PronunciationGrid.SelectedItem
+    if (-not $row -or -not $items) { return }
+    $index = @($items).IndexOf($row)
+    if ($index -lt 0) { return }
+    $newIndex = $index + $delta
+    if ($newIndex -lt 0 -or $newIndex -ge $items.Count) { return }
+    $items.RemoveAt($index)
+    $items.Insert($newIndex, $row)
+    $PronunciationGrid.SelectedItem = $row
+    Save-Pronunciations
 }
 function Save-StreamerBotSettings {
     try {
@@ -1023,8 +2746,10 @@ function Save-VoiceStudioSettings {
         Set-JsonProperty $s 'voice_studio_url' $UrlBox.Text.TrimEnd('/')
         Set-JsonProperty $s 'api_key' $KeyBox.Text
         Set-JsonProperty $s 'request_timeout' ([double]$RequestTimeoutBox.Text)
+        Set-JsonProperty $s 'voicestudio_enabled' ([bool]$(if ($VoiceStudioEnabledCheck) { $VoiceStudioEnabledCheck.IsChecked } else { $true }))
         Write-Settings $s
-        $BottomStatus.Text = 'VoiceStudio settings saved'
+        $BottomStatus.Text = 'VoiceStudio settings saved to data\settings.json'
+        try { Refresh-ServiceHealth $false | Out-Null } catch {}
     } catch { $BottomStatus.Text = $_.Exception.Message }
 }
 
@@ -1389,7 +3114,7 @@ function Write-TrayLog([string]$message) {
 function Get-TrayIconPath {
     $icoPath = Join-Path $configDir 'tray.ico'
     if (Test-Path -LiteralPath $icoPath) { return $icoPath }
-    $pngPath = Join-Path $appRoot 'assets\VoxRelay-icon.png'
+    $pngPath = Join-Path $resourceRoot 'assets\VoxRelay-icon.png'
     try {
         if (Test-Path -LiteralPath $pngPath) {
             $source = [System.Drawing.Bitmap]::FromFile($pngPath)
@@ -1547,7 +3272,105 @@ $VoicesNav.Add_Click({ Set-Page 'voices' }); $PlaygroundNav.Add_Click({ Set-Page
 $HistoryNav.Add_Click({ Set-Page 'history' }); $RulesNav.Add_Click({ Set-Page 'rules' }); $PronunciationNav.Add_Click({ Set-Page 'pronunciation' })
 $ServicesToggle.Add_Click({ Set-ServicesExpanded (-not $script:servicesExpanded) })
 $StreamerBotNav.Add_Click({ Set-Page 'streamerbot' }); $VoiceStudioNav.Add_Click({ Set-Page 'voicestudio' }); $PollyNav.Add_Click({ Set-Page 'polly' }); $ElevenLabsNav.Add_Click({ Set-Page 'elevenlabs' }); $AzureNav.Add_Click({ Set-Page 'azure' }); $GoogleNav.Add_Click({ Set-Page 'google' }); $WatsonNav.Add_Click({ Set-Page 'watson' }); $UberDuckNav.Add_Click({ Set-Page 'uberduck' }); $TtsMonsterNav.Add_Click({ Set-Page 'ttsmonster' }); $AcapelaNav.Add_Click({ Set-Page 'acapela' }); $CereProcNav.Add_Click({ Set-Page 'cereproc' })
-$ActivityNav.Add_Click({ Set-Page 'activity' }); $SettingsNav.Add_Click({ Set-Page 'settings' }); $BridgeStatusButton.Add_Click({ Set-Page 'settings' })
+$ActivityNav.Add_Click({ Set-Page 'activity' }); $SettingsNav.Add_Click({ Set-Page 'settings' })
+$BridgeStatusButton.Add_Click({ Show-ServiceStatusMenu $BridgeStatusButton })
+@(
+    $AboutGitHubButton, $AboutTwitchButton, $AboutYouTubeButton, $AboutXButton,
+    $AboutInstagramButton, $AboutFacebookButton, $AboutTikTokButton, $AboutDiscordButton
+) | Where-Object { $_ } | ForEach-Object {
+    $_.Add_Click({ param($sender, $e) Open-VoxLink ([string]$sender.Tag) })
+}
+if ($NowPlayingHistoryButton) { $NowPlayingHistoryButton.Add_Click({ Show-QuickHistoryMenu }) }
+if ($NowPlayingPrevButton) {
+    $NowPlayingPrevButton.Add_Click({
+        try {
+            $id = $script:lastHistorySpeechId
+            if (-not $id -and @($script:recentHistoryItems).Count -gt 0) { $id = [string]$script:recentHistoryItems[0].Id }
+            if (-not $id) { throw 'No history audio to replay' }
+            Invoke-BridgePost '/api/history/replay' @{ speechId = $id } | Out-Null
+            $BottomStatus.Text = 'Previous audio queued'
+            Refresh-ServiceState
+        } catch { $BottomStatus.Text = $_.Exception.Message }
+    })
+}
+
+
+if ($NowPlayingProgressTrack) {
+    $NowPlayingProgressTrack.Add_SizeChanged({
+        if (-not $script:progressSeeking) { Update-NowPlayingProgressUi }
+    })
+    $NowPlayingProgressTrack.Add_PreviewMouseLeftButtonDown({
+        param($sender,$e)
+        if (-not $script:canSeekPlayback) { return }
+        $script:seekSpeechKey = $script:progressSpeechKey
+        $script:progressSeeking = $true
+        [void]$sender.Focus(); [void]$sender.CaptureMouse()
+        Preview-PlaybackSeek ($e.GetPosition($sender).X)
+        $e.Handled = $true
+    })
+    $NowPlayingProgressTrack.Add_PreviewMouseMove({
+        param($sender,$e)
+        if ($script:progressSeeking -and $sender.IsMouseCaptured) { Preview-PlaybackSeek ($e.GetPosition($sender).X) }
+    })
+    $NowPlayingProgressTrack.Add_PreviewMouseLeftButtonUp({
+        param($sender,$e)
+        if (-not $script:progressSeeking) { return }
+        Preview-PlaybackSeek ($e.GetPosition($sender).X)
+        Complete-PlaybackSeek
+        $sender.ReleaseMouseCapture()
+        $e.Handled = $true
+    })
+    $NowPlayingProgressTrack.Add_LostMouseCapture({
+        if ($script:progressSeeking) { $script:progressSeeking = $false; Refresh-ServiceState }
+    })
+    $NowPlayingProgressTrack.Add_PreviewKeyDown({
+        param($sender,$e)
+        if (-not $script:canSeekPlayback) { return }
+        $position = Get-NowPlayingElapsed
+        switch ([string]$e.Key) {
+            'Left' { $position -= 5 }
+            'Right' { $position += 5 }
+            'Home' { $position = 0 }
+            'End' { $position = $script:progressDurationSec }
+            default { return }
+        }
+        $script:seekSpeechKey = $script:progressSpeechKey
+        $script:progressSeeking = $true
+        Preview-PlaybackSeek ( $position / $script:progressDurationSec * $sender.ActualWidth )
+        Complete-PlaybackSeek
+        $e.Handled = $true
+    })
+}
+
+if ($NowPlayingPlayPauseButton) {
+    $NowPlayingPlayPauseButton.Add_Click({
+        try {
+            $mode = [string]$NowPlayingPlayPauseButton.Tag
+            if (-not $mode) { $mode = [string]$script:nowPlayingMode }
+            switch ($mode) {
+                'playing' { Invoke-BridgePost '/pause' | Out-Null }
+                'generating' { Invoke-BridgePost '/pause' | Out-Null }
+                'ready' { Invoke-BridgePost '/pause' | Out-Null }
+                'paused' { Invoke-BridgePost '/resume' | Out-Null }
+                default {
+                    $target = Get-HistoryPlaybackTarget
+                    $id = if ($target) { [string]$target.Id } else { $script:lastHistorySpeechId }
+                    if ($id) {
+                        Invoke-BridgePost '/api/history/replay' @{ speechId = $id } | Out-Null
+                        if ($BottomStatus) { $BottomStatus.Text = 'Last audio queued' }
+                    }
+                }
+            }
+            Refresh-ServiceState
+        } catch {
+            if ($BottomStatus) { $BottomStatus.Text = $_.Exception.Message }
+        }
+    })
+}
+if ($NowPlayingSkipButton) { $NowPlayingSkipButton.Add_Click({ try { Invoke-BridgePost '/skip' | Out-Null; Refresh-ServiceState } catch { $BottomStatus.Text = $_.Exception.Message } }) }
+
+if ($NowPlayingClearButton) { $NowPlayingClearButton.Add_Click({ try { Invoke-BridgePost '/clear' | Out-Null; Refresh-ServiceState } catch { $BottomStatus.Text = $_.Exception.Message } }) }
+if ($NowPlayingStopClearButton) { $NowPlayingStopClearButton.Add_Click({ try { Invoke-BridgePost '/clear-all' | Out-Null; Refresh-ServiceState } catch { $BottomStatus.Text = $_.Exception.Message } }) }
 $RefreshButton.Add_Click({ Refresh-Voices })
 $AddButton.Add_Click({ $v = Show-AliasDialog $null; if ($v) { Save-Alias $null $v } })
 $EditButton.Add_Click({ $row = $AliasGrid.SelectedItem; if ($row) { $v = Show-AliasDialog $row; if ($v) { Save-Alias $row.Name $v } } })
@@ -1578,7 +3401,23 @@ $RemoveQueueButton.Add_Click({ $row = $QueueGrid.SelectedItem; if ($row) { try {
 $QueueUpButton.Add_Click({ $row = $QueueGrid.SelectedItem; if ($row) { try { Invoke-BridgePost '/api/queue/move' @{ speechId=$row.Id; direction='up' } | Out-Null; Refresh-ServiceState } catch {} } })
 $QueueDownButton.Add_Click({ $row = $QueueGrid.SelectedItem; if ($row) { try { Invoke-BridgePost '/api/queue/move' @{ speechId=$row.Id; direction='down' } | Out-Null; Refresh-ServiceState } catch {} } })
 $ReplayHistoryButton.Add_Click({ $row = $HistoryGrid.SelectedItem; if ($row) { try { Invoke-BridgePost '/api/history/replay' @{speechId=$row.Id} | Out-Null; $BottomStatus.Text='Recording queued' } catch { $BottomStatus.Text=$_.Exception.Message } } })
-$SaveHistoryAudioButton.Add_Click({ $row = $HistoryGrid.SelectedItem; if ($row) { try { Invoke-BridgePost '/api/history/save' @{ speechId=$row.Id } | Out-Null } catch { $BottomStatus.Text = $_.Exception.Message } } })
+if ($ShowHistoryAudioButton) { $ShowHistoryAudioButton.Add_Click({ Show-HistoryAudioLocation }) }
+$HistoryGrid.Add_SelectionChanged({
+    Sync-HistoryAudioButton
+    if ($script:lastPlaybackState) { Update-NowPlayingBar $script:lastPlaybackState @($script:recentHistoryItems)[0] }
+})
+$SaveHistoryAudioButton.Add_Click({
+    $row = $HistoryGrid.SelectedItem
+    if (-not $row) { $BottomStatus.Text = 'Select a history item first'; return }
+    try {
+        $result = Invoke-BridgePost '/api/history/save' @{ speechId = $row.Id }
+        $path = [string]$result.result.path
+        if (-not $path) { $path = [string]$result.path }
+        $BottomStatus.Text = if ($path) { 'Saved audio to ' + $path } else { 'Audio saved' }
+        $script:lastHistorySignature = ''
+        Refresh-ServiceState
+    } catch { $BottomStatus.Text = $_.Exception.Message }
+})
 $ClearHistoryButton.Add_Click({ try { Invoke-BridgePost '/api/history/clear' | Out-Null; Refresh-ServiceState } catch {} })
 $SaveRulesButton.Add_Click({ Save-Rules })
 $AddPronunciationButton.Add_Click({ $v = Show-PronunciationDialog $null; if ($v) { Save-Pronunciation $null $v } })
@@ -1590,7 +3429,10 @@ $RemovePronunciationButton.Add_Click({
     $s.pronunciations.PSObject.Properties.Remove($row.Written)
     Set-JsonProperty $s 'hidden_pronunciations' @($s.hidden_pronunciations | Where-Object { $_ -ne $row.Written })
     Write-Settings $s; Refresh-Grid
+    $BottomStatus.Text = 'Pronunciation removed from data\settings.json'
 })
+$PronunciationUpButton.Add_Click({ Move-Pronunciation -1 })
+$PronunciationDownButton.Add_Click({ Move-Pronunciation 1 })
 $TestPronunciationButton.Add_Click({
     $row = $PronunciationGrid.SelectedItem; if (-not $row) { return }
     $alias = [string]$PronunciationVoiceList.SelectedItem
@@ -1659,7 +3501,10 @@ $BrowseVoiceFolderButton.Add_Click({
     if ($picker.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { $VoiceSaveFolderBox.Text = $picker.SelectedPath }
     $picker.Dispose()
 })
-$CopyPayloadButton.Add_Click({ [Windows.Clipboard]::SetText($StreamerPayloadBox.Text) })
+$CopyPayloadButton.Add_Click({ Update-StreamerSpeakPayload; [Windows.Clipboard]::SetText($StreamerPayloadBox.Text) })
+$ExportVoiceAliasBox.Add_SelectionChanged({ Update-StreamerSpeakPayload })
+$ExportStreamerBotButton.Add_Click({ Export-StreamerBotActions })
+$window.FindName('SaveStreamerConnectionButton').Add_Click({ Save-StreamerBotSettings })
 $TestConnectionButton.Add_Click({ Refresh-Voices })
 $SaveButton.Add_Click({
     try {
@@ -1697,7 +3542,7 @@ $SaveButton.Add_Click({
         Write-Settings $s
         $MaxQueueBox.Text = $MaxQueueSettingBox.Text
         Sync-TrayIconMode
-        $BottomStatus.Text = 'Settings saved. Restart after changing the HTTP port.'
+        $BottomStatus.Text = 'Settings saved to data\settings.json. Restart after changing the HTTP port.'
     } catch { $BottomStatus.Text = $_.Exception.Message }
 })
 $MinimizeToTrayCheck.Add_Checked({
@@ -1712,65 +3557,106 @@ $MinimizeToTrayCheck.Add_Unchecked({
     try { $s = Read-Settings; Set-JsonProperty $s 'minimize_to_tray' $false; Write-Settings $s } catch {}
     if (-not $script:hiddenInTray) { Sync-TrayIconMode }
 })
-$script:stateTimer = [Windows.Threading.DispatcherTimer]::new()
-$PauseAfterQueueButton.Add_Click({ try { Invoke-BridgePost '/pause-after-current' | Out-Null; Refresh-ServiceState } catch { $BottomStatus.Text = $_.Exception.Message } })
-$QueueGrid.AllowDrop = $true
-$QueueGrid.Add_PreviewMouseLeftButtonDown({param($sender,$e) $script:queueDragPoint=$e.GetPosition($QueueGrid)})
-$QueueGrid.Add_MouseMove({
-    param($sender,$e)
-    if ($e.LeftButton -ne 'Pressed' -or -not $QueueGrid.SelectedItem -or -not $script:queueDragPoint -or $script:queueDragging) { return }
-    $point=$e.GetPosition($QueueGrid)
-    if ([Math]::Abs($point.X-$script:queueDragPoint.X) -lt 6 -and [Math]::Abs($point.Y-$script:queueDragPoint.Y) -lt 6) { return }
-    $script:queueDragging=$true
+
+$script:progressDurationSec = 0.0
+$script:progressAnchorElapsed = 0.0
+$script:progressAnchorUtc = [datetime]::UtcNow
+$script:progressPlaying = $false
+$script:progressLastUiMs = 0
+
+function Preview-PlaybackSeek([double]$x) {
+    $width = [double]$NowPlayingProgressTrack.ActualWidth
+    if ($width -le 0) { return }
+    $script:progressAnchorElapsed = [Math]::Max(0.0, [Math]::Min(1.0, $x / $width)) * $script:progressDurationSec
+    $script:progressPlaying = $false
+    $script:progressCorrection = 0.0
+    Update-NowPlayingProgressUi
+    $NowPlayingProgressTrack.ToolTip = 'Seek to ' + (Format-PlayerTime $script:progressAnchorElapsed)
+}
+
+function Complete-PlaybackSeek {
     try {
-        $data=[Windows.DataObject]::new('VoxRelay.SpeechId',[string]$QueueGrid.SelectedItem.Id)
-        [Windows.DragDrop]::DoDragDrop($QueueGrid,$data,[Windows.DragDropEffects]::Move) | Out-Null
-    } finally { $script:queueDragging=$false;$script:queueDragPoint=$null }
-})
-$QueueGrid.Add_Drop({
-    param($sender,$e)
-    if (-not $e.Data.GetDataPresent('VoxRelay.SpeechId')) { return }
-    $container=[Windows.Controls.ItemsControl]::ContainerFromElement($QueueGrid,[Windows.DependencyObject]$e.OriginalSource)
-    if ($container -is [Windows.Controls.DataGridRow]) {
-        try { Invoke-BridgePost '/api/queue/reorder' @{speechId=[string]$e.Data.GetData('VoxRelay.SpeechId');beforeId=[string]$container.Item.Id} | Out-Null }
-        catch { $BottomStatus.Text=$_.Exception.Message }
+        $result = (Invoke-BridgePost '/api/playback/seek' @{ seconds=[double]$script:progressAnchorElapsed; speechId=$script:seekSpeechKey }).result
+        $script:progressSeekRevision = [int]$result.seekRevision
+        $script:progressAnchorElapsed = [double]$result.elapsedSeconds
+        $script:progressAnchorTicks = [Diagnostics.Stopwatch]::GetTimestamp()
+        $script:progressCorrection = 0.0
+        $script:progressPlaying = ($script:nowPlayingMode -eq 'playing')
+    } catch { $BottomStatus.Text = $_.Exception.Message }
+    finally {
+        $script:progressSeeking = $false
+        $NowPlayingProgressTrack.ToolTip = 'Click or drag to seek'
+        Refresh-ServiceState
     }
-    $e.Handled=$true
-})
-$ClearAllQueueButton.Add_Click({ try { Invoke-BridgePost '/clear-all' | Out-Null; Refresh-ServiceState } catch { $BottomStatus.Text = $_.Exception.Message } })
+}
+
+function Format-PlayerTime([double]$seconds) {
+    if ($seconds -lt 0) { $seconds = 0 }
+    $total = [int][Math]::Floor($seconds + 0.0001)
+    return ('{0}:{1:D2}' -f [int][Math]::Floor($total / 60), ($total % 60))
+}
+
+function Get-NowPlayingElapsed {
+    $elapsed = [double]$script:progressAnchorElapsed
+    if ($script:progressPlaying) {
+        # Smooth only between snapshots. A lost backend must never run a phantom clock.
+        try {
+            $age = [Math]::Max(0.0, [Math]::Min(1.5, ([Diagnostics.Stopwatch]::GetTimestamp() - $script:progressAnchorTicks) / [double][Diagnostics.Stopwatch]::Frequency))
+            $elapsed += $age + [double]$script:progressCorrection * (1 - [Math]::Exp(-$age / 0.6))
+        } catch {}
+    }
+    if ($elapsed -lt 0) { $elapsed = 0 }
+    $dur = [double]$script:progressDurationSec
+    if ($dur -gt 0 -and $elapsed -gt $dur) { $elapsed = $dur }
+    return $elapsed
+}
+
+function Set-NowPlayingProgressVisual([double]$pct) {
+    if ($pct -lt 0) { $pct = 0 }
+    if ($pct -gt 100) { $pct = 100 }
+    try { if ($NowPlayingProgress) { $NowPlayingProgress.Value = $pct } } catch {}
+    try {
+        if (-not $NowPlayingProgressFill) { return }
+        $w = 0.0
+        if ($NowPlayingProgressTrack) {
+            $w = [double]$NowPlayingProgressTrack.ActualWidth
+            if ($w -lt 2) { $w = [double]$NowPlayingProgressTrack.RenderSize.Width }
+        }
+        if ($w -lt 2 -and $NowPlayingProgressFill.Parent -is [Windows.FrameworkElement]) {
+            $w = [double]$NowPlayingProgressFill.Parent.ActualWidth
+        }
+        if ($w -lt 2) { $w = 0.0 }
+        $NowPlayingProgressFill.HorizontalAlignment = 'Left'
+        $targetWidth = [Math]::Max(0.0, $w * ($pct / 100.0))
+        if ($script:progressPlaying -and $pct -gt 0 -and $pct -lt 100) {
+            # WPF renders between timer ticks instead of moving in 50 ms steps.
+            $fromWidth = [double]$NowPlayingProgressFill.ActualWidth
+            $NowPlayingProgressFill.BeginAnimation([Windows.FrameworkElement]::WidthProperty, $null)
+            $NowPlayingProgressFill.Width = $targetWidth
+            $animation = [Windows.Media.Animation.DoubleAnimation]::new($fromWidth, $targetWidth, [TimeSpan]::FromMilliseconds(70))
+            $NowPlayingProgressFill.BeginAnimation([Windows.FrameworkElement]::WidthProperty, $animation)
+        } else {
+            $NowPlayingProgressFill.BeginAnimation([Windows.FrameworkElement]::WidthProperty, $null)
+            $NowPlayingProgressFill.Width = $targetWidth
+        }
+    } catch {}
+}
+
+function Update-NowPlayingProgressUi {
+    $durationSec = [double]$script:progressDurationSec
+    $elapsedSec = Get-NowPlayingElapsed
+    if ($NowPlayingElapsedText) { $NowPlayingElapsedText.Text = Format-PlayerTime $elapsedSec }
+    if ($durationSec -le 0) {
+        if ($NowPlayingRemainingText) { $NowPlayingRemainingText.Text = $(if ($script:nowPlayingMode -eq 'generating') { '--:--' } else { '0:00' }) }
+        Set-NowPlayingProgressVisual 0
+        return
+    }
+    $remainingSec = [Math]::Max(0, $durationSec - $elapsedSec)
+    if ($NowPlayingRemainingText) { $NowPlayingRemainingText.Text = Format-PlayerTime $durationSec }
+    Set-NowPlayingProgressVisual (($elapsedSec / $durationSec) * 100.0)
+}
 
 
-$SavePageButton.Add_Click({
-    switch([string]$SavePageButton.Tag){
-        'settings'{$SaveButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))}
-        'rules'{Save-Rules}
-        'streamerbot'{Save-StreamerBotSettings}
-        'voicestudio'{Save-VoiceStudioSettings}
-        'polly'{Save-PollySettings}
-  'elevenlabs'{Save-ElevenLabsSettings}
-  'azure'{Save-AzureSettings}
-  'google'{Save-GoogleSettings}
-  'watson'{Save-WatsonSettings}
-  'uberduck'{Save-UberDuckSettings}
-  'ttsmonster'{Save-TtsMonsterSettings}
-  'acapela'{Save-AcapelaSettings}
-  'cereproc'{Save-CereProcSettings}
-    }
-})
-$ExportStreamerBotButton.Add_Click({
-    try {
-        $s=Read-Settings
-        if([int]$UdpBox.Text -ne [int]$s.udp_port){throw 'Save Streamer.bot settings before exporting actions.'}
-        $voice = Get-ExportSpeakAlias
-        if (-not $voice) { throw 'Choose a voice or Random (enabled voices).' }
-        $result=Invoke-BridgePost '/api/maintenance/streamerbot-export' @{alias=$voice}
-        $BottomStatus.Text='Ready to import: '+$result.result.path
-    } catch {$BottomStatus.Text=$_.Exception.Message}
-})
-$EventTestBox.SelectedIndex=0
-$SimulateEventButton.Add_Click({
-    try{Invoke-BridgePost '/api/integrations/streamerbot/test' @{state=[string]$EventTestBox.SelectedItem.Tag} | Out-Null;Refresh-Activity;$BottomStatus.Text='Test event sent. The live queue was not changed.'}catch{$BottomStatus.Text=$_.Exception.Message}
-})
 function Create-WindowsDefaultAlias {
     $key=@($script:profiles.Keys | Where-Object { $_.StartsWith('windows|') } | Sort-Object)[0]
     if(-not $key){$BottomStatus.Text='No Windows voices found. Install a Windows speech voice or connect another engine.';return}
@@ -1998,6 +3884,7 @@ $AliasGrid.Add_SelectionChanged({
     $favLabel=$window.FindName('FavoriteButtonLabel'); if($favLabel){ $favLabel.Text=if($row -and $row.Favorite){'Unfavorite'}else{'Favorite'} } elseif($ToggleFavoriteButton){ $ToggleFavoriteButton.Content=if($row -and $row.Favorite){'Unfavorite'}else{'Favorite'} }
 })
 if (-not $script:ExportRandomLabel) { $script:ExportRandomLabel='Random (enabled voices)' }
+$script:voicesDirty = $false
 $AliasGrid.Add_PreviewMouseLeftButtonUp({
     param($sender, $e)
     try {
@@ -2006,12 +3893,13 @@ $AliasGrid.Add_PreviewMouseLeftButtonUp({
             $el = [System.Windows.Media.VisualTreeHelper]::GetParent($el)
         }
         if (-not $el) { return }
-        $row = $el.DataContext
-        if ($row -and $row.PSObject.Properties['Name'] -and $row.PSObject.Properties['Enabled']) {
-            Save-AliasEnabled $row
-        }
+        # Binding updates after click; mark dirty and require Save voices (avoids racing the old value to disk).
+        $window.Dispatcher.BeginInvoke([Action]{ Mark-VoicesDirty }) | Out-Null
     } catch {}
 })
+if ($SaveVoicesButton) {
+    $SaveVoicesButton.Add_Click({ Save-VoiceToggles })
+}
 function Refresh-BackupList {
     try { $BackupListBox.ItemsSource = @((Invoke-BridgeGet '/api/backups' 2).backups) } catch {}
     try { $ProfilePresetBox.ItemsSource = @((Invoke-BridgeGet '/api/profiles' 2).profiles) } catch {}
@@ -2052,7 +3940,7 @@ $ImportPresetsButton.Add_Click({
     }
 })
 function Show-ImportPreview($preview) {
-    $dialog = Load-Xaml (Join-Path $appRoot 'ImportPreview.xaml')
+    $dialog = Load-Xaml (Join-Path $resourceRoot 'ImportPreview.xaml')
     $dialog.Owner=$window; $dialog.Resources.MergedDictionaries.Add($window.Resources); Apply-AppFont $dialog
     $dialog.MaxHeight=[Windows.SystemParameters]::WorkArea.Height-30
     $dialog.FindName('PreviewNote').Text = [string]$preview.note
@@ -2098,7 +3986,7 @@ function Start-UpdateCheck([bool]$showResult) {
 }
 $CheckUpdatesButton.Add_Click({Start-UpdateCheck $true})
 $ResetSettingsButton.Add_Click({
-    $dialog=Load-Xaml (Join-Path $appRoot 'ImportPreview.xaml');$dialog.Owner=$window;$dialog.Resources.MergedDictionaries.Add($window.Resources);Apply-AppFont $dialog
+    $dialog=Load-Xaml (Join-Path $resourceRoot 'ImportPreview.xaml');$dialog.Owner=$window;$dialog.Resources.MergedDictionaries.Add($window.Resources);Apply-AppFont $dialog
     $dialog.FindName('PreviewTitle').Text='Reset settings'
     $dialog.FindName('PreviewNote').Text='Reset voices, rules, credentials and preferences to defaults? A backup is created first. History and saved audio are kept. Restart VoxRelay afterward.'
     $dialog.FindName('PreviewList').Visibility='Collapsed'
@@ -2110,17 +3998,82 @@ $ResetSettingsButton.Add_Click({
     }
 })
 $script:restoreSignal = [Threading.EventWaitHandle]::new($false, [Threading.EventResetMode]::AutoReset, 'Local\VoxRelay.Restore')
-$script:stateTimer.Interval = [TimeSpan]::FromSeconds(1.5)
+$script:playerPollClock = [Diagnostics.Stopwatch]::StartNew()
+$script:playerStateNext = 0
+$script:playerHistoryNext = 0
+$script:stateTimer = [Windows.Threading.DispatcherTimer]::new()
+$script:stateTimer.Interval = [TimeSpan]::FromMilliseconds(100)
 $script:stateTimer.Add_Tick({
     if ($script:restoreSignal.WaitOne(0)) { Restore-FromTray }
-    if ($QueuePage.Visibility -eq 'Visible' -or $HistoryPage.Visibility -eq 'Visible') { Refresh-ServiceState }
-    if ($ActivityPage.Visibility -eq 'Visible') { Refresh-Activity }
+    # Fetch outside the dispatcher. A slow backend must not block clicks or animation.
+    $now = $script:playerPollClock.ElapsedMilliseconds
+    if ($script:activityTask) {
+        if (-not $script:activityTask.IsCompleted -and ([datetime]::UtcNow - $script:activityStarted).TotalSeconds -gt 2) { $script:activityClient.CancelAsync() }
+        Complete-ActivityRefresh
+    }
+    if ($script:playerStateTask -and -not $script:playerStateTask.IsCompleted -and ($now - $script:playerStateStarted) -gt 2000) { $script:playerStateClient.CancelAsync() }
+    if ($script:playerHistoryTask -and -not $script:playerHistoryTask.IsCompleted -and ($now - $script:playerHistoryStarted) -gt 2000) { $script:playerHistoryClient.CancelAsync() }
+    if ($script:playerStateTask -and $script:playerStateTask.IsCompleted) {
+        try {
+            $snapshot = ($script:playerStateTask.GetAwaiter().GetResult() | ConvertFrom-Json).result
+            $script:backendOnline = $true
+            $script:backendFailUntil = [datetime]::MinValue
+            Refresh-ServiceState $snapshot $true
+        } catch {
+            $script:progressPlaying = $false
+            $script:backendOnline = $false
+            foreach ($button in @($NowPlayingPlayPauseButton,$NowPlayingPrevButton,$NowPlayingSkipButton,$NowPlayingClearButton,$NowPlayingStopClearButton)) { if ($button) { $button.IsEnabled = $false } }
+            Stop-NowPlayingLoadingSpin
+            $NowPlayingSubtitle.Text = 'Reconnecting to playback...'
+        } finally {
+            $script:playerStateClient.Dispose(); $script:playerStateTask = $null
+        }
+    }
+    if ($script:playerHistoryTask -and $script:playerHistoryTask.IsCompleted) {
+        try {
+            $rawHistory = $script:playerHistoryTask.GetAwaiter().GetResult()
+            if ($rawHistory -ne $script:playerHistoryRaw) {
+                $script:playerHistorySnapshot = ($rawHistory | ConvertFrom-Json).result.history
+                $script:playerHistoryRaw = $rawHistory
+                $script:playerHistoryRevision++
+            }
+        } catch {}
+        finally { $script:playerHistoryClient.Dispose(); $script:playerHistoryTask = $null }
+    }
+    if (-not $script:playerStateTask -and $now -ge $script:playerStateNext) {
+        $script:playerStateClient = [Net.WebClient]::new()
+        $script:playerStateClient.Proxy = $null
+        $script:playerStateStarted = $now
+        $script:playerStateTask = $script:playerStateClient.DownloadStringTaskAsync([Uri]((Get-BridgeBaseUri) + '/api/state'))
+        $script:playerStateNext = $now + $(if ($window.IsVisible) { 250 } else { 1000 })
+    }
+    if (-not $script:playerHistoryTask -and $now -ge $script:playerHistoryNext) {
+        $script:playerHistoryClient = [Net.WebClient]::new()
+        $script:playerHistoryClient.Proxy = $null
+        $script:playerHistoryStarted = $now
+        $script:playerHistoryTask = $script:playerHistoryClient.DownloadStringTaskAsync([Uri]((Get-BridgeBaseUri) + '/api/history'))
+        $script:playerHistoryNext = $now + $(if ($window.IsVisible) { 2000 } else { 5000 })
+    }
+    if ($window.IsVisible -and $ActivityPage.Visibility -eq 'Visible' -and $now -ge $script:activityNext) { Refresh-Activity; $script:activityNext = $now + 2000 }
+})
+$script:progressTimer = [Windows.Threading.DispatcherTimer]::new()
+$script:progressTimer.Interval = [TimeSpan]::FromMilliseconds(50)
+$script:progressTimer.Add_Tick({
+    try {
+        if ($window.IsVisible -and $window.WindowState -ne 'Minimized' -and $script:progressPlaying -and -not $script:progressSeeking) {
+            Update-NowPlayingProgressUi
+        }
+    } catch {}
 })
 $script:stateTimer.Start()
+$script:progressTimer.Start()
 $window.Add_Closed({
     $script:stateTimer.Stop()
+    foreach ($client in @($script:playerStateClient,$script:playerHistoryClient,$script:activityClient)) { if ($client) { $client.CancelAsync(); $client.Dispose() } }
+    if ($script:progressTimer) { $script:progressTimer.Stop() }
     if ($script:voiceRefreshTimer) { $script:voiceRefreshTimer.Stop() }
     if ($script:voiceWebClient) { $script:voiceWebClient.Dispose() }
+    if ($script:voiceDeviceClient) { $script:voiceDeviceClient.CancelAsync(); $script:voiceDeviceClient.Dispose() }
     if ($script:updateTimer) { $script:updateTimer.Stop() }
     if ($script:updateClient) { $script:updateClient.Dispose() }
     $script:restoreSignal.Dispose()
@@ -2140,6 +4093,9 @@ $SideStatus.Text = 'Starting...'
 $SideStatus.Foreground = ([Windows.Media.BrushConverter]::new().ConvertFromString('#B9B2C2'))
 if ($BottomStatusDot) { $BottomStatusDot.Fill = $SideStatus.Foreground }
 
+. (Join-Path $resourceRoot 'assets\RuleEditors.ps1')
+Install-NumericEditors
+Install-ProfanityEditor
 try { Refresh-Grid } catch { $BottomStatus.Text = 'Could not load settings: ' + $_.Exception.Message }
 Start-Backend
 
@@ -2150,6 +4106,9 @@ $window.Add_ContentRendered({
     $script:allowHideToTray = $true
     Write-TrayLog 'allowHideToTray=true'
     Sync-TrayIconMode
+    try { Start-AmbientMotion } catch {}
+    $chrome = $window.Content
+    if ($chrome) { Animate-In $chrome }
     $window.Dispatcher.BeginInvoke([action]{
         if (Wait-BackendReady 8000) { Update-BridgeStatus $true; $BottomStatus.Text = 'Bridge ready' }
         else { Update-BridgeStatus $false; $BottomStatus.Text = 'Bridge failed to start. Check Activity / bridge.log' }

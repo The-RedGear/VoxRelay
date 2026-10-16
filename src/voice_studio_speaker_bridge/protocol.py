@@ -216,6 +216,8 @@ class SpeakerBotProtocol:
         if normalized == "pause":
             self.engine.pause()
             return {}
+        if normalized == "seek":
+            return self.engine.seek(float(data.get("seconds", 0)), str(data.get("speechId", "")))
         if normalized == "pauseaftercurrent":
             self.engine.pause_after_current()
             return {}
@@ -280,7 +282,7 @@ class SpeakerBotProtocol:
             return {"moved": self.engine.move_before(str(data.get("speechId", "")), str(data.get("beforeId", "")))}
         if normalized == "commands":
             return {"commands": [
-                "Speak", "Stop", "Pause", "PauseAfterCurrent", "Resume", "Clear", "ClearAll", "Enable", "Disable",
+                "Speak", "Stop", "Pause", "Seek", "PauseAfterCurrent", "Resume", "Clear", "ClearAll", "Enable", "Disable",
                 "GetInfo", "GetEvents", "GetAliases", "GetState", "GetHistory", "ClearHistory", "SaveHistoryAudio", "ReplayHistory",
                 "RemoveSpeech", "MoveSpeech", "ReorderSpeech", "LoadProfile", "Subscribe", "Unsubscribe", "Commands",
             ]}

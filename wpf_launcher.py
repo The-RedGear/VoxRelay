@@ -5,6 +5,7 @@ from ctypes import wintypes
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import time
@@ -109,13 +110,53 @@ def main() -> int:
     environment["VOXRELAY_DATA_DIR"] = str(data_root)
     environment["VSB_EXTERNAL_BACKEND"] = "1"
     environment["VOXRELAY_PARENT_PID"] = str(os.getpid())
-    if not frozen:
-        environment["PYTHONPATH"] = str(resource_root / "src")
 
+    # Prefer a live src/ package + Python when present so hotfixes (e.g. provider
+    # enable flags) apply without waiting for a full PyInstaller rebuild.
+    src_root = install_root / "src"
+    live_package = src_root / "voice_studio_speaker_bridge"
+    local_pythonw = install_root / ".venv" / "Scripts" / "pythonw.exe"
     local_python = install_root / ".venv" / "Scripts" / "python.exe"
-    executable = Path(sys.executable) if frozen or not local_python.is_file() else local_python
-    backend_args = [str(executable), "--backend"] if frozen else [str(executable), "-m", "voice_studio_speaker_bridge", "--headless"]
-    backend = subprocess.Popen(backend_args, cwd=str(install_root), creationflags=subprocess.CREATE_NO_WINDOW, env=environment)
+    python_candidates: list[Path] = []
+    # Prefer pythonw so backend/helper launches never allocate a console.
+    if local_pythonw.is_file():
+        python_candidates.append(local_pythonw)
+    if local_python.is_file():
+        python_candidates.append(local_python)
+    if not frozen:
+        python_candidates.append(Path(sys.executable))
+    for candidate in (
+        Path(r"C:\Program Files\Python314\python.exe"),
+        Path(r"C:\Program Files\Python313\python.exe"),
+        Path(r"C:\Program Files\Python312\python.exe"),
+    ):
+        if candidate.is_file() and candidate not in python_candidates:
+            python_candidates.append(candidate)
+    which_python = shutil.which("python")
+    if which_python:
+        which_path = Path(which_python)
+        if which_path.is_file() and which_path not in python_candidates:
+            python_candidates.append(which_path)
+
+    if live_package.is_dir() and python_candidates:
+        environment["PYTHONPATH"] = str(src_root)
+        backend_args = [str(python_candidates[0]), "-m", "voice_studio_speaker_bridge", "--headless"]
+    elif frozen:
+        backend_args = [str(sys.executable), "--backend"]
+    else:
+        environment["PYTHONPATH"] = str(resource_root / "src")
+        executable = local_python if local_python.is_file() else Path(sys.executable)
+        backend_args = [str(executable), "-m", "voice_studio_speaker_bridge", "--headless"]
+    no_window = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+    backend = subprocess.Popen(
+        backend_args,
+        cwd=str(install_root),
+        creationflags=no_window,
+        env=environment,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
     port = 7582
     for filename in ("settings.json", "settings.json.bak"):
         try:
@@ -132,12 +173,26 @@ def main() -> int:
         ctypes.windll.user32.MessageBoxW(None, "VoxRelay could not start. Check data/bridge.log for details, and close any other running copy.", "VoxRelay", 0x10)
         return 1
 
+    # Detach from any console inherited from python.exe so a terminal window
+    # does not stay open (closing it would kill the whole app).
+    if os.name == "nt":
+        try:
+            ctypes.windll.kernel32.FreeConsole()
+        except Exception:
+            pass
+
     startupinfo = subprocess.STARTUPINFO()
     startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
     startupinfo.wShowWindow = 0
     shell = subprocess.Popen(
-        ["powershell.exe", "-STA", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(resource_root / "VoxRelay.ps1")],
-        cwd=str(install_root), env=environment, startupinfo=startupinfo,
+        ["powershell.exe", "-STA", "-NoProfile", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File", str(resource_root / "VoxRelay.ps1")],
+        cwd=str(install_root),
+        env=environment,
+        startupinfo=startupinfo,
+        creationflags=no_window,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
     try:
         return int(shell.wait() or 0)

@@ -9,7 +9,7 @@ $reader = [Xml.XmlReader]::Create((Join-Path $root 'VoxRelay.xaml'))
 try { $window=[Windows.Markup.XamlReader]::Load($reader) } finally { $reader.Dispose() }
 $visual=$window.Content
 $visual.SetValue([Windows.Documents.TextElement]::ForegroundProperty,$window.Foreground)
-$visual.SetValue([Windows.Documents.TextElement]::FontFamilyProperty,[Windows.Media.FontFamily]::new([Uri]::new((Join-Path $root 'assets/')),'./#Inter Variable'))
+$visual.SetValue([Windows.Documents.TextElement]::FontFamilyProperty,[Windows.Media.FontFamily]::new([Uri]::new((Join-Path $root 'assets/fonts/Poppins/')),'./#Poppins'))
 $window.FindName('AliasGrid').ItemsSource=@([pscustomobject]@{Name='Windows voice';Profile='Microsoft David Desktop - Windows voices';Group='Favorites';Model='sapi';Speed='1.0'})
 $window.FindName('AliasProviderFilter').ItemsSource=@('All engines','VoiceStudio','Amazon Polly','Windows voices')
 $window.FindName('AliasProviderFilter').SelectedIndex=0

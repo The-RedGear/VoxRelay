@@ -94,3 +94,4 @@ class SpeechJob:
     enqueued_at: float = field(default_factory=monotonic)
     cancel_event: Event = field(default_factory=Event, repr=False)
     registered: bool = False
+    replay_recording: bool = False

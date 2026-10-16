@@ -1,6 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="VoxRelay" Width="1180" Height="760" MinWidth="980" MinHeight="640" WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="CanResizeWithGrip" AllowsTransparency="True" Background="Transparent" Foreground="#F6F3FA">
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:wf="clr-namespace:System.Windows.Forms;assembly=System.Windows.Forms" xmlns:wfi="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration" Title="VoxRelay" Width="1180" Height="760" MinWidth="980" MinHeight="640" WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="CanResizeWithGrip" AllowsTransparency="True" Background="Transparent" Foreground="#F6F3FA">
  <Window.Resources>
+  <Style TargetType="ToolTip">
+   <Setter Property="Foreground" Value="#F6F3FA"/><Setter Property="Background" Value="#282231"/><Setter Property="BorderBrush" Value="#50485C"/>
+   <Setter Property="MaxWidth" Value="360"/><Setter Property="Padding" Value="12,8"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToolTip"><Border CornerRadius="8" BorderThickness="1" BorderBrush="{TemplateBinding BorderBrush}" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}"><ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}" TextBlock.TextWrapping="Wrap"/></Border></ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style TargetType="ResizeGrip">
+   <Setter Property="Width" Value="20"/><Setter Property="Height" Value="20"/><Setter Property="Cursor" Value="SizeNWSE"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ResizeGrip"><Grid Background="Transparent" Margin="0,0,3,3"><Ellipse Width="2" Height="2" Fill="#B9B2C2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,4,4"/><Ellipse Width="2" Height="2" Fill="#B9B2C2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,8,4"/><Ellipse Width="2" Height="2" Fill="#B9B2C2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,4,8"/></Grid></ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style TargetType="ContextMenu">
+   <Setter Property="Background" Value="#1E1A27"/><Setter Property="Foreground" Value="#F6F3FA"/><Setter Property="BorderBrush" Value="#50485C"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ContextMenu"><Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="5"><StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/></Border></ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style TargetType="MenuItem">
+   <Setter Property="Foreground" Value="#F6F3FA"/><Setter Property="Padding" Value="10,8"/><Setter Property="Margin" Value="1"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="MenuItem">
+    <Grid>
+     <Border x:Name="MenuShell" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="20"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="14"/></Grid.ColumnDefinitions><ContentPresenter ContentSource="Icon" VerticalAlignment="Center"/><ContentPresenter Grid.Column="1" ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center"/><TextBlock Grid.Column="2" Text="{TemplateBinding InputGestureText}" Foreground="#B9B2C2" Margin="20,0,8,0"/><Path x:Name="MenuArrow" Grid.Column="3" Visibility="Collapsed" Data="M2,2 L6,6 L2,10" Stroke="#B9B2C2" StrokeThickness="1.5" VerticalAlignment="Center"/></Grid></Border>
+     <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsSubmenuOpen}" Placement="Right" AllowsTransparency="True" Focusable="False" PopupAnimation="Fade"><Border Background="#1E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="10" Padding="5" Margin="3,0,0,0"><StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/></Border></Popup>
+    </Grid>
+    <ControlTemplate.Triggers><Trigger Property="IsHighlighted" Value="True"><Setter TargetName="MenuShell" Property="Background" Value="#443B3155"/></Trigger><Trigger Property="HasItems" Value="True"><Setter TargetName="MenuArrow" Property="Visibility" Value="Visible"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="MenuShell" Property="Background" Value="#443B3155"/></Trigger></ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style TargetType="Separator"><Setter Property="Margin" Value="7,5"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Separator"><Border Height="1" Background="#50485C" CornerRadius="0.5"/></ControlTemplate></Setter.Value></Setter></Style>
   <SolidColorBrush x:Key="Panel" Color="#1E1A27" />
   <SolidColorBrush x:Key="Panel2" Color="#1E1A27" />
   <SolidColorBrush x:Key="Border" Color="#50485C" />
@@ -37,7 +61,10 @@
    <Setter Property="Template">
     <Setter.Value>
      <ControlTemplate TargetType="Button">
-      <Border x:Name="Shell" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+      <Border x:Name="Shell" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" Padding="{TemplateBinding Padding}" RenderTransformOrigin="0.5,0.5">
+       <Border.RenderTransform>
+        <ScaleTransform ScaleX="1" ScaleY="1" />
+       </Border.RenderTransform>
        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
       </Border>
       <ControlTemplate.Triggers>
@@ -51,10 +78,88 @@
        <Trigger Property="IsEnabled" Value="False">
         <Setter TargetName="Shell" Property="Opacity" Value="0.4" />
        </Trigger>
+       <EventTrigger RoutedEvent="MouseEnter">
+        <BeginStoryboard>
+         <Storyboard>
+          <DoubleAnimation Storyboard.TargetName="Shell" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1.025" Duration="0:0:0.12">
+           <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction>
+          </DoubleAnimation>
+          <DoubleAnimation Storyboard.TargetName="Shell" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1.025" Duration="0:0:0.12">
+           <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction>
+          </DoubleAnimation>
+         </Storyboard>
+        </BeginStoryboard>
+       </EventTrigger>
+       <EventTrigger RoutedEvent="MouseLeave">
+        <BeginStoryboard>
+         <Storyboard>
+          <DoubleAnimation Storyboard.TargetName="Shell" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="0:0:0.14">
+           <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction>
+          </DoubleAnimation>
+          <DoubleAnimation Storyboard.TargetName="Shell" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="0:0:0.14">
+           <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction>
+          </DoubleAnimation>
+         </Storyboard>
+        </BeginStoryboard>
+       </EventTrigger>
       </ControlTemplate.Triggers>
      </ControlTemplate>
     </Setter.Value>
    </Setter>
+  </Style>
+  <Style x:Key="PlayerIconButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+   <Setter Property="Padding" Value="0" />
+   <Setter Property="MinHeight" Value="30" />
+   <Setter Property="MinWidth" Value="30" />
+   <Setter Property="Width" Value="30" />
+   <Setter Property="Height" Value="30" />
+   <Setter Property="Margin" Value="0,0,5,0" />
+   <Setter Property="HorizontalContentAlignment" Value="Center" />
+   <Setter Property="VerticalContentAlignment" Value="Center" />
+   <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+  </Style>
+  <Style x:Key="PlayerTransportButton" TargetType="Button" BasedOn="{StaticResource PlayerIconButton}">
+   <Setter Property="Background" Value="Transparent" />
+   <Setter Property="BorderThickness" Value="0" />
+   <Setter Property="MinWidth" Value="28" />
+   <Setter Property="MinHeight" Value="28" />
+   <Setter Property="Width" Value="28" />
+   <Setter Property="Height" Value="28" />
+   <Setter Property="Margin" Value="2,0" />
+  </Style>
+  <Style x:Key="PlayerPlayButton" TargetType="Button" BasedOn="{StaticResource PlayerIconButton}">
+   <Setter Property="MinWidth" Value="32" />
+   <Setter Property="MinHeight" Value="32" />
+   <Setter Property="Width" Value="32" />
+   <Setter Property="Height" Value="32" />
+   <Setter Property="Margin" Value="6,0" />
+   <Setter Property="Background" Value="#B6A3FF" />
+   <Setter Property="Foreground" Value="#15131D" />
+   <Setter Property="BorderBrush" Value="#B6A3FF" />
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="Button">
+      <Border x:Name="PlayShell" CornerRadius="16" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1">
+       <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="PlayShell" Property="Background" Value="#C9BCFF" /></Trigger>
+       <Trigger Property="IsPressed" Value="True"><Setter TargetName="PlayShell" Property="Opacity" Value="0.75" /></Trigger>
+       <Trigger Property="IsEnabled" Value="False"><Setter TargetName="PlayShell" Property="Opacity" Value="0.4" /></Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
+  <Style x:Key="BrandIconPath" TargetType="Path">
+   <Setter Property="Fill" Value="Transparent" />
+   <Setter Property="StrokeThickness" Value="2" />
+   <Setter Property="StrokeStartLineCap" Value="Round" />
+   <Setter Property="StrokeEndLineCap" Value="Round" />
+   <Setter Property="StrokeLineJoin" Value="Round" />
+   <Setter Property="Stretch" Value="Uniform" />
+   <Setter Property="Width" Value="24" />
+   <Setter Property="Height" Value="24" />
   </Style>
   <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
    <Setter Property="Foreground" Value="#15131D" />
@@ -70,7 +175,10 @@
    <Setter Property="Template">
     <Setter.Value>
      <ControlTemplate TargetType="Button">
-      <Border x:Name="Shell" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+      <Border x:Name="Shell" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" Padding="{TemplateBinding Padding}" RenderTransformOrigin="0.5,0.5">
+       <Border.RenderTransform>
+        <ScaleTransform ScaleX="1" ScaleY="1" />
+       </Border.RenderTransform>
        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
       </Border>
       <ControlTemplate.Triggers>
@@ -85,6 +193,30 @@
        <Trigger Property="IsEnabled" Value="False">
         <Setter TargetName="Shell" Property="Opacity" Value="0.4" />
        </Trigger>
+       <EventTrigger RoutedEvent="MouseEnter">
+        <BeginStoryboard>
+         <Storyboard>
+          <DoubleAnimation Storyboard.TargetName="Shell" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1.03" Duration="0:0:0.12">
+           <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction>
+          </DoubleAnimation>
+          <DoubleAnimation Storyboard.TargetName="Shell" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1.03" Duration="0:0:0.12">
+           <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction>
+          </DoubleAnimation>
+         </Storyboard>
+        </BeginStoryboard>
+       </EventTrigger>
+       <EventTrigger RoutedEvent="MouseLeave">
+        <BeginStoryboard>
+         <Storyboard>
+          <DoubleAnimation Storyboard.TargetName="Shell" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="0:0:0.14">
+           <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction>
+          </DoubleAnimation>
+          <DoubleAnimation Storyboard.TargetName="Shell" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="0:0:0.14">
+           <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction>
+          </DoubleAnimation>
+         </Storyboard>
+        </BeginStoryboard>
+       </EventTrigger>
       </ControlTemplate.Triggers>
      </ControlTemplate>
     </Setter.Value>
@@ -112,6 +244,20 @@
   <Style x:Key="SelectedNavButton" TargetType="Button" BasedOn="{StaticResource NavButton}">
    <Setter Property="Background" Value="#331E1A27" />
    <Setter Property="Foreground" Value="#B6A3FF" />
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="Button">
+      <Border x:Name="Shell" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" Padding="{TemplateBinding Padding}" RenderTransformOrigin="0.5,0.5">
+       <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsMouseOver" Value="True">
+        <Setter TargetName="Shell" Property="Background" Value="#44282231" />
+       </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
   </Style>
   <Style x:Key="NavSectionButton" TargetType="Button" BasedOn="{StaticResource NavButton}">
    <Setter Property="Padding" Value="16,10" />
@@ -127,6 +273,20 @@
   <Style x:Key="SelectedSubNavButton" TargetType="Button" BasedOn="{StaticResource SubNavButton}">
    <Setter Property="Background" Value="#331E1A27" />
    <Setter Property="Foreground" Value="#B6A3FF" />
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="Button">
+      <Border x:Name="Shell" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+       <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsMouseOver" Value="True">
+        <Setter TargetName="Shell" Property="Background" Value="#33282231" />
+       </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
   </Style>
   <!-- MinHeight (not Height) so Playground / multi-line boxes can still stretch. -->
   <Style TargetType="TextBox">
@@ -388,7 +548,7 @@
        <TextBox x:Name="PART_EditableTextBox" Visibility="Collapsed" Margin="12,2,38,2" Padding="0" BorderThickness="0" Background="{TemplateBinding Background}" Foreground="#F6F3FA" CaretBrush="#B6A3FF" SelectionBrush="#B6A3FF" SelectionTextBrush="#15131D" VerticalContentAlignment="Center" Text="{Binding Text,RelativeSource={RelativeSource TemplatedParent},Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}">
         <TextBox.Template><ControlTemplate TargetType="TextBox"><Border Background="{TemplateBinding Background}"><ScrollViewer x:Name="PART_ContentHost"/></Border></ControlTemplate></TextBox.Template>
        </TextBox>
-       <Popup Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False">
+       <Popup Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False" PopupAnimation="Fade">
         <Border x:Name="DropDownBorder" Background="#1E1A27" BorderBrush="#B6A3FF" BorderThickness="1" CornerRadius="8" Padding="4" Margin="0,4,0,0" MinWidth="{Binding ActualWidth,RelativeSource={RelativeSource TemplatedParent}}" MaxHeight="240" SnapsToDevicePixels="True">
          <ScrollViewer VerticalScrollBarVisibility="Auto">
           <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
@@ -481,7 +641,9 @@
    <Setter Property="BorderBrush" Value="#50485C" />
    <Setter Property="RowBackground" Value="#15131D" />
    <Setter Property="AlternatingRowBackground" Value="#1E1A27" />
-   <Setter Property="GridLinesVisibility" Value="Horizontal" />
+   <Setter Property="GridLinesVisibility" Value="None" />
+   <Setter Property="SnapsToDevicePixels" Value="True" />
+   <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
    <Setter Property="HorizontalGridLinesBrush" Value="#50485C" />
    <Setter Property="HeadersVisibility" Value="Column" />
    <Setter Property="RowHeight" Value="52" />
@@ -497,18 +659,27 @@
    <Setter Property="FontSize" Value="11" />
    <Setter Property="FontWeight" Value="SemiBold" />
    <Setter Property="VerticalContentAlignment" Value="Center" />
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="DataGridColumnHeader"><Grid>
+    <Border x:Name="HeaderShell" CornerRadius="6" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}" Margin="2"><Grid><ContentPresenter VerticalAlignment="Center"/><Path x:Name="SortArrow" Data="M0,5 L4,1 L8,5" Stroke="#B6A3FF" StrokeThickness="1.5" Visibility="Collapsed" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="8,0,0,0"/></Grid></Border>
+    <Thumb x:Name="PART_LeftHeaderGripper" HorizontalAlignment="Left" Width="5" Cursor="SizeWE"><Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="Transparent"/></ControlTemplate></Thumb.Template></Thumb>
+    <Thumb x:Name="PART_RightHeaderGripper" HorizontalAlignment="Right" Width="5" Cursor="SizeWE"><Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="Transparent"/></ControlTemplate></Thumb.Template></Thumb>
+   </Grid><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="HeaderShell" Property="Background" Value="#33282231"/></Trigger><Trigger Property="SortDirection" Value="Ascending"><Setter TargetName="SortArrow" Property="Visibility" Value="Visible"/></Trigger><Trigger Property="SortDirection" Value="Descending"><Setter TargetName="SortArrow" Property="Visibility" Value="Visible"/><Setter TargetName="SortArrow" Property="Data" Value="M0,1 L4,5 L8,1"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
   </Style>
   <Style TargetType="DataGridCell">
    <Setter Property="Padding" Value="0" />
    <Setter Property="VerticalContentAlignment" Value="Center" />
    <Setter Property="BorderThickness" Value="0" />
    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+   <Setter Property="Background" Value="Transparent"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="DataGridCell"><Border Background="Transparent"><ContentPresenter VerticalAlignment="{TemplateBinding VerticalContentAlignment}" SnapsToDevicePixels="True"/></Border></ControlTemplate></Setter.Value></Setter>
+   <Style.Triggers><Trigger Property="IsSelected" Value="True"><Setter Property="Foreground" Value="#F6F3FA"/><Setter Property="Background" Value="Transparent"/></Trigger></Style.Triggers>
   </Style>
   <Style TargetType="DataGridRow">
    <Setter Property="VerticalContentAlignment" Value="Center" />
    <Setter Property="Foreground" Value="#F6F3FA" />
    <Setter Property="BorderBrush" Value="#50485C" />
-   <Setter Property="BorderThickness" Value="0,0,0,1" />
+   <Setter Property="BorderThickness" Value="1" />
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="DataGridRow"><Grid Background="Transparent"><Border x:Name="RowShell" CornerRadius="7" Margin="4,2" Background="{TemplateBinding Background}" BorderBrush="Transparent" BorderThickness="1"/><DataGridCellsPresenter x:Name="PART_CellsPresenter" SnapsToDevicePixels="True"/></Grid><ControlTemplate.Triggers><Trigger Property="IsSelected" Value="True"><Setter TargetName="RowShell" Property="BorderBrush" Value="#B6A3FF"/></Trigger><Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="RowShell" Property="BorderBrush" Value="#B6A3FF"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
    <Style.Triggers>
     <Trigger Property="IsMouseOver" Value="True">
      <Setter Property="Background" Value="#33282231" />
@@ -570,7 +741,7 @@
      <GradientStop Color="#15131D" Offset="1" />
     </LinearGradientBrush>
    </Grid.Background>
-   <Ellipse Width="760" Height="620" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-380,-270,0" IsHitTestVisible="False">
+   <Ellipse Name="AmbientGlowA" Width="760" Height="620" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-380,-270,0" IsHitTestVisible="False" Opacity="0.85">
     <Ellipse.Fill>
      <RadialGradientBrush>
       <GradientStop Color="#42E78DAF" />
@@ -578,14 +749,20 @@
       <GradientStop Color="#00A05E84" Offset="1" />
      </RadialGradientBrush>
     </Ellipse.Fill>
+    <Ellipse.RenderTransform>
+     <TranslateTransform X="0" Y="0" />
+    </Ellipse.RenderTransform>
    </Ellipse>
-   <Ellipse Width="640" Height="540" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-360,0,0,-300" IsHitTestVisible="False">
+   <Ellipse Name="AmbientGlowB" Width="640" Height="540" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-360,0,0,-300" IsHitTestVisible="False" Opacity="0.75">
     <Ellipse.Fill>
      <RadialGradientBrush>
       <GradientStop Color="#2E824E76" />
       <GradientStop Color="#006D3D68" Offset="1" />
      </RadialGradientBrush>
     </Ellipse.Fill>
+    <Ellipse.RenderTransform>
+     <TranslateTransform X="0" Y="0" />
+    </Ellipse.RenderTransform>
    </Ellipse>
    <Grid>
     <Grid.RowDefinitions>
@@ -601,11 +778,13 @@
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
        <Viewbox Width="19" Height="19" Margin="0,0,9,0">
         <Canvas Width="24" Height="24">
-         <Path Stroke="#B6A3FF" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M1,13 C3,13 3,6 5,6 C7,6 7,18 9,18 C11,18 11,3 13,3 C15,3 15,20 17,20 C19,20 19,8 21,8 C22,8 22,12 23,12" />
+         <Path Name="TitleWavePath" Stroke="#B6A3FF" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M1,13 C3,13 3,6 5,6 C7,6 7,18 9,18 C11,18 11,3 13,3 C15,3 15,20 17,20 C19,20 19,8 21,8 C22,8 22,12 23,12" Opacity="0.92" />
         </Canvas>
        </Viewbox>
        <TextBlock Text="VoxRelay" FontWeight="SemiBold" FontSize="13" />
        <TextBlock Text="  /  Voice Automation" Foreground="#B9B2C2" FontSize="12" />
+       <TextBlock Text="  /  " Foreground="#B9B2C2" FontSize="12" />
+       <TextBlock Name="AppVersionLabel" Text="0.5.0" Foreground="#B9B2C2" FontSize="12" />
       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal">
        <Button Name="MinimizeButton" AutomationProperties.AutomationId="MinimizeButton" AutomationProperties.Name="Minimize VoxRelay" Style="{StaticResource TitleButton}" ToolTip="Minimize"><Viewbox Width="12" Height="12" Margin="0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M6 21v-2h12v2z" /></Viewbox></Button>
@@ -729,34 +908,51 @@
          </Button>
         </StackPanel>
        </ScrollViewer>
-       <Button Name="BridgeStatusButton" Grid.Row="2" Margin="13" Padding="0" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch">
-        <Border Padding="14" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12">
-         <Border.Background>
-          <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-           <GradientStop Color="#1E1A27" />
-           <GradientStop Color="#15131D" Offset="1" />
-          </LinearGradientBrush>
-         </Border.Background>
-         <Grid>
-          <Grid.ColumnDefinitions>
-           <ColumnDefinition Width="Auto" />
-           <ColumnDefinition />
-           <ColumnDefinition Width="Auto" />
-          </Grid.ColumnDefinitions>
-          <Grid Width="34" Height="34">
-           <Ellipse Fill="#173FD49B" />
-           <Ellipse Width="8" Height="8" Fill="#4DDEA5" />
+       <Grid Grid.Row="2" Margin="13">
+        <Button Name="BridgeStatusButton" Padding="0" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch" ToolTip="Service status — click for details">
+         <Border Padding="14" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12">
+          <Border.Background>
+           <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#1E1A27" />
+            <GradientStop Color="#15131D" Offset="1" />
+           </LinearGradientBrush>
+          </Border.Background>
+          <Grid>
+           <Grid.ColumnDefinitions>
+            <ColumnDefinition />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+           </Grid.ColumnDefinitions>
+           <StackPanel VerticalAlignment="Center">
+            <TextBlock Text="STATUS" Foreground="#B9B2C2" FontSize="9" FontWeight="Bold" />
+            <TextBlock Name="SideStatus" Text="Starting..." Foreground="#F6F3FA" Margin="0,3,0,0" FontWeight="SemiBold" TextWrapping="Wrap" FontSize="12" />
+           </StackPanel>
+           <Grid Grid.Column="1" Width="18" Height="18" Margin="8,0,0,0" VerticalAlignment="Center">
+            <Ellipse Name="SideStatusPulseRing" Fill="#173FD49B" RenderTransformOrigin="0.5,0.5">
+             <Ellipse.RenderTransform>
+              <ScaleTransform ScaleX="1" ScaleY="1" />
+             </Ellipse.RenderTransform>
+            </Ellipse>
+            <Ellipse Name="SideStatusPulseCore" Width="9" Height="9" Fill="#B9B2C2" />
+           </Grid>
+           <Viewbox Grid.Column="2" Width="12" Height="12" Margin="8,0,0,0" VerticalAlignment="Center">
+            <Path Name="SideStatusChevron" Fill="#F6F3FA" Stretch="Uniform" Data="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6l-6-6z" />
+           </Viewbox>
           </Grid>
-          <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-           <TextBlock Text="STATUS" Foreground="#B9B2C2" FontSize="9" FontWeight="Bold" />
-           <TextBlock Name="SideStatus" Text="Starting..." Foreground="#B9B2C2" Margin="0,3,0,0" FontWeight="SemiBold" />
+         </Border>
+        </Button>
+        <Popup Name="ServiceStatusPopup" AllowsTransparency="True" Placement="Top" PlacementTarget="{Binding ElementName=BridgeStatusButton}" StaysOpen="False" PopupAnimation="Fade" HorizontalOffset="0" VerticalOffset="-8">
+         <Border Background="#1E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="10" Padding="6,8" MinWidth="268" MaxWidth="320" SnapsToDevicePixels="True">
+          <Border.Effect>
+           <DropShadowEffect Color="#000000" BlurRadius="22" ShadowDepth="6" Opacity="0.62" />
+          </Border.Effect>
+          <StackPanel Name="ServiceStatusRoot">
+           <TextBlock Text="SERVICES" Foreground="#B9B2C2" FontSize="10" FontWeight="Bold" Margin="10,4,10,8" />
+           <StackPanel Name="ServiceStatusList" Tag="ServiceStatusListHost" />
           </StackPanel>
-          <Viewbox Grid.Column="2" Width="16" Height="16" Margin="8,0,0,0" VerticalAlignment="Center">
-           <Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M4.925 19.075q-1.35-1.375-2.137-3.187T2 12q0-2.1.788-3.912t2.137-3.163L6.35 6.35q-1.1 1.1-1.725 2.55T4 12q0 1.675.625 3.125T6.35 17.65zM7.75 16.25q-.8-.825-1.275-1.912T6 12q0-1.275.475-2.363T7.75 7.75l1.425 1.425q-.55.55-.862 1.275T8 12t.313 1.55t.862 1.275zm2.838-2.838Q10 12.826 10 12t.588-1.412T12 10t1.413.588T14 12t-.587 1.413T12 14t-1.412-.587m5.662 2.837l-1.425-1.425q.55-.55.863-1.275T16 12t-.312-1.55t-.863-1.275L16.25 7.75q.8.8 1.275 1.887T18 12q0 1.25-.475 2.337T16.25 16.25m2.825 2.825L17.65 17.65q1.1-1.1 1.725-2.55T20 12q0-1.675-.625-3.125T17.65 6.35l1.425-1.425q1.35 1.35 2.138 3.162T22 12q0 2.075-.788 3.888t-2.137 3.187" />
-          </Viewbox>
-         </Grid>
-        </Border>
-       </Button>
+         </Border>
+        </Popup>
+       </Grid>
       </Grid>
      </Border>
      <Grid Grid.Column="1" Margin="32,24,32,26">
@@ -770,7 +966,10 @@
         <ColumnDefinition />
         <ColumnDefinition Width="Auto" />
        </Grid.ColumnDefinitions>
-       <StackPanel>
+       <StackPanel Name="PageHeadingHost" RenderTransformOrigin="0,0.5">
+        <StackPanel.RenderTransform>
+         <TranslateTransform X="0" Y="0" />
+        </StackPanel.RenderTransform>
         <TextBlock Name="PageTitle" Text="Voices" FontSize="28" FontWeight="SemiBold" />
         <TextBlock Name="PageSubtitle" Text="Friendly names for every provider voice." Foreground="{StaticResource Muted}" Margin="0,5,0,0" FontSize="13" />
        </StackPanel>
@@ -790,6 +989,7 @@
         <Button Name="EditButton"><StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M5 19h1.425L16.2 9.225L14.775 7.8L5 17.575zm-1 2q-.425 0-.712-.288T3 20v-2.425q0-.4.15-.763t.425-.637L16.2 3.575q.3-.275.663-.425t.762-.15t.775.15t.65.45L20.425 5q.3.275.437.65T21 6.4q0 .4-.138.763t-.437.662l-12.6 12.6q-.275.275-.638.425t-.762.15zM19 6.4L17.6 5zm-3.525 2.125l-.7-.725L16.2 9.225z" /></Viewbox><TextBlock Text="Edit" VerticalAlignment="Center" /></StackPanel></Button>
         <Button Name="RemoveButton"><StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M7 21q-.825 0-1.412-.587T5 19V6q-.425 0-.712-.288T4 5t.288-.712T5 4h4q0-.425.288-.712T10 3h4q.425 0 .713.288T15 4h4q.425 0 .713.288T20 5t-.288.713T19 6v13q0 .825-.587 1.413T17 21zM17 6H7v13h10zm-6.287 10.713Q11 16.425 11 16V9q0-.425-.288-.712T10 8t-.712.288T9 9v7q0 .425.288.713T10 17t.713-.288m4 0Q15 16.426 15 16V9q0-.425-.288-.712T14 8t-.712.288T13 9v7q0 .425.288.713T14 17t.713-.288M7 6v13z" /></Viewbox><TextBlock Text="Remove" VerticalAlignment="Center" /></StackPanel></Button>
         <Button Name="TestButton"><StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="m10.65 15.75l4.875-3.125q.35-.225.35-.625t-.35-.625L10.65 8.25q-.375-.25-.763-.038t-.387.663v6.25q0 .45.388.663t.762-.038M12 22q-2.075 0-3.9-.788t-3.175-2.137T2.788 15.9T2 12t.788-3.9t2.137-3.175T8.1 2.788T12 2t3.9.788t3.175 2.137T21.213 8.1T22 12t-.788 3.9t-2.137 3.175t-3.175 2.138T12 22m0-2q3.35 0 5.675-2.325T20 12t-2.325-5.675T12 4T6.325 6.325T4 12t2.325 5.675T12 20m0-8" /></Viewbox><TextBlock Text="Test voice" VerticalAlignment="Center" /></StackPanel></Button>
+        <Button Name="SaveVoicesButton" Style="{StaticResource PrimaryButton}" Margin="0,0,0,0" ToolTip="Write voice ON/OFF states into the portable data folder"><StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M5 21q-.825 0-1.412-.587T3 19V5q0-.825.588-1.412T5 3h11.175q.4 0 .763.15t.637.425l2.85 2.85q.275.275.425.638t.15.762V19q0 .825-.587 1.413T19 21zM19 7.85L16.15 5H5v14h14zm-4.875 9.275Q15 16.25 15 15t-.875-2.125T12 12t-2.125.875T9 15t.875 2.125T12 18t2.125-.875M7 10h7q.425 0 .713-.288T15 9V7q0-.425-.288-.712T14 6H7q-.425 0-.712.288T6 7v2q0 .425.288.713T7 10M5 7.85V19V5z" /></Viewbox><TextBlock Text="Save voices" VerticalAlignment="Center" /></StackPanel></Button>
        </StackPanel>
        <Grid Grid.Row="1" Margin="0,0,0,14">
         <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="190"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -936,6 +1136,7 @@
        </Grid.RowDefinitions>
        <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
         <Button Name="ReplayHistoryButton" Style="{StaticResource PrimaryButton}" Margin="0,0,12,0" ><StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M8.488 21.288q-1.638-.713-2.85-1.925t-1.925-2.85T3 13q0-.425.288-.712T4 12t.713.288T5 13q0 2.925 2.038 4.963T12 20t4.963-2.037T19 13t-2.037-4.962T12 6h-.15l.85.85q.3.3.288.7t-.288.7q-.3.3-.712.313t-.713-.288L8.7 5.7q-.3-.3-.3-.7t.3-.7l2.575-2.575q.3-.3.713-.288t.712.313q.275.3.288.7t-.288.7l-.85.85H12q1.875 0 3.513.713t2.85 1.925t1.925 2.85T21 13t-.712 3.513t-1.925 2.85t-2.85 1.925T12 22t-3.512-.712" /></Viewbox><TextBlock Text="Replay selected" VerticalAlignment="Center" /></StackPanel></Button>
+        <Button Name="ShowHistoryAudioButton" Margin="0,0,12,0" IsEnabled="False" ToolTip="Open the cached WAV in Explorer, or the saved-audio folder if you already exported it" ><StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M4 20q-.825 0-1.412-.587T2 18V6q0-.825.588-1.412T4 4h5.175q.4 0 .763.15t.637.425L12 6h8q.825 0 1.413.588T22 8v10q0 .825-.587 1.413T20 20zm0-2h16V8h-8.425l-2-2H4zm0 0V6z" /></Viewbox><TextBlock Text="Show audio" VerticalAlignment="Center" /></StackPanel></Button>
         <Button Name="SaveHistoryAudioButton" Margin="0,0,12,0" ><StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M11.625 15.513q-.175-.063-.325-.213l-3.6-3.6q-.3-.3-.288-.7t.288-.7q.3-.3.713-.312t.712.287L11 12.15V5q0-.425.288-.712T12 4t.713.288T13 5v7.15l1.875-1.875q.3-.3.713-.288t.712.313q.275.3.288.7t-.288.7l-3.6 3.6q-.15.15-.325.213t-.375.062t-.375-.062M6 20q-.825 0-1.412-.587T4 18v-2q0-.425.288-.712T5 15t.713.288T6 16v2h12v-2q0-.425.288-.712T19 15t.713.288T20 16v2q0 .825-.587 1.413T18 20z" /></Viewbox><TextBlock Text="Save audio" VerticalAlignment="Center" /></StackPanel></Button>
         <Button Name="ClearHistoryButton" Margin="0" ><StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M5 19q-.825 0-1.412-.587T3 17V8q-.425 0-.712-.288T2 7t.288-.712T3 6h3v-.5q0-.425.288-.712T7 4.5h2q.425 0 .713.288T10 5.5V6h3q.425 0 .713.288T14 7t-.288.713T13 8v9q0 .825-.587 1.413T11 19zm11-1q-.425 0-.712-.288T15 17t.288-.712T16 16h2q.425 0 .713.288T19 17t-.288.713T18 18zm0-4q-.425 0-.712-.288T15 13t.288-.712T16 12h4q.425 0 .713.288T21 13t-.288.713T20 14zm0-4q-.425 0-.712-.288T15 9t.288-.712T16 8h5q.425 0 .713.288T22 9t-.288.713T21 10zM5 8v9h6V8z" /></Viewbox><TextBlock Text="Clear history" VerticalAlignment="Center" /></StackPanel></Button>
        </StackPanel>
@@ -944,6 +1145,7 @@
          <DataGrid.Columns>
           <DataGridTextColumn Header="TIME" Binding="{Binding Time}" Width="145" ElementStyle="{StaticResource GridText}" />
           <DataGridTextColumn Header="STATUS" Binding="{Binding Status}" Width="90" ElementStyle="{StaticResource GridText}" />
+          <DataGridTextColumn Header="AUDIO" Binding="{Binding AudioLabel}" Width="90" ElementStyle="{StaticResource GridText}" />
           <DataGridTextColumn Header="ALIAS" Binding="{Binding Alias}" Width="125" ElementStyle="{StaticResource GridText}" />
           <DataGridTextColumn Header="SOURCE" Binding="{Binding Source}" Width="120" ElementStyle="{StaticResource GridText}" />
           <DataGridTextColumn Header="MESSAGE" Binding="{Binding Text}" Width="*" ElementStyle="{StaticResource GridText}" />
@@ -1121,13 +1323,15 @@
          <StackPanel Margin="4,8,4,4">
           <TextBlock TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,0,0,12"
                      Text="Build named pools (for example Halo). Streamer.bot Speak can use playlist:Halo to pick randomly from that list only. Playlists also appear in the Streamer.bot export voice dropdown." />
-          <DataGrid Name="PlaylistGrid" Height="160" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single">
+          <Border CornerRadius="10" Background="#15131D" BorderBrush="#50485C" BorderThickness="1" Padding="4">
+          <DataGrid Name="PlaylistGrid" MinHeight="190" MaxHeight="320" RowHeight="NaN" MinRowHeight="52" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" BorderThickness="0" CanUserAddRows="False" CanUserResizeRows="False" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
            <DataGrid.Columns>
-            <DataGridTextColumn Header="PLAYLIST" Binding="{Binding Name}" Width="160" ElementStyle="{StaticResource GridText}"/>
-            <DataGridTextColumn Header="VOICES" Binding="{Binding Summary}" Width="*" ElementStyle="{StaticResource GridText}"/>
+            <DataGridTextColumn Header="PLAYLIST" Binding="{Binding Name}" Width="160"><DataGridTextColumn.ElementStyle><Style TargetType="TextBlock" BasedOn="{StaticResource GridText}"><Setter Property="TextWrapping" Value="Wrap"/><Setter Property="Margin" Value="16,10"/></Style></DataGridTextColumn.ElementStyle></DataGridTextColumn>
+            <DataGridTextColumn Header="VOICES" Binding="{Binding Summary}" Width="*"><DataGridTextColumn.ElementStyle><Style TargetType="TextBlock" BasedOn="{StaticResource GridText}"><Setter Property="TextWrapping" Value="Wrap"/><Setter Property="Margin" Value="16,10"/></Style></DataGridTextColumn.ElementStyle></DataGridTextColumn>
             <DataGridTextColumn Header="COUNT" Binding="{Binding Count}" Width="70" ElementStyle="{StaticResource GridText}"/>
            </DataGrid.Columns>
           </DataGrid>
+          </Border>
           <WrapPanel Margin="0,14,0,0">
            <Button Name="AddPlaylistButton" Style="{StaticResource PrimaryButton}"><StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M11 13v3q0 .425.288.713T12 17t.713-.288T13 16v-3h3q.425 0 .713-.288T17 12t-.288-.712T16 11h-3V8q0-.425-.288-.712T12 7t-.712.288T11 8v3H8q-.425 0-.712.288T7 12t.288.713T8 13zm1 9q-2.075 0-3.9-.788t-3.175-2.137T2.788 15.9T2 12t.788-3.9t2.137-3.175T8.1 2.788T12 2t3.9.788t3.175 2.137T21.213 8.1T22 12t-.788 3.9t-2.137 3.175t-3.175 2.138T12 22m0-2q3.35 0 5.675-2.325T20 12t-2.325-5.675T12 4T6.325 6.325T4 12t2.325 5.675T12 20m0-8" /></Viewbox><TextBlock Text="New playlist" VerticalAlignment="Center" /></StackPanel></Button>
            <Button Name="EditPlaylistButton"><StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M5 19h1.425L16.2 9.225L14.775 7.8L5 17.575zm-1 2q-.425 0-.712-.288T3 20v-2.425q0-.4.15-.763t.425-.637L16.2 3.575q.3-.275.663-.425t.762-.15t.775.15t.65.45L20.425 5q.3.275.437.65T21 6.4q0 .4-.138.763t-.437.662l-12.6 12.6q-.275.275-.638.425t-.762.15zM19 6.4L17.6 5zm-3.525 2.125l-.7-.725L16.2 9.225z" /></Viewbox><TextBlock Text="Edit" VerticalAlignment="Center" /></StackPanel></Button>
@@ -1256,8 +1460,8 @@
         <!-- 1. Connection -->
         <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12" Padding="20">
          <StackPanel>
-          <TextBlock Text="Connection" FontSize="17" FontWeight="SemiBold" />
-          <TextBlock Text="Ports VoxRelay listens on, plus the speak payload for Streamer.bot." Foreground="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap" />
+          <TextBlock Text="1. Receive speech from Streamer.bot" FontSize="17" FontWeight="SemiBold" />
+          <TextBlock Text="Enable the UDP listener and save. The UDP port must match the imported actions. Restart VoxRelay after changing listener settings." Foreground="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap" />
           <CheckBox Name="EnableUdpCheck" Content="Listen for Streamer.bot UDP speak requests" Margin="0,16,0,0" />
           <Grid Margin="0,14,0,0">
            <Grid.ColumnDefinitions>
@@ -1272,26 +1476,27 @@
             <TextBox Name="UdpBox" Margin="0,6,0,0" />
            </StackPanel>
            <StackPanel Grid.Column="2">
-            <TextBlock Text="WebSocket port" Foreground="{StaticResource Muted}" />
+            <TextBlock Text="WebSocket (advanced)" Foreground="{StaticResource Muted}" />
             <TextBox Name="WsBox" Margin="0,6,0,0" />
            </StackPanel>
            <StackPanel Grid.Column="4">
-            <TextBlock Text="HTTP address (actions)" Foreground="{StaticResource Muted}" />
+            <TextBlock Text="Streamer.bot HTTP (optional)" Foreground="{StaticResource Muted}" />
             <TextBox Name="StreamerBotHttpUrlBox" Margin="0,6,0,0" />
            </StackPanel>
           </Grid>
-          <TextBlock Text="UDP speak payload" Foreground="{StaticResource Muted}" Margin="0,16,0,0" />
+          <Button Name="SaveStreamerConnectionButton" Content="Save connection" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" Margin="0,14,0,0" />
+          <TextBlock Text="Manual speech payload (the import sets this up for you)" Foreground="{StaticResource Muted}" Margin="0,16,0,0" />
           <TextBox Name="StreamerPayloadBox" Text="VSPEAK&#xA;%ttsAlias%&#xA;%message%&#xA;%displayName%&#xA;%userName%" Height="118" Margin="0,6,0,0" AcceptsReturn="True" VerticalContentAlignment="Top" Padding="12,10" FontFamily="Cascadia Mono" IsReadOnly="True" />
-          <TextBlock Text="Use display %user% and login %userName% so voice rules can match either." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,0" FontSize="12" />
+          <TextBlock Text="The selected export voice is used on line 2. Lines 4 and 5 pass %displayName% and %userName% for voice rules." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,0" FontSize="12" />
           <Button Name="CopyPayloadButton" HorizontalAlignment="Left" Margin="0,14,0,0" ><StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M9 18q-.825 0-1.412-.587T7 16V4q0-.825.588-1.412T9 2h9q.825 0 1.413.588T20 4v12q0 .825-.587 1.413T18 18zm0-2h9V4H9zm-4 6q-.825 0-1.412-.587T3 20V7q0-.425.288-.712T4 6t.713.288T5 7v13h10q.425 0 .713.288T16 21t-.288.713T15 22zm4-6V4z" /></Viewbox><TextBlock Text="Copy payload" VerticalAlignment="Center" /></StackPanel></Button>
          </StackPanel>
         </Border>
         <!-- 2. Lifecycle -->
         <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12" Padding="20" Margin="0,14,0,0">
          <StackPanel>
-          <TextBlock Text="Lifecycle actions" FontSize="17" FontWeight="SemiBold" />
-          <TextBlock Text="Optional Streamer.bot action names VoxRelay calls as speech moves through the queue." Foreground="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap" />
-          <CheckBox Name="EnableStreamerBotActionsCheck" Content="Enable lifecycle actions" Margin="0,14,0,0" />
+          <TextBlock Text="Optional: react to playback" FontSize="17" FontWeight="SemiBold" />
+          <TextBlock Text="For avatars, scenes, and other effects. Start Streamer.bot's HTTP Server, enter its address below, then use exact Streamer.bot action names." Foreground="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap" />
+          <CheckBox Name="EnableStreamerBotActionsCheck" Content="Enable playback actions" Margin="0,14,0,0" />
           <Grid Margin="0,16,0,0">
            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="12" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
            <StackPanel><TextBlock Text="Queued" Foreground="{StaticResource Muted}" /><TextBox Name="StreamerBotQueuedActionBox" Margin="0,6,0,0" /></StackPanel>
@@ -1388,10 +1593,10 @@
          </StackPanel>
         </Border>
         <!-- 4. Export -->
-        <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12" Padding="20" Margin="0,14,0,0">
+        <Border Name="StreamerExportCard" Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12" Padding="20" Margin="0,14,0,0">
          <StackPanel>
-          <TextBlock Text="Export to Streamer.bot" FontSize="17" FontWeight="SemiBold" />
-          <TextBlock Text="Builds a .sb import with Speak and queue actions wired to the ports above." Foreground="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap" />
+          <TextBlock Text="2. Send speech from Streamer.bot" FontSize="17" FontWeight="SemiBold" />
+          <TextBlock Text="Choose a voice and export. The ready-made import contains Speak plus pause, resume, skip, and queue controls." Foreground="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap" />
           <TextBlock Text="Voice for Speak" Foreground="{StaticResource Muted}" Margin="0,16,0,0" />
           <TextBlock Text="Pick one alias, or Random to choose among Voices with ON checked." Foreground="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="12" />
           <Grid Margin="0,8,0,0">
@@ -1405,7 +1610,8 @@
             <StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M6 20q-.825 0-1.412-.587T4 18v-2q0-.425.288-.712T5 15t.713.288T6 16v2h12v-2q0-.425.288-.712T19 15t.713.288T20 16v2q0 .825-.587 1.413T18 20zm5-12.15L9.125 9.725q-.3.3-.712.288T7.7 9.7q-.275-.3-.288-.7t.288-.7l3.6-3.6q.15-.15.325-.212T12 4.425t.375.063t.325.212l3.6 3.6q.3.3.288.7t-.288.7q-.3.3-.712.313t-.713-.288L13 7.85V15q0 .425-.288.713T12 16t-.712-.288T11 15z" /></Viewbox><TextBlock Text="Export actions (.sb)" VerticalAlignment="Center" /></StackPanel>
            </Button>
           </Grid>
-          <TextBlock Text="Import the file in Streamer.bot, then attach your triggers. Toggle ON in Voices to control the random pool." Foreground="{StaticResource Muted}" Margin="0,12,0,0" FontSize="12" TextWrapping="Wrap" />
+          <TextBlock Text="Export copies an import code and saves a .sb file. In Streamer.bot, click Import and paste into Import String. Then add a Test trigger or your chosen chat/reward trigger to VoxRelay - Speak." Foreground="{StaticResource Muted}" Margin="0,12,0,0" FontSize="12" TextWrapping="Wrap" />
+          <TextBlock Name="StreamerExportStatus" Foreground="#C9BCFF" Margin="0,10,0,0" FontSize="12" TextWrapping="Wrap" />
          </StackPanel>
         </Border>
        </StackPanel>
@@ -1414,10 +1620,14 @@
        <StackPanel MaxWidth="720" HorizontalAlignment="Left" Margin="0,0,10,0">
         <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12" Padding="20">
          <StackPanel>
-          <StackPanel>
-           <TextBlock Text="VoiceStudio" FontSize="17" FontWeight="SemiBold" />
-           <TextBlock Text="Local cloned voices over HTTP" Foreground="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap" />
-          </StackPanel>
+          <Grid>
+           <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+           <StackPanel>
+            <TextBlock Text="VoiceStudio" FontSize="17" FontWeight="SemiBold" />
+            <TextBlock Text="Local cloned voices over HTTP" Foreground="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap" />
+           </StackPanel>
+           <CheckBox Name="VoiceStudioEnabledCheck" Grid.Column="1" Content="Enabled" VerticalAlignment="Center" />
+          </Grid>
           <TextBlock Text="1. Point VoxRelay at your VoiceStudio server" FontSize="15" FontWeight="SemiBold" Margin="0,20,0,0" />
           <TextBlock Text="Use the base URL VoiceStudio listens on (for example http://127.0.0.1:7860)." Foreground="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap" />
           <TextBlock Text="Service address" Foreground="{StaticResource Muted}" Margin="0,14,0,0" />
@@ -1876,7 +2086,7 @@
             <TextBox Name="MaxQueueSettingBox" Margin="0,6,0,0" />
            </StackPanel>
            <StackPanel Grid.Column="4">
-            <TextBlock Text="History entries" Foreground="{StaticResource Muted}" />
+            <TextBlock Text="History &amp; audio cache" Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
             <TextBox Name="HistoryLimitBox" Margin="0,6,0,0" />
            </StackPanel>
           </Grid>
@@ -1910,9 +2120,66 @@
           <Button Name="MigrateSpeakerBotButton" HorizontalAlignment="Left" Margin="0,16,0,0"><StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M4 20q-.825 0-1.412-.587T2 18v-2q0-.425.288-.712T3 15t.713.288T4 16v2h16V6H4v2q0 .425-.288.713T3 9t-.712-.288T2 8V6q0-.825.588-1.412T4 4h16q.825 0 1.413.588T22 6v12q0 .825-.587 1.413T20 20zm8.175-7H3q-.425 0-.712-.288T2 12t.288-.712T3 11h9.175L10.8 9.65q-.3-.275-.288-.687t.288-.713q.3-.3.713-.312t.712.287L15.3 11.3q.3.3.3.7t-.3.7l-3.075 3.075q-.3.3-.712.3t-.713-.3q-.275-.3-.288-.712t.288-.713z" /></Viewbox><TextBlock Text="Import from Speaker.bot..." VerticalAlignment="Center" /></StackPanel></Button>
           <WrapPanel Margin="0,16,0,0"><Button Name="CheckUpdatesButton" Margin="0,0,12,0"><StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M4 20q-.825 0-1.412-.587T2 18V6q0-.825.588-1.412T4 4h5v2H4v12h16V6h-5V4h5q.825 0 1.413.588T22 6v12q0 .825-.587 1.413T20 20zm8-4.6l-5-5L8.4 9l2.6 2.6V4h2v7.6L15.6 9l1.4 1.4z" /></Viewbox><TextBlock Text="Check for updates" VerticalAlignment="Center" /></StackPanel></Button><Button Name="ResetSettingsButton" Margin="0"><StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M9.825 20.7q-2.575-.725-4.2-2.837T4 13q0-1.425.475-2.713t1.35-2.362q.275-.3.675-.313t.725.313q.275.275.288.675t-.263.75q-.6.775-.925 1.7T6 13q0 2.025 1.188 3.613t3.062 2.162q.325.1.538.375t.212.6q0 .5-.35.788t-.825.162m4.35 0q-.475.125-.825-.175t-.35-.8q0-.3.213-.575t.537-.375q1.875-.6 3.063-2.175T18 13q0-2.5-1.75-4.25T12 7h-.075l.4.4q.275.275.275.7t-.275.7t-.7.275t-.7-.275l-2.1-2.1q-.15-.15-.212-.325T8.55 6t.063-.375t.212-.325l2.1-2.1q.275-.275.7-.275t.7.275t.275.7t-.275.7l-.4.4H12q3.35 0 5.675 2.325T20 13q0 2.725-1.625 4.85t-4.2 2.85" /></Viewbox><TextBlock Text="Reset settings..." VerticalAlignment="Center" /></StackPanel></Button></WrapPanel>
           <CheckBox Name="CheckUpdatesOnStartupCheck" Content="Check for updates when VoxRelay starts" Margin="0,14,0,0"/>
-          <TextBlock Text="VoxRelay 0.5.0 preview" Foreground="{StaticResource Muted}" Margin="0,16,0,0" />
          </StackPanel>
          </Expander>
+        </Border>
+                <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12" Padding="18,16" Margin="0,14,0,0" HorizontalAlignment="Stretch">
+         <StackPanel>
+          <Grid>
+           <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+           </Grid.ColumnDefinitions>
+           <Image Name="AboutLogoImage" Width="56" Height="56" Stretch="Uniform" VerticalAlignment="Center" SnapsToDevicePixels="True" />
+           <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+            <TextBlock Text="RedGear" Foreground="#F6F3FA" FontSize="18" FontWeight="SemiBold" />
+            <TextBlock Name="AboutVersionText" Text="Developer" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,3,0,0" />
+            <TextBlock Text="Halo interactive streamer and the creator of VoxRelay. Feedback, issues, and stars welcome on GitHub." Foreground="{StaticResource Muted}" Margin="0,8,0,0" TextWrapping="Wrap" FontSize="12" LineHeight="18" />
+           </StackPanel>
+          </Grid>
+          <WrapPanel Margin="0,16,0,0">
+           <Button Name="AboutGitHubButton" Style="{StaticResource PlayerIconButton}" Margin="0,0,6,6" ToolTip="GitHub - The-RedGear/VoxRelay" Tag="https://github.com/The-RedGear/VoxRelay">
+            <Viewbox Width="16" Height="16">
+             <Path Style="{StaticResource BrandIconPath}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Data="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2c2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2a4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 0 0-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.5c0 4.6 2.7 5.7 5.5 6c-.6.6-.6 1.2-.5 2V21" />
+            </Viewbox>
+           </Button>
+           <Button Name="AboutTwitchButton" Style="{StaticResource PlayerIconButton}" Margin="0,0,6,6" ToolTip="Twitch - theredgear" Tag="https://www.twitch.tv/theredgear">
+            <Viewbox Width="16" Height="16">
+             <Path Style="{StaticResource BrandIconPath}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Data="M4 5v11a1 1 0 0 0 1 1h2v4l4-4h5.584c.266 0 .52-.105.707-.293l2.415-2.414c.187-.188.293-.442.293-.708V5a1 1 0 0 0-1-1h-14a1 1 0 0 0-1 1zm12 3v4m-4-4v4" />
+            </Viewbox>
+           </Button>
+           <Button Name="AboutYouTubeButton" Style="{StaticResource PlayerIconButton}" Margin="0,0,6,6" ToolTip="YouTube - @The_RedGear" Tag="https://www.youtube.com/@The_RedGear">
+            <Viewbox Width="16" Height="16">
+             <Path Stretch="Uniform" Width="24" Height="24" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Data="M12 19q-1.775 0-3.325-.05q-1.325-.05-2.613-.137T4.2 18.575q-.65-.175-1.125-.65t-.65-1.125q-.15-.575-.237-1.4t-.138-1.575Q2 12.925 2 12t.05-1.825q.05-.75.138-1.575t.237-1.4q.175-.65.65-1.125t1.125-.65q.575-.15 1.863-.237t2.612-.138Q10.225 5 12 5l1 .013q1 .012 2.313.05t2.612.125t1.875.237q.65.175 1.125.65t.65 1.125q.15.575.238 1.4t.137 1.575q.05.9.05 1.825t-.05 1.825q-.05.75-.137 1.575t-.238 1.4q-.175.65-.65 1.125t-1.125.65q-.575.15-1.875.237t-2.613.125t-2.312.05zm0-2q2.175 0 4.438-.088t2.862-.262q.125-.05.213-.137t.137-.213q.2-.725.275-2.075T20 12t-.075-2.225T19.65 7.7q-.05-.125-.137-.212T19.3 7.35q-.6-.175-2.863-.262T12 7t-4.437.088T4.7 7.35q-.125.05-.213.138T4.35 7.7q-.2.725-.275 2.075T4 12t.075 2.225t.275 2.075q.05.125.138.213t.212.137q.6.175 2.863.263T12 17m2.45-5.425l-3.7-2.15q-.25-.15-.5.012t-.25.438v4.25q0 .275.25.438t.5.012l3.7-2.15q.25-.15.25-.425t-.25-.425M12 12" />
+            </Viewbox>
+           </Button>
+           <Button Name="AboutXButton" Style="{StaticResource PlayerIconButton}" Margin="0,0,6,6" ToolTip="X / Twitter - @TheRedGear" Tag="https://x.com/TheRedGear">
+            <Viewbox Width="16" Height="16">
+             <Path Style="{StaticResource BrandIconPath}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Data="m4 4l11.733 16H20L8.267 4zm0 16l6.768-6.768m2.46-2.46L20 4" />
+            </Viewbox>
+           </Button>
+           <Button Name="AboutInstagramButton" Style="{StaticResource PlayerIconButton}" Margin="0,0,6,6" ToolTip="Instagram - @_redgear_" Tag="https://www.instagram.com/_redgear_/">
+            <Viewbox Width="16" Height="16">
+             <Path Style="{StaticResource BrandIconPath}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Data="M3 7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z M8.5 12a3.5 3.5 0 1 0 7 0a3.5 3.5 0 0 0-7 0M17 7v.01" />
+            </Viewbox>
+           </Button>
+           <Button Name="AboutFacebookButton" Style="{StaticResource PlayerIconButton}" Margin="0,0,6,6" ToolTip="Facebook - RedGear" Tag="https://www.facebook.com/profile.php?id=61591143545489">
+            <Viewbox Width="16" Height="16">
+             <Path Style="{StaticResource BrandIconPath}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Data="M7 10v4h3v7h4v-7h3l1-4h-4V8a1 1 0 0 1 1-1h3V3h-3a5 5 0 0 0-5 5v2z" />
+            </Viewbox>
+           </Button>
+           <Button Name="AboutTikTokButton" Style="{StaticResource PlayerIconButton}" Margin="0,0,6,6" ToolTip="TikTok - @redgear" Tag="https://www.tiktok.com/@_redgear_">
+            <Viewbox Width="16" Height="16">
+             <Path Style="{StaticResource BrandIconPath}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Data="M21 7.917v4.034A9.95 9.95 0 0 1 16 10v4.5a6.5 6.5 0 1 1-8-6.326V12.5a2.5 2.5 0 1 0 4 2V3h4.083A6.005 6.005 0 0 0 21 7.917" />
+            </Viewbox>
+           </Button>
+           <Button Name="AboutDiscordButton" Style="{StaticResource PlayerIconButton}" Margin="0,0,6,6" ToolTip="Discord - RedGear Factory" Tag="https://discord.gg/tQZXckuRMs">
+            <Viewbox Width="16" Height="16">
+             <Path Style="{StaticResource BrandIconPath}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Data="M8 12a1 1 0 1 0 2 0a1 1 0 0 0-2 0m6 0a1 1 0 1 0 2 0a1 1 0 0 0-2 0 M15.5 17c0 1 1.5 3 2 3c1.5 0 2.833-1.667 3.5-3c.667-1.667.5-5.833-1.5-11.5c-1.457-1.015-3-1.34-4.5-1.5l-.972 1.923a11.9 11.9 0 0 0-4.053 0L9 4c-1.5.16-3.043.485-4.5 1.5c-2 5.667-2.167 9.833-1.5 11.5c.667 1.333 2 3 3.5 3c.5 0 2-2 2-3 M7 16.5c3.5 1 6.5 1 10 0" />
+            </Viewbox>
+           </Button>
+          </WrapPanel>
+         </StackPanel>
         </Border>
         <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
          <Button Name="SaveButton" Style="{StaticResource PrimaryButton}" Margin="0,0,12,0" ><StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M5 21q-.825 0-1.412-.587T3 19V5q0-.825.588-1.412T5 3h11.175q.4 0 .763.15t.637.425l2.85 2.85q.275.275.425.638t.15.762V19q0 .825-.587 1.413T19 21zM19 7.85L16.15 5H5v14h14zm-4.875 9.275Q15 16.25 15 15t-.875-2.125T12 12t-2.125.875T9 15t.875 2.125T12 18t2.125-.875M7 10h7q.425 0 .713-.288T15 9V7q0-.425-.288-.712T14 6H7q-.425 0-.712.288T6 7v2q0 .425.288.713T7 10M5 7.85V19V5z" /></Viewbox><TextBlock Text="Save" VerticalAlignment="Center" /></StackPanel></Button>
@@ -1929,16 +2196,119 @@
         <ListBox Name="ActivityList" Grid.Row="3" Background="Transparent" Foreground="#F6F3FA" BorderThickness="0" FontFamily="Cascadia Mono" FontSize="12" />
        </Grid>
       </Border>
-      <Border Grid.Row="2" BorderBrush="#50485C" BorderThickness="1" CornerRadius="11" Padding="13,11" Margin="0,15,0,0" Background="#1E1A27">
-       <Grid>
-        <Grid.ColumnDefinitions>
-         <ColumnDefinition Width="Auto" />
-         <ColumnDefinition />
-        </Grid.ColumnDefinitions>
-        <Ellipse Name="BottomStatusDot" Width="7" Height="7" Fill="#B9B2C2" VerticalAlignment="Center" />
-        <TextBlock Name="BottomStatus" Grid.Column="1" Text="Initializing bridge..." Foreground="#F6F3FA" Margin="10,0,0,0" />
-       </Grid>
-      </Border>
+            <Grid Grid.Row="2" Margin="0,15,0,0">
+       <Border Name="NowPlayingBar" BorderBrush="#50485C" BorderThickness="1" CornerRadius="10" Padding="10,6" Background="#1E1A27">
+        <Grid MinHeight="60">
+         <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="300" />
+          <ColumnDefinition Width="*" />
+         </Grid.ColumnDefinitions>
+         <!-- Left track info -->
+         <Grid VerticalAlignment="Center" Margin="0,0,14,0">
+          <Grid.ColumnDefinitions>
+           <ColumnDefinition Width="Auto" />
+           <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Border Width="34" Height="34" CornerRadius="7" Background="#33282231" BorderBrush="#50485C" BorderThickness="1" VerticalAlignment="Center">
+           <Grid>
+            <Grid Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center">
+             <Viewbox Width="18" Height="18" Name="NowPlayingNoteHost">
+              <Canvas Width="24" Height="24">
+               <Path Name="NowPlayingGlyph" Fill="#B6A3FF" Data="M12 3v10.55c-.59-.34-1.27-.55-2-.55c-2.21 0-4 1.79-4 4s1.79 4 4 4s4-1.79 4-4V7h4V3h-6z" />
+              </Canvas>
+             </Viewbox>
+             <Viewbox Width="18" Height="18" Name="NowPlayingLoadingHost" Visibility="Collapsed">
+              <Canvas Width="24" Height="24">
+               <Canvas.RenderTransform>
+                <RotateTransform x:Name="NowPlayingLoadingRotate" Angle="0" CenterX="12" CenterY="12" />
+               </Canvas.RenderTransform>
+               <Path Name="NowPlayingLoadingGlyph" Fill="Transparent" Stroke="#B6A3FF" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M12 3c4.97 0 9 4.03 9 9" />
+              </Canvas>
+             </Viewbox>
+            </Grid>
+            <Ellipse Name="BottomStatusDot" Width="7" Height="7" Fill="#B9B2C2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,3,3" RenderTransformOrigin="0.5,0.5">
+             <Ellipse.RenderTransform>
+              <ScaleTransform ScaleX="1" ScaleY="1" />
+             </Ellipse.RenderTransform>
+            </Ellipse>
+           </Grid>
+          </Border>
+          <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="10,0,10,0">
+           <TextBlock Name="NowPlayingTitle" Text="Nothing playing" Foreground="#F6F3FA" FontWeight="SemiBold" FontSize="12" TextTrimming="CharacterEllipsis" />
+           <TextBlock Name="NowPlayingSubtitle" Text="Queue empty" Foreground="#B9B2C2" FontSize="10" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
+           <TextBlock Name="BottomStatus" Text="" Foreground="#C9BCFF" FontSize="10" Margin="0,1,0,0" TextTrimming="CharacterEllipsis" Visibility="Collapsed" />
+          </StackPanel>
+         </Grid>
+
+         <!-- Center transport + progress (true center overlay) -->
+         <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch">
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+           <Button Name="NowPlayingPrevButton" Style="{StaticResource PlayerTransportButton}" ToolTip="Replay last audio" AutomationProperties.Name="Replay last audio">
+            <Viewbox Width="14" Height="14">
+             <Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
+            </Viewbox>
+           </Button>
+           <Button Name="NowPlayingPlayPauseButton" Style="{StaticResource PlayerPlayButton}" ToolTip="Play" AutomationProperties.Name="Play">
+            <Viewbox Width="13" Height="13">
+             <Path Name="NowPlayingPlayPauseGlyph" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M6 19h4V5H6zm8-14v14h4V5z" />
+            </Viewbox>
+           </Button>
+           <Button Name="NowPlayingSkipButton" Style="{StaticResource PlayerTransportButton}" ToolTip="Skip current" AutomationProperties.Name="Skip current audio">
+            <Viewbox Width="14" Height="14">
+             <Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+            </Viewbox>
+           </Button>
+          </StackPanel>
+          <Grid Margin="0,4,0,0">
+           <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+           </Grid.ColumnDefinitions>
+           <TextBlock Name="NowPlayingElapsedText" Text="0:00" Foreground="#B9B2C2" FontSize="10" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,6,0" />
+           <Grid Name="NowPlayingProgressTrack" Grid.Column="1" Height="20" VerticalAlignment="Center" ClipToBounds="True" Background="Transparent" Cursor="Hand" Focusable="True" ToolTip="Click or drag to seek" AutomationProperties.Name="Playback position" AutomationProperties.HelpText="Click or drag to seek. Left and right arrows move five seconds; Home and End jump to the start and end.">
+            <Border Background="#6650485C" CornerRadius="2" Height="4" />
+            <Border Name="NowPlayingProgressFill" Background="#B6A3FF" CornerRadius="2" Height="4" HorizontalAlignment="Left" Width="0" />
+            <Ellipse Name="NowPlayingSeekThumb" Width="8" Height="8" Fill="#C9BCFF" HorizontalAlignment="Left" VerticalAlignment="Center" IsHitTestVisible="False" Visibility="Collapsed" />
+            <ProgressBar Name="NowPlayingProgress" Minimum="0" Maximum="100" Value="0" Visibility="Collapsed" />
+           </Grid>
+           <TextBlock Name="NowPlayingRemainingText" Grid.Column="2" Text="0:00" Foreground="#B9B2C2" FontSize="10" VerticalAlignment="Center" Margin="6,0,0,0" ToolTip="Total audio duration" />
+          </Grid>
+         </StackPanel>
+
+         <!-- Right utilities -->
+         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="12,0,0,0">
+          <Button Name="NowPlayingHistoryButton" Style="{StaticResource PlayerIconButton}" ToolTip="Recent history">
+           <Viewbox Width="14" Height="14">
+            <Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M12 21q-3.15 0-5.575-1.912T3.275 14.2q-.1-.375.15-.687t.675-.363q.4-.05.725.15t.45.6q.6 2.25 2.475 3.675T12 19q2.925 0 4.963-2.037T19 12t-2.037-4.962T12 5q-1.725 0-3.225.8T6.25 8H8q.425 0 .713.288T9 9t-.288.713T8 10H4q-.425 0-.712-.288T3 9V5q0-.425.288-.712T4 4t.713.288T5 5v1.35q1.275-1.6 3.113-2.475T12 3q1.875 0 3.513.713t2.85 1.924t1.925 2.85T21 12t-.712 3.513t-1.925 2.85t-2.85 1.925T12 21m1-8.4l2.5 2.5q.275.275.275.7t-.275.7t-.7.275t-.7-.275l-2.8-2.8q-.15-.15-.225-.337T11 12.5V8q0-.425.288-.712T12 7t.713.288T13 8z" />
+           </Viewbox>
+          </Button>
+          <Button Name="NowPlayingClearButton" Style="{StaticResource PlayerIconButton}" ToolTip="Clear waiting" Margin="0,0,5,0">
+           <Viewbox Width="14" Height="14">
+            <Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M14.4 22L13 20.6l2.6-2.6l-2.6-2.6l1.4-1.4l2.6 2.6l2.6-2.6l1.4 1.4l-2.6 2.6l2.6 2.6l-1.4 1.4l-2.6-2.6zM3 16v-2h7v2zm0-4v-2h11v2zm0-4V6h11v2z" />
+           </Viewbox>
+          </Button>
+          <Button Name="NowPlayingStopClearButton" Style="{StaticResource PlayerIconButton}" ToolTip="Stop and clear all" Margin="0">
+           <Viewbox Width="14" Height="14">
+            <Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M5 19q-.825 0-1.412-.587T3 17V8q-.425 0-.712-.288T2 7t.288-.712T3 6h3v-.5q0-.425.288-.712T7 4.5h2q.425 0 .713.288T10 5.5V6h3q.425 0 .713.288T14 7t-.288.713T13 8v9q0 .825-.587 1.413T11 19zm11-1q-.425 0-.712-.288T15 17t.288-.712T16 16h2q.425 0 .713.288T19 17t-.288.713T18 18zm0-4q-.425 0-.712-.288T15 13t.288-.712T16 12h4q.425 0 .713.288T21 13t-.288.713T20 14zm0-4q-.425 0-.712-.288T15 9t.288-.712T16 8h5q.425 0 .713.288T22 9t-.288.713T21 10zM5 8v9h6V8z" />
+           </Viewbox>
+          </Button>
+         </StackPanel>
+        </Grid>
+       </Border>
+       <Popup Name="QuickHistoryPopup" AllowsTransparency="True" Placement="Top" PlacementTarget="{Binding ElementName=NowPlayingHistoryButton}" StaysOpen="False" PopupAnimation="Fade" HorizontalOffset="0" VerticalOffset="-8">
+        <Border Background="#1E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="10" Padding="6,8" MinWidth="300" MaxWidth="380" SnapsToDevicePixels="True">
+         <Border.Effect>
+          <DropShadowEffect Color="#000000" BlurRadius="22" ShadowDepth="6" Opacity="0.62" />
+         </Border.Effect>
+         <StackPanel Name="QuickHistoryRoot">
+          <TextBlock Text="RECENT HISTORY" Foreground="#B9B2C2" FontSize="10" FontWeight="Bold" Margin="10,4,10,8" />
+          <StackPanel Name="QuickHistoryList" Tag="QuickHistoryListHost" />
+         </StackPanel>
+        </Border>
+       </Popup>
+      </Grid>
      </Grid>
     </Grid>
    </Grid>

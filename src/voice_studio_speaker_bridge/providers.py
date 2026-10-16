@@ -78,7 +78,7 @@ registry = ProviderRegistry()
 registry.register(Provider(
     "voicestudio", "VoiceStudio",
     lambda settings: VoiceStudioClient(settings.voice_studio_url, settings.api_key, settings.request_timeout),
-    lambda settings: True,
+    lambda settings: settings.voicestudio_enabled,
     ("speed", "style", "language"),
 ))
 registry.register(Provider(
