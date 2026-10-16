@@ -34,8 +34,10 @@ Cloud TTS usage is billed by each provider. Only use voices you are authorized t
 
 ## Download
 
-End users should download the latest Windows package from the repository's
-**Releases** page. Extract it and run `VoxRelay.exe`; Python is not required.
+[Download VoxRelay 0.5.0 preview for Windows](https://github.com/The-RedGear/VoxRelay/releases/download/v0.5.0-preview/VoxRelay-0.5.0-preview-Windows.zip)
+
+Extract the complete folder and run `VoxRelay.exe`; Python is not required.
+This is an unsigned preview build. See the [release notes and checksum](https://github.com/The-RedGear/VoxRelay/releases/tag/v0.5.0-preview).
 
 ## Provider setup
 
@@ -47,7 +49,8 @@ Open **Services** inside VoxRelay and configure at least one provider:
 
 For speech without an account, choose **Windows voices** on the Settings setup card.
 Temporary AWS credentials can also include a session token.
-Google service-account JSON paths need the optional `google-auth` package; an API key works without it.
+The Windows download includes Google service-account support. Source installs need
+the optional `google-auth` package (`pip install ".[google]"`); an API key works without it.
 
 Never commit a populated `data` directory, API keys, or service-account JSON to Git.
 You must comply with each provider's Terms of Service and only use voices you are authorized to use.

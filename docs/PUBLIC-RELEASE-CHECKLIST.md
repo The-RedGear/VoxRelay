@@ -23,7 +23,7 @@ and before publishing a Windows Release build.
 - [x] `.gitignore` excludes `data/`, `.env`, AWS/Google credential patterns
 - [x] No secret-like strings found in tree scan (re-run before release)
 - [x] [`SECURITY.md`](../SECURITY.md) describes private reporting + DPAPI scope
-- [ ] GitHub **Private vulnerability reporting** enabled on the repo
+- [x] GitHub **Private vulnerability reporting** enabled on the repo
 - [x] Confirm `data/` was never force-added; tracked history checked before publication
 
 ## Community / collaboration
@@ -32,7 +32,7 @@ and before publishing a Windows Release build.
 - [x] [`CODE_OF_CONDUCT.md`](../CODE_OF_CONDUCT.md)
 - [x] Issue / PR templates under `.github/`
 - [x] CI workflows for tests / Windows build
-- [ ] Repo visibility set to **Public** when ready (currently private)
+- [x] Repo visibility set to **Public**
 - [ ] Default branch protection + required PR reviews for `main` (recommended)
 
 ## Product disclaimers
@@ -45,8 +45,11 @@ and before publishing a Windows Release build.
 
 - [ ] Import generated `.sb` actions and test Speak + queue controls
 - [ ] Smoke Windows + VoiceStudio + at least one cloud provider from Playground and UDP
-- [ ] Publish GitHub Release `v0.5.0-preview` with the Windows zip
-- [ ] Flip repo to Public after the Release exists
+- [x] Publish GitHub Release `v0.5.0-preview` with the Windows zip and SHA-256 checksum
+- [x] Flip repo to Public after the Release exists
+- [x] Clean GitHub Windows build: 102 tests, desktop functions, History/Rules and branding checks
+- [x] Frozen EXE resource/audio checks and local silent Windows voice/SSML synthesis
+- [x] Anonymous public repository/release access and published download digest verified
 
 ## Pre-publish commands
 
