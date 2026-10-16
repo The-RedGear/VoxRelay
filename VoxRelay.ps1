@@ -256,6 +256,21 @@ function Get-DisplayText([string]$text) {
     }
     return $text
 }
+function Initialize-AppBranding {
+    $iconPath=Join-Path $resourceRoot 'assets\VoxRelay.ico'
+    if(Test-Path -LiteralPath $iconPath){
+        $decoder=[Windows.Media.Imaging.BitmapDecoder]::Create([Uri]::new($iconPath),[Windows.Media.Imaging.BitmapCreateOptions]::PreservePixelFormat,[Windows.Media.Imaging.BitmapCacheOption]::OnLoad)
+        $window.Icon=$decoder.Frames[$decoder.Frames.Count-1]
+    }
+    $logoPath=Join-Path $resourceRoot 'assets\VoxRelay-logo.png'
+    if (-not (Test-Path -LiteralPath $logoPath)) { return }
+    $logo=[Windows.Media.Imaging.BitmapImage]::new()
+    $logo.BeginInit();$logo.CacheOption='OnLoad';$logo.UriSource=[Uri]::new($logoPath);$logo.EndInit();$logo.Freeze()
+    foreach($name in @('TitleBrandLogo','SidebarBrandLogo','AboutBrandLogo')) {
+        $image=$window.FindName($name)
+        if($image){$image.Source=$logo}
+    }
+}
 function Apply-AppFont($target) {
     if ($target -is [Windows.Window]) { [VoxRelayRoundedChrome]::Attach($target) }
     if (-not $script:appFontFamily) {
@@ -440,11 +455,8 @@ $window.MinWidth = [Math]::Min(980,[Windows.SystemParameters]::WorkArea.Width-24
 $window.Width = [Math]::Min(1180,[Windows.SystemParameters]::WorkArea.Width-24)
 $window.MinHeight = [Math]::Min(640,[Windows.SystemParameters]::WorkArea.Height-24)
 $window.Height = [Math]::Min(760,[Windows.SystemParameters]::WorkArea.Height-24)
-$windowIconPath = Join-Path $resourceRoot 'assets\VoxRelay.ico'
-if (Test-Path -LiteralPath $windowIconPath) {
-    try { $window.Icon = [System.Windows.Media.Imaging.BitmapFrame]::Create([Uri]::new($windowIconPath)) } catch {}
-}
 Apply-AppFont $window
+Initialize-AppBranding
 # Keep custom scrollbar thumbs as grab-able pills (Track math otherwise shrinks them to ~width).
 [System.Windows.EventManager]::RegisterClassHandler(
     [System.Windows.Controls.Primitives.ScrollBar],
@@ -994,7 +1006,6 @@ function Start-AmbientMotion {
     $script:ambientMotionStarted = $true
     $glowA = $window.FindName('AmbientGlowA')
     $glowB = $window.FindName('AmbientGlowB')
-    $wave = $window.FindName('TitleWavePath')
     if ($glowA) {
         Animate-Opacity $glowA 0.55 0.95 5200 $true
         $t = Ensure-TranslateTransform $glowA
@@ -1015,7 +1026,6 @@ function Start-AmbientMotion {
             $t.BeginAnimation([Windows.Media.TranslateTransform]::YProperty, $drift)
         }
     }
-    if ($wave) { Animate-Opacity $wave 0.55 1.0 2400 $true }
 }
 function Set-StatusPulse([bool]$online, [string]$target = 'connection') {
     $ring = $window.FindName('SideStatusPulseRing')
@@ -3112,24 +3122,12 @@ function Write-TrayLog([string]$message) {
     try { Add-Content -LiteralPath (Join-Path $configDir 'tray.log') -Value ((Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + ' ' + $message) -Encoding UTF8 } catch {}
 }
 function Get-TrayIconPath {
-    $icoPath = Join-Path $configDir 'tray.ico'
-    if (Test-Path -LiteralPath $icoPath) { return $icoPath }
-    $pngPath = Join-Path $resourceRoot 'assets\VoxRelay-icon.png'
-    try {
-        if (Test-Path -LiteralPath $pngPath) {
-            $source = [System.Drawing.Bitmap]::FromFile($pngPath)
-            $sized = New-Object System.Drawing.Bitmap 32, 32
-            $g = [System.Drawing.Graphics]::FromImage($sized)
-            $g.Clear([System.Drawing.Color]::FromArgb(182, 163, 255))
-            $g.DrawImage($source, 2, 2, 28, 28)
-            $g.Dispose(); $source.Dispose()
-            $temp = [System.Drawing.Icon]::FromHandle($sized.GetHicon())
-            $clone = [System.Drawing.Icon]::new($temp, 32, 32)
-            $fs = [System.IO.File]::Create($icoPath); $clone.Save($fs); $fs.Close()
-            $clone.Dispose(); $temp.Dispose(); $sized.Dispose()
-        }
-    } catch { Write-TrayLog ('icon build: ' + $_.Exception.Message) }
-    return $icoPath
+    # Use shipped artwork directly, never an outdated generated icon in data/.
+    foreach($name in @('VoxRelay-tray.ico','VoxRelay.ico')) {
+        $path=Join-Path $resourceRoot ('assets\'+$name)
+        if(Test-Path -LiteralPath $path){return $path}
+    }
+    return (Join-Path $configDir 'tray.ico')
 }
 function Promote-TrayIconInRegistry {
     # Promote whatever process owns the NotifyIcon (powershell host).

@@ -1,5 +1,7 @@
 # VoxRelay
 
+![VoxRelay](assets/branding/1x/GitHub.png)
+
 **Voice automation for streamers.**
 
 VoxRelay is a Windows desktop TTS bridge built for Streamer.bot workflows. It

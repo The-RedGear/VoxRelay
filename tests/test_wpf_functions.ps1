@@ -17,6 +17,7 @@ $window=Load-Xaml (Join-Path $appRoot 'VoxRelay.xaml')
 foreach($node in $markup.SelectNodes('//*[@Name]')){Set-Variable -Name $node.GetAttribute('Name') -Value $window.FindName($node.GetAttribute('Name'))}
 $script:profiles=@{};$script:profileModels=@{};$script:servicesExpanded=$true;$script:loadingSettings=$false
 Apply-AppFont $window
+Initialize-AppBranding
 . (Join-Path $resourceRoot 'assets\RuleEditors.ps1')
 Install-NumericEditors
 Install-ProfanityEditor

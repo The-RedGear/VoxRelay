@@ -776,12 +776,7 @@
        <ColumnDefinition Width="Auto" />
       </Grid.ColumnDefinitions>
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-       <Viewbox Width="19" Height="19" Margin="0,0,9,0">
-        <Canvas Width="24" Height="24">
-         <Path Name="TitleWavePath" Stroke="#B6A3FF" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M1,13 C3,13 3,6 5,6 C7,6 7,18 9,18 C11,18 11,3 13,3 C15,3 15,20 17,20 C19,20 19,8 21,8 C22,8 22,12 23,12" Opacity="0.92" />
-        </Canvas>
-       </Viewbox>
-       <TextBlock Text="VoxRelay" FontWeight="SemiBold" FontSize="13" />
+       <Image Name="TitleBrandLogo" Width="118" Height="29" Margin="0,0,8,0" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" AutomationProperties.Name="VoxRelay" />
        <TextBlock Text="  /  Voice Automation" Foreground="#B9B2C2" FontSize="12" />
        <TextBlock Text="  /  " Foreground="#B9B2C2" FontSize="12" />
        <TextBlock Name="AppVersionLabel" Text="0.5.0" Foreground="#B9B2C2" FontSize="12" />
@@ -805,29 +800,10 @@
         <RowDefinition />
         <RowDefinition Height="Auto" />
        </Grid.RowDefinitions>
-       <Grid Margin="20,20,16,18">
-        <Grid.ColumnDefinitions>
-         <ColumnDefinition Width="48" />
-         <ColumnDefinition />
-        </Grid.ColumnDefinitions>
-        <Border Width="42" Height="42" CornerRadius="12">
-         <Border.Background>
-          <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-           <GradientStop Color="#50485C" />
-           <GradientStop Color="#1E1A27" Offset="1" />
-          </LinearGradientBrush>
-         </Border.Background>
-         <Viewbox Margin="8">
-          <Canvas Width="24" Height="24">
-           <Path Stroke="#B6A3FF" StrokeThickness="2.1" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M1,13 C3,13 3,6 5,6 C7,6 7,18 9,18 C11,18 11,3 13,3 C15,3 15,20 17,20 C19,20 19,8 21,8 C22,8 22,12 23,12" />
-          </Canvas>
-         </Viewbox>
-        </Border>
-        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-         <TextBlock Text="VoxRelay" FontSize="18" FontWeight="SemiBold" />
-         <TextBlock Text="V O I C E   A U T O M A T I O N" Foreground="#B6A3FF" FontSize="7" FontWeight="Bold" />
-        </StackPanel>
-       </Grid>
+       <StackPanel Margin="20,18,20,16" VerticalAlignment="Center">
+        <Image Name="SidebarBrandLogo" Height="47" Stretch="Uniform" HorizontalAlignment="Stretch" RenderOptions.BitmapScalingMode="HighQuality" AutomationProperties.Name="VoxRelay" />
+        <TextBlock Text="V O I C E   A U T O M A T I O N" Foreground="#C4B6FF" FontSize="7" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,6,0,0" />
+       </StackPanel>
        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="0,8,0,8">
          <Button Name="VoicesNav" Style="{StaticResource SelectedNavButton}">
@@ -2123,8 +2099,9 @@
          </StackPanel>
          </Expander>
         </Border>
-                <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12" Padding="18,16" Margin="0,14,0,0" HorizontalAlignment="Stretch">
+        <Border Background="#E61E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="12" Padding="18,16" Margin="0,14,0,0" HorizontalAlignment="Stretch">
          <StackPanel>
+          <Image Name="AboutBrandLogo" Width="290" Height="70" Stretch="Uniform" HorizontalAlignment="Left" Margin="0,0,0,18" RenderOptions.BitmapScalingMode="HighQuality" AutomationProperties.Name="VoxRelay" />
           <Grid>
            <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" />

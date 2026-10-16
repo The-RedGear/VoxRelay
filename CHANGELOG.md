@@ -2,6 +2,10 @@
 
 ## 0.5.0 preview
 
+- Applies the supplied VoxRelay microphone and wordmark to the title bar,
+  sidebar, About panel, Windows executable/window icons, tray and README banner.
+  Original vector masters and reproducible icon exports are included.
+
 - History media-bar playback uses the selected recording without copying or
   regenerating it. Missing recordings are hidden; History and cache share one limit.
 - Whole-row History selection, wrapped playlist rows and rounded frames.

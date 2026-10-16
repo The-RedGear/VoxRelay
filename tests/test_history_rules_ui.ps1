@@ -10,6 +10,7 @@ $window=Load-Xaml (Join-Path $root 'VoxRelay.xaml')
 [xml]$xml=Get-Content -LiteralPath (Join-Path $root 'VoxRelay.xaml') -Raw
 foreach($n in $xml.SelectNodes('//*[@Name]')){Set-Variable $n.GetAttribute('Name') $window.FindName($n.GetAttribute('Name'))}
 Apply-AppFont $window
+Initialize-AppBranding
 . (Join-Path $root 'assets\RuleEditors.ps1')
 Install-NumericEditors;Install-ProfanityEditor
 $profanityPanel=$window.FindName('RulesStack').Children[1]
