@@ -1,4 +1,25 @@
 # Incremental WPF shell. Existing controls and handlers retain their state and storage.
+function Register-YapLoqControlMotion($root) {
+    # Popup children have their own presentation source and cannot inherit a page transition.
+    $selector = $root
+    if ($selector -is [Windows.Controls.ComboBox] -and -not $selector.Resources.Contains('YapLoqMotionInstalled')) {
+        $selector.Resources['YapLoqMotionInstalled'] = $true
+        $selector.Add_DropDownOpened({
+            param($control,$args)
+            $popup = $control.Template.FindName('PART_Popup',$control)
+            if ($popup -and $popup.Child) {
+                $popup.PopupAnimation = 'None'
+                Animate-In $popup.Child
+            }
+        })
+    }
+    if ($root -is [Windows.DependencyObject]) {
+        foreach ($child in [Windows.LogicalTreeHelper]::GetChildren($root)) {
+            if ($child -is [Windows.DependencyObject]) { Register-YapLoqControlMotion $child }
+        }
+    }
+}
+
 function Install-YapLoqStyles {
     foreach ($spec in @(@('YapLoqNavButton','NavButton'),@('YapLoqSelectedNavButton','SelectedNavButton'))) {
         $style = [Windows.Markup.XamlReader]::Parse(@'
@@ -123,7 +144,6 @@ function Update-YapLoqNavigation([string]$page) {
                 [void]$script:sectionNav.Children.Add($button)
             }
         }
-        Animate-In $script:sectionNav
     }
     if ($owner -eq 'Services') {
         $script:syncingServicePicker = $true
@@ -136,6 +156,10 @@ function Update-YapLoqNavigation([string]$page) {
             $button.Style = $window.FindResource($(if($button.Tag -eq $page){'YapLoqSelectedNavButton'}else{'YapLoqNavButton'}))
         }
     }
+    # The service picker and section buttons persist within an owner, but still
+    # participate whenever its page changes (for example Queue -> History).
+    Animate-In $script:sectionNav
+    Register-YapLoqControlMotion $script:sectionNav
     $PageTitle.Text = $owner
     $PageSubtitle.Text = switch ($page) {
         'playground' {'Your voice. Your stream.'}
@@ -377,6 +401,22 @@ function Set-YapLoqSidebarCollapsed([bool]$collapsed, [bool]$persist = $true) {
     }
 }
 
+function Update-YapLoqPlayerLayout {
+    $grid = $NowPlayingBar.Child
+    if ($grid.ActualWidth -le 0) { return }
+    # Equal side columns keep transport centered regardless of track text or tools.
+    $compact = $grid.ActualWidth -lt 940
+    foreach ($button in @($script:playerQueueShortcut,$script:playerAudioShortcut)) {
+        $button.Content.Children[1].Visibility = if ($compact) { 'Collapsed' } else { 'Visible' }
+        $button.Content.Children[0].Margin = if ($compact) { '0' } else { '0,0,10,0' }
+    }
+    $tools = $NowPlayingHistoryButton.Parent
+    $tools.Measure([Windows.Size]::new([double]::PositiveInfinity,[double]::PositiveInfinity))
+    $grid.ColumnDefinitions[0].Width = '*'
+    $grid.ColumnDefinitions[2].Width = '*'
+    $grid.ColumnDefinitions[1].Width = [Math]::Min(300,[Math]::Max(160,$grid.ActualWidth - 2*($tools.DesiredSize.Width+12)))
+}
+
 function Position-YapLoqStatusMenu {
     if (-not $script:statusFlyout -or -not $BridgeStatusButton.IsLoaded) { return }
     $point = $BridgeStatusButton.TranslatePoint([Windows.Point]::new(0,0),$script:chromeRoot)
@@ -526,6 +566,11 @@ function Install-YapLoqShell {
     [void]$tools.Children.Add($queueShortcut)
     $audioShortcut = New-YapLoqButton 'Audio' 'settings' 'SettingsNav'; $audioShortcut.Padding = '8,6'; $audioShortcut.Margin = '4,0,0,0'
     [void]$tools.Children.Add($audioShortcut)
+    $script:playerQueueShortcut = $queueShortcut; $script:playerAudioShortcut = $audioShortcut
+    # Reserve equal timestamp slots, so longer elapsed/remaining text cannot move the track.
+    $progress = $NowPlayingProgressTrack.Parent
+    $progress.ColumnDefinitions[0].Width = 36; $progress.ColumnDefinitions[2].Width = 36
+    $NowPlayingBar.Child.Add_SizeChanged({ Update-YapLoqPlayerLayout })
     $window.Add_PreviewKeyDown({param($sender,$e)
         if ($e.Key -eq 'S' -and [Windows.Input.Keyboard]::Modifiers -eq ([Windows.Input.ModifierKeys]::Control -bor [Windows.Input.ModifierKeys]::Shift)) {
             Open-YapLoqRoute 'emergency-stop'; $e.Handled = $true
@@ -538,4 +583,5 @@ function Install-YapLoqShell {
     }
     $PageHeadingHost.Margin = '0'; $PageHeadingHost.Parent.Margin = '0,0,0,12'
     Set-Page 'playground'
+    Register-YapLoqControlMotion $window
 }

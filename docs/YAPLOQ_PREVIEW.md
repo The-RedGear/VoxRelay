@@ -101,3 +101,23 @@ scrollable, bounded visual inside the app below the title bar, rather than a
 separate Popup window. It reuses the existing health data and service shortcuts,
 and closes on a second click, outside click, Escape, page navigation or loss of
 window activation. Resizing keeps it inside the client area.
+
+## Preview v7 interface and diagnostics update
+
+Section menus now animate when moving between pages within the same section.
+Dropdown contents use the same entrance motion as pages. Windows animation
+preferences are respected.
+
+The player keeps its transport and progress track centered with either sidebar
+layout. Queue and Audio shortcuts become icons at narrower widths; their tooltips
+and accessible names remain available.
+
+Ordinary unhandled UI callback errors are recorded in `data-preview/ui-crashes.log`
+and shown in the player status without closing the window. Fatal runtime errors
+are not treated as recoverable. `desktop-host.log` retains desktop error output
+and exit status; `backend-host.log` retains backend process error output. Host logs
+rotate after 2 MB at startup. Keep these files local unless you choose to share them.
+
+The intermittent v6 exit has not yet been reproduced or identified. The recovery
+and logging changes are verified with an injected callback error; this does not
+prove that every crash is fixed.

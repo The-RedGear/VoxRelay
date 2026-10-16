@@ -49,6 +49,38 @@ if ($script:activePage -ne 'voices') { throw 'Sidebar click is not wired to navi
 $window.WindowStartupLocation='Manual';$window.Left=-20000;$window.Top=-20000
 $window.ShowInTaskbar=$false;$window.ShowActivated=$false
 $window.Show()
+Install-UiErrorHandling
+[void]$window.Dispatcher.BeginInvoke([action]{ throw [InvalidOperationException]::new('Injected UI callback failure') })
+$window.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ContextIdle)
+if (-not (Test-Path (Join-Path $configDir 'ui-crashes.log'))) { throw 'UI callback failure was not recorded' }
+if (-not $window.IsVisible) { throw 'Recoverable UI callback failure closed the window' }
+$window.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ContextIdle)
+Set-Page 'services'; Set-Page 'polly'
+if ([Windows.SystemParameters]::ClientAreaAnimation -and -not $script:sectionNav.HasAnimatedProperties) { throw 'Persistent service menu missed the page animation' }
+if (-not $script:servicePicker.Resources.Contains('YapLoqMotionInstalled')) { throw 'Service dropdown motion was not registered' }
+$window.UpdateLayout();$window.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ContextIdle)
+$script:servicePicker.IsDropDownOpen = $true
+$window.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ContextIdle)
+$popup = $script:servicePicker.Template.FindName('PART_Popup',$script:servicePicker)
+if ([Windows.SystemParameters]::ClientAreaAnimation -and -not $popup.Child.HasAnimatedProperties) { throw 'Dropdown contents missed entrance animation' }
+$script:servicePicker.IsDropDownOpen = $false
+foreach ($width in @(980,1180,1600)) {
+    $window.Width = $width
+    foreach ($collapsed in @($false,$true)) {
+        Set-YapLoqSidebarCollapsed $collapsed $false
+        $window.UpdateLayout();$window.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ContextIdle)
+        $grid = $NowPlayingBar.Child
+        foreach ($element in @($NowPlayingProgressTrack,$NowPlayingPlayPauseButton.Parent)) {
+            $center = $element.TranslatePoint([Windows.Point]::new($element.ActualWidth/2,0),$grid).X
+            if ([Math]::Abs($center-$grid.ActualWidth/2) -gt 1) { throw "Player is off center at $width (collapsed=$collapsed)" }
+        }
+        foreach ($utility in $NowPlayingHistoryButton.Parent.Children) {
+            $point=$utility.TranslatePoint([Windows.Point]::new(0,0),$grid)
+            if ($point.X+$utility.ActualWidth -gt $grid.ActualWidth+1) { throw 'Player utility overflow' }
+        }
+    }
+}
+Set-YapLoqSidebarCollapsed $false $false
 if ($OutputDirectory) { [void][IO.Directory]::CreateDirectory($OutputDirectory) }
 foreach ($size in @(@(1180,760),@(980,640))) {
     $window.Width=$size[0];$window.Height=$size[1]

@@ -469,7 +469,21 @@ function Enable-RoundedClip {
     & $handler $Element $null
 }
 
+function Install-UiErrorHandling {
+    $window.Dispatcher.Add_UnhandledException({
+        param($sender,$eventArgs)
+        try {
+            $errorDetail = $eventArgs.Exception.ToString()
+            Add-Content -LiteralPath (Join-Path $configDir 'ui-crashes.log') -Encoding UTF8 -Value ("{0:o} Page={1}{2}{3}" -f [datetime]::UtcNow,$script:activePage,[Environment]::NewLine,$errorDetail)
+            $cause = $eventArgs.Exception.GetBaseException()
+            if ($cause -is [OutOfMemoryException] -or $cause -is [AccessViolationException] -or $cause -is [StackOverflowException] -or $window.Dispatcher.HasShutdownStarted) { return }
+            $eventArgs.Handled = $true
+            if ($BottomStatus) { $BottomStatus.Text = 'An interface action failed. Try again; details saved in ui-crashes.log.'; $BottomStatus.Visibility = 'Visible' }
+        } catch { }
+    })
+}
 $window = Load-Xaml (Join-Path $resourceRoot 'YapLoq.xaml')
+Install-UiErrorHandling
 $window.UseLayoutRounding = $true
 $window.SnapsToDevicePixels = $true
 $window.MinWidth = [Math]::Min(980,[Windows.SystemParameters]::WorkArea.Width-24)

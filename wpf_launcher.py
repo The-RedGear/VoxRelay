@@ -16,6 +16,15 @@ import uuid
 from voice_studio_speaker_bridge.channel import is_preview, instance_name, preview_data_dir
 
 
+def _start_logged_process(args, log_path: Path, **kwargs):
+    """Keep child errors even when the desktop executable has no console."""
+    if log_path.exists() and log_path.stat().st_size > 2_000_000:
+        log_path.replace(log_path.with_suffix('.previous.log'))
+    with log_path.open('ab', buffering=0) as output:
+        output.write(f'\n--- Start {time.strftime("%Y-%m-%d %H:%M:%S")} ---\n'.encode())
+        return subprocess.Popen(args, stdout=output, stderr=subprocess.STDOUT, **kwargs)
+
+
 def _run_backend() -> int:
     from voice_studio_speaker_bridge.app import main
 
@@ -211,14 +220,12 @@ def main() -> int:
         executable = local_python if local_python.is_file() else Path(sys.executable)
         backend_args = [str(executable), "-m", "voice_studio_speaker_bridge", "--headless"]
     no_window = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
-    backend = subprocess.Popen(
-        backend_args,
+    backend = _start_logged_process(
+        backend_args, data_root / 'backend-host.log',
         cwd=str(install_root),
         creationflags=no_window,
         env=environment,
         stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
     )
     port = 17582 if is_preview() else 7582
     for filename in (() if is_preview() else ("settings.json", "settings.json.bak")):
@@ -248,18 +255,20 @@ def main() -> int:
     startupinfo = subprocess.STARTUPINFO()
     startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
     startupinfo.wShowWindow = 0
-    shell = subprocess.Popen(
+    shell = _start_logged_process(
         ["powershell.exe", "-STA", "-NoProfile", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File", str(resource_root / "YapLoq.ps1")],
+        data_root / 'desktop-host.log',
         cwd=str(install_root),
         env=environment,
         startupinfo=startupinfo,
         creationflags=no_window,
         stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
     )
     try:
-        return int(shell.wait() or 0)
+        code = int(shell.wait() or 0)
+        with (data_root / 'desktop-host.log').open('a', encoding='utf-8') as output:
+            output.write(f'\nDesktop exited: {code}; backend status: {backend.poll()}\n')
+        return code
     finally:
         if backend.poll() is None:
             kernel32 = ctypes.windll.kernel32
