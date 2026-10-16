@@ -20,6 +20,51 @@ def _run_backend() -> int:
     return int(main() or 0)
 
 
+def _verify_package(output: Path) -> int:
+    """Check the actual frozen distribution without devices, servers or credentials."""
+    result = {"ok": False}
+    try:
+        import _cffi_backend
+        import io
+        import tempfile
+        import wave
+        from voice_studio_speaker_bridge import __version__
+        from voice_studio_speaker_bridge.audio import AudioPlayer
+        from voice_studio_speaker_bridge.providers import registry
+        from voice_studio_speaker_bridge.settings import Settings
+
+        root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+        resources = ["VoxRelay.ps1", "VoxRelay.xaml", "ImportPreview.xaml",
+                     "assets/RuleEditors.ps1", "assets/ProfanityPanel.xaml",
+                     "assets/ProfanityDialog.xaml", "assets/profanity-defaults.json",
+                     "assets/VoxRelay-logo.png", "assets/VoxRelay.ico", "assets/VoxRelay-tray.ico",
+                     "assets/fonts/Poppins/Poppins-Regular.ttf", "assets/fonts/Poppins/OFL.txt"]
+        for name in resources:
+            if not (root / name).is_file():
+                raise RuntimeError(f"Missing packaged resource: {name}")
+        with tempfile.TemporaryDirectory(prefix="voxrelay-package-") as folder:
+            settings = Settings(Path(folder) / "settings.json")
+            if not settings.profanity_rules:
+                raise RuntimeError("Default moderation rules did not load")
+        with io.BytesIO() as stream:
+            with wave.open(stream, "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(24000)
+                wav.writeframes(b"\0" * 4800)
+            pcm, duration = AudioPlayer().decode_wav(stream.getvalue())
+        if not pcm or duration <= 0:
+            raise RuntimeError("Packaged audio decoder failed")
+        result.update(ok=True, version=__version__, providers=list(registry.providers),
+                      checkedResources=len(resources), durationMs=duration,
+                      frozen=bool(getattr(sys, "frozen", False)))
+    except Exception as exc:
+        result["error"] = str(exc)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    return 0 if result["ok"] else 1
+
+
 def _self_test(output: Path) -> int:
     """Exercise the frozen runtime without starting servers or playing audio."""
     result = {"ok": False}
@@ -91,6 +136,8 @@ def _backend_ready(timeout_sec: float = 10.0, port: int = 7582) -> bool:
 
 
 def main() -> int:
+    if "--verify-package-output" in sys.argv:
+        return _verify_package(Path(sys.argv[sys.argv.index("--verify-package-output")+1]))
     if "--self-test-output" in sys.argv:
         return _self_test(Path(sys.argv[sys.argv.index("--self-test-output")+1]))
     if "--backend" in sys.argv:

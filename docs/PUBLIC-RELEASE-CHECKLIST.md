@@ -24,7 +24,7 @@ and before publishing a Windows Release build.
 - [x] No secret-like strings found in tree scan (re-run before release)
 - [x] [`SECURITY.md`](../SECURITY.md) describes private reporting + DPAPI scope
 - [ ] GitHub **Private vulnerability reporting** enabled on the repo
-- [ ] Confirm `data/` was never force-added; scrub history if it was
+- [x] Confirm `data/` was never force-added; tracked history checked before publication
 
 ## Community / collaboration
 
@@ -51,7 +51,7 @@ and before publishing a Windows Release build.
 ## Pre-publish commands
 
 ```powershell
-cd "R:\RedGear\[1] Applications\VoxRelay-src"
+cd "path\to\VoxRelay"
 git status
 python -m pytest -q
 # optional secret scan

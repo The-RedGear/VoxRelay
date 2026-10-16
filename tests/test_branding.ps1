@@ -9,6 +9,8 @@ foreach($fn in $ast.FindAll({param($n)$n -is [Management.Automation.Language.Fun
 Initialize-RoundedChrome
 $window=Load-Xaml (Join-Path $resourceRoot 'VoxRelay.xaml')
 Apply-AppFont $window;Initialize-AppBranding
+if($window.FindName('AppVersionLabel').VerticalAlignment -ne 'Center'){throw 'Title version is not vertically aligned'}
+if((Get-Content -LiteralPath (Join-Path $resourceRoot 'VoxRelay.xaml') -Raw) -match 'Voice Automation|V O I C E   A U T O M A T I O N'){throw 'Header taglines should be removed'}
 if($window.Icon.PixelWidth -ne 256){throw 'Window icon is not using the high-resolution artwork'}
 foreach($name in @('TitleBrandLogo','SidebarBrandLogo','AboutBrandLogo')){
     $image=$window.FindName($name)

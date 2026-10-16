@@ -775,11 +775,10 @@
        <ColumnDefinition />
        <ColumnDefinition Width="Auto" />
       </Grid.ColumnDefinitions>
-      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-       <Image Name="TitleBrandLogo" Width="118" Height="29" Margin="0,0,8,0" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" AutomationProperties.Name="VoxRelay" />
-       <TextBlock Text="  /  Voice Automation" Foreground="#B9B2C2" FontSize="12" />
-       <TextBlock Text="  /  " Foreground="#B9B2C2" FontSize="12" />
-       <TextBlock Name="AppVersionLabel" Text="0.5.0" Foreground="#B9B2C2" FontSize="12" />
+      <StackPanel Name="TitleBrandingHost" Orientation="Horizontal" VerticalAlignment="Center">
+       <Image Name="TitleBrandLogo" Width="114" Height="28" VerticalAlignment="Center" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" AutomationProperties.Name="VoxRelay" />
+       <Border Width="1" Height="14" Background="#50485C" Margin="12,0" VerticalAlignment="Center" />
+       <TextBlock Name="AppVersionLabel" Text="0.5.0" Foreground="#B9B2C2" FontSize="11" VerticalAlignment="Center" />
       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal">
        <Button Name="MinimizeButton" AutomationProperties.AutomationId="MinimizeButton" AutomationProperties.Name="Minimize VoxRelay" Style="{StaticResource TitleButton}" ToolTip="Minimize"><Viewbox Width="12" Height="12" Margin="0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M6 21v-2h12v2z" /></Viewbox></Button>
@@ -796,14 +795,11 @@
      <Border Background="#E615131D" BorderBrush="#50485C" BorderThickness="0,0,1,0">
       <Grid>
        <Grid.RowDefinitions>
-        <RowDefinition Height="104" />
+        <RowDefinition Height="96" />
         <RowDefinition />
         <RowDefinition Height="Auto" />
        </Grid.RowDefinitions>
-       <StackPanel Margin="20,18,20,16" VerticalAlignment="Center">
-        <Image Name="SidebarBrandLogo" Height="47" Stretch="Uniform" HorizontalAlignment="Stretch" RenderOptions.BitmapScalingMode="HighQuality" AutomationProperties.Name="VoxRelay" />
-        <TextBlock Text="V O I C E   A U T O M A T I O N" Foreground="#C4B6FF" FontSize="7" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,6,0,0" />
-       </StackPanel>
+       <Image Name="SidebarBrandLogo" Width="188" Height="48" Margin="22,0" VerticalAlignment="Center" HorizontalAlignment="Left" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" AutomationProperties.Name="VoxRelay" />
        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="0,8,0,8">
          <Button Name="VoicesNav" Style="{StaticResource SelectedNavButton}">

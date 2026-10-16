@@ -5,6 +5,12 @@
 
 ## Highlights
 
+- New VoxRelay microphone branding, Poppins typography and cleaner, rounded UI
+- Click-to-seek media bar with smoother progress and selected-History playback
+- Replay existing recordings without duplicate cache files; one History/cache limit
+- Collapsible profanity rules with whole-word variants, replacements and hidden words
+- Easier setup guides and sliders paired with exact limit/cooldown values
+
 - Cloud TTS engines: ElevenLabs, Azure Speech, Google Cloud TTS, IBM Watson, UberDuck, TTS.Monster, Acapela, CereProc (plus VoiceStudio, Windows SAPI, Amazon Polly)
 - Per-provider Services pages with Windows DPAPI-encrypted secrets
 - Streamer.bot speak payload hardened for display vs login (`%displayName%` / `%userName%`)
@@ -14,11 +20,15 @@
 
 ## Download
 
-1. Grab the Windows zip from this Release (or the Actions artifact `VoxRelay-0.5.0-preview-Windows`).
+1. Download `VoxRelay-0.5.0-preview-Windows.zip` from this Release.
 2. Extract the folder. Keep `_internal` beside `VoxRelay.exe`.
 3. Run `VoxRelay.exe` — Python is not required.
 
 Also included in the zip: `LICENSE`, `THIRD_PARTY_NOTICES.md`, `LEGAL.md`, `CHANGELOG.md`, and the `docs/` folder.
+
+This build passes the automated test suite, desktop layout/branding checks, and
+a frozen-runtime check for bundled resources and audio decoding. Provider billing,
+live integrations and your audio hardware should still be tested before a stream.
 
 ## Important before you stream
 

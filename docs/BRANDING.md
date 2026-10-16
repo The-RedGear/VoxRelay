@@ -10,6 +10,8 @@ Run `powershell.exe -STA -NoProfile -File tools/build_branding.ps1` to regenerat
 transparent `VoxRelay-logo.png`, `VoxRelay-symbol.png`, `VoxRelay-icon.png`, and
 the nine-resolution `VoxRelay.ico` / `VoxRelay-tray.ico` files from the SVG masters.
 The original artboard backgrounds are omitted only in these derived UI exports.
+The app lockup is generated from `assets/branding/SVG/Text Mark.svg`; the title
+bar and sidebar deliberately omit the Voice Automation tagline.
 The README uses the supplied GitHub banner at `assets/branding/1x/GitHub.png`.
 Use that same file in repository Settings → Social preview. The executable build
 already embeds `assets/VoxRelay.ico` through `VoxRelay.spec`.

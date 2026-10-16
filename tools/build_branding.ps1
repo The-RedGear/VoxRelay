@@ -68,10 +68,10 @@ function Write-BrandIcon($drawing,[string]$path) {
 
 $assets=Join-Path $Root 'assets'
 $symbol=Read-BrandDrawing (Join-Path $assets 'branding\SVG\Logo Purple.svg')
-$logo=Read-BrandDrawing (Join-Path $assets 'branding\SVG\Logo 16-9.svg')
+$logo=Read-BrandDrawing (Join-Path $assets 'branding\SVG\Text Mark.svg')
 [IO.File]::WriteAllBytes((Join-Path $assets 'VoxRelay-symbol.png'),(Get-PngBytes (Render-Brand $symbol 1024 1024)))
 [IO.File]::WriteAllBytes((Join-Path $assets 'VoxRelay-icon.png'),(Get-PngBytes (Render-Brand $symbol 256 256)))
-[IO.File]::WriteAllBytes((Join-Path $assets 'VoxRelay-logo.png'),(Get-PngBytes (Render-Brand $logo 2000 480 0.025)))
+[IO.File]::WriteAllBytes((Join-Path $assets 'VoxRelay-logo.png'),(Get-PngBytes (Render-Brand $logo 2000 500 0.025)))
 Write-BrandIcon $symbol (Join-Path $assets 'VoxRelay.ico')
 Write-BrandIcon $symbol (Join-Path $assets 'VoxRelay-tray.ico')
 'Branding PNGs and multi-resolution Windows icons generated from the supplied SVGs.'
