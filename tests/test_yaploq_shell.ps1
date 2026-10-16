@@ -6,6 +6,7 @@ $resourceRoot = $appRoot
 $configDir = Join-Path $appRoot ('data/ui-test-' + [guid]::NewGuid().ToString('N'))
 [void][IO.Directory]::CreateDirectory($configDir)
 $configPath = Join-Path $configDir 'settings.json'
+$logPath = Join-Path $configDir 'bridge.log'
 $legacyConfigDir = Join-Path $configDir 'no-legacy'
 $tokens=$null; $errors=$null
 $ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $appRoot 'VoxRelay.ps1'),[ref]$tokens,[ref]$errors)
@@ -28,7 +29,7 @@ if (($script:yaploqNav.Keys | Sort-Object) -join ',' -ne 'Dashboard,Integrations
 if ($VoicesNav.Parent) { throw 'Legacy navigation is still in the visible shell' }
 if ($PlaylistGrid.Parent.Parent.Parent.Parent -eq $RulesPage.Content) { throw 'Playlist editor still belongs to message rules' }
 if (-not $script:yaploqPages.playlists.Content.Children.Count) { throw 'Playlist editor was lost' }
-if (-not $script:yaploqPages.voiceRules.Content.Children.Count) { throw 'Voice rules were lost' }
+if ($window.FindName('AutoVoiceRulesExpander').Parent.Parent -ne $RulesPage.Content) { throw 'Voice rules are not in the shared rules workspace' }
 if ($PlayStopButton.Visibility -ne 'Collapsed') { throw 'Dashboard duplicates player stop' }
 if ($PlayVoiceList.Items.Count -ne 1) { throw 'Dashboard lost voice selection' }
 if ($HttpBox.IsEnabled -or $EnableUdpCheck.IsEnabled) { throw 'Preview connection boundaries are editable' }
@@ -41,6 +42,7 @@ function Invoke-BridgePost([string]$path,$body=@{}) { $script:recordedRequest=$p
 Open-YapLoqRoute 'emergency-stop'
 if ($script:recordedRequest -ne '/clear-all') { throw 'Emergency stop is not wired to the real queue endpoint' }
 $script:yaploqNav.Voices.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+$window.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ContextIdle)
 if ($script:activePage -ne 'voices') { throw 'Sidebar click is not wired to navigation' }
 $window.WindowStartupLocation='Manual';$window.Left=-20000;$window.Top=-20000
 $window.ShowInTaskbar=$false;$window.ShowActivated=$false
@@ -48,14 +50,15 @@ $window.Show()
 if ($OutputDirectory) { [void][IO.Directory]::CreateDirectory($OutputDirectory) }
 foreach ($size in @(@(1180,760),@(980,640))) {
     $window.Width=$size[0];$window.Height=$size[1]
-    foreach ($route in @('playground','voices','playlists','voiceRules','pronunciation','queue','history','rules','services','voicestudio','polly','streamerbot','settings','activity')) {
+    foreach ($route in @('playground','voices','playlists','pronunciation','queue','history','rules','services','windowsService','voicestudio','polly','streamerbot','settings','activity')) {
         Set-Page $route
         $window.UpdateLayout()
+        $window.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ContextIdle)
+        Start-Sleep -Milliseconds 220
         $window.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ContextIdle)
         $expected=$script:routeOwners[$route]
         if ($PageTitle.Text -ne $expected) { throw "Wrong canonical owner for $route" }
         if ($route -eq 'playlists' -and -not $PlaylistGrid.IsVisible) { throw 'Playlist editor is not visible' }
-        if ($route -eq 'voiceRules' -and -not $VoiceRulesGrid.IsVisible) { throw 'Voice rules editor is not visible' }
         if (-not $NowPlayingBar.IsVisible) { throw "Player hidden on $route" }
         if ($script:ownerLastPage[$expected] -ne $route) { throw 'Page state not retained' }
         if ($OutputDirectory -and $route -in @('playground','voices','queue','services','streamerbot','settings')) {
@@ -68,6 +71,37 @@ foreach ($size in @(@(1180,760),@(980,640))) {
     }
 }
 Set-Page 'history'; Open-YapLoqRoute 'owner:Voices'; Open-YapLoqRoute 'owner:Queue'
+$window.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ContextIdle)
 if ($script:activePage -ne 'history') { throw 'Queue subsection was not restored' }
+Set-Page 'voiceRules'
+if ($script:activePage -ne 'rules') { throw 'Legacy voice rule shortcut did not open the single rules workspace' }
+Set-Page 'services'
+$picker=$script:servicePicker
+for ($cycle=0;$cycle -lt 12;$cycle++) {
+    for ($index=1;$index -lt $picker.Items.Count;$index++) {
+        $picker.SelectedIndex=$index
+        $window.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ContextIdle)
+        if ($script:activePage -ne $picker.SelectedItem.Tag) { throw 'Dropdown navigation failed' }
+        if (-not [object]::ReferenceEquals($picker,$script:servicePicker)) { throw 'Service dropdown was rebuilt during selection' }
+        if ($script:serviceBack.Visibility -ne 'Visible') { throw 'Provider editor has no direct back action' }
+    }
+    Open-YapLoqRoute 'owner:Services'
+    $window.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ContextIdle)
+    if ($script:activePage -ne 'services' -or $picker.SelectedIndex -ne 0) { throw 'Services did not return to setup overview' }
+    foreach ($button in $script:yaploqNav.Values) {
+        $enter=[Windows.Input.MouseEventArgs]::new([Windows.Input.Mouse]::PrimaryDevice,[Environment]::TickCount);$enter.RoutedEvent=[Windows.UIElement]::MouseEnterEvent
+        $button.RaiseEvent($enter)
+        $button.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+        $leave=[Windows.Input.MouseEventArgs]::new([Windows.Input.Mouse]::PrimaryDevice,[Environment]::TickCount);$leave.RoutedEvent=[Windows.UIElement]::MouseLeaveEvent
+        $button.RaiseEvent($leave)
+        $window.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ContextIdle)
+    }
+    Set-Page 'services'
+}
+if (Test-Path (Join-Path $configDir 'ui-errors.log')) { throw 'Navigation stress test logged an unexpected error' }
+# A failed route must preserve the previous page and leave a diagnostic instead of terminating WPF.
+$previous=$script:activePage
+Set-Page 'unknown-test-route'
+if ($script:activePage -ne $previous -or -not(Test-Path (Join-Path $configDir 'ui-errors.log'))) { throw 'Failed navigation did not preserve the current page and log details' }
 $window.Close()
-'YapLoq shell passed: six routes, canonical rule ownership, shared queue preview, retained page state, preview locks and player visibility across 14 pages at two sizes.'
+'YapLoq shell passed: six routes, unified rules, Dashboard state, 14 views at two sizes, 132 provider selections, repeated sidebar/hover events, direct service back navigation and failed-route recovery.'

@@ -1,7 +1,7 @@
 # YapLoq preview branch
 
-This is the first implementation slice: preview boundaries, six-page navigation,
-compact Dashboard, Queue/History sections and the existing persistent player.
+This preview includes isolated runtime boundaries, six-page navigation, a purple
+Dashboard with clear speech/setup actions, Queue/History and the persistent player.
 Production `main`, `VoxRelay.spec` and both existing workflows are unchanged.
 
 ## Run from source
@@ -61,7 +61,23 @@ Voice editor/favorites/MDI identifier support, stable viewer preferences,
 playlist rotation extensions, SetViewerVoice and permission/acknowledgment
 contracts, settings consolidation and full accessibility polish remain separate
 changes. Legacy rule precedence and serialized keys are preserved here. Windows
-voice enablement remains in Settings with a Services shortcut during consolidation.
+voice enablement now has a dedicated editor in the Services dropdown. Rules are
+one workspace under Queue, covering voice selection, routing, message filtering
+and queue limits. The old voiceRules route redirects to this same workspace.
 No schema/API migration, release publication, production updater change or tag
 is part of this slice. Live production/preview coexistence, audio-device behavior
 and Streamer.bot still require manual verification.
+
+## Navigation and motion update
+
+Services opens to a short setup guide. Its persistent dropdown selects a provider;
+Back to setup and the sidebar Services button return directly to the guide.
+Selection changes queue a page transition after the input event completes, and
+the picker is retained rather than rebuilt inside its own SelectionChanged event.
+Page navigation is guarded against re-entry. Failed navigation preserves the
+previous page and writes details to `data-preview/ui-errors.log`.
+
+Hover/focus styling, section transitions, stronger page entrances and queue-change
+reveals are included. Motion respects the Windows animation preference.
+The shell regression test exercises 132 provider selections plus repeated sidebar
+clicks and hover events, verifies direct back navigation and failed-route recovery.

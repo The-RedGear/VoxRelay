@@ -640,12 +640,12 @@ function Animate-In($element) {
     $translate = Ensure-TranslateTransform $element
     if ($translate) { $translate.BeginAnimation([Windows.Media.TranslateTransform]::YProperty, $null) }
     $ease = New-EaseOut
-    $fade = [Windows.Media.Animation.DoubleAnimation]::new(0.94, 1.0, [TimeSpan]::FromMilliseconds(130))
+    $fade = [Windows.Media.Animation.DoubleAnimation]::new($(if($script:isPreview){0.82}else{0.94}), 1.0, [TimeSpan]::FromMilliseconds($(if($script:isPreview){160}else{130})))
     $fade.EasingFunction = $ease
     $element.Opacity = 1
     $element.BeginAnimation([Windows.UIElement]::OpacityProperty, $fade)
     if ($translate) {
-        $slide = [Windows.Media.Animation.DoubleAnimation]::new(4.0, 0.0, [TimeSpan]::FromMilliseconds(150))
+        $slide = [Windows.Media.Animation.DoubleAnimation]::new($(if($script:isPreview){8.0}else{4.0}), 0.0, [TimeSpan]::FromMilliseconds($(if($script:isPreview){180}else{150})))
         $slide.EasingFunction = $ease
         $translate.BeginAnimation([Windows.Media.TranslateTransform]::YProperty, $slide)
     }
@@ -1409,15 +1409,21 @@ function Update-BridgeStatus([bool]$online) {
 }
 
 function Set-Page([string]$page) {
+    if ($script:isPreview -and $page -eq 'voiceRules') { $page = 'rules' }
     if ($script:activePage -eq $page) { return }
-    $script:activePage = $page
-    $SavePageButton.Visibility=if($page -in @('settings','rules','pronunciation','streamerbot','voicestudio','polly','elevenlabs','azure','google','watson','uberduck','ttsmonster','acapela','cereproc')){'Visible'}else{'Collapsed'}
-    $SavePageButton.Tag=$page
+    if ($script:isPreview -and $script:changingPage) { Request-YapLoqPage $page; return }
+    $previousPage = $script:activePage
+    $script:changingPage = $true
+    try {
     $pages = @{
         voices=$VoicesPage; playground=$PlaygroundPage; queue=$QueuePage; history=$HistoryPage; rules=$RulesPage; pronunciation=$PronunciationPage;
         streamerbot=$StreamerBotPage; voicestudio=$VoiceStudioPage; polly=$PollyPage; elevenlabs=$ElevenLabsPage; azure=$AzurePage; google=$GooglePage; watson=$WatsonPage; uberduck=$UberDuckPage; ttsmonster=$TtsMonsterPage; acapela=$AcapelaPage; cereproc=$CereProcPage; settings=$SettingsPage; activity=$ActivityPage
     }
     if ($script:yaploqPages) { foreach ($key in $script:yaploqPages.Keys) { $pages[$key] = $script:yaploqPages[$key] } }
+    if (-not $pages.ContainsKey($page) -or -not $pages[$page]) { throw "Unknown page: $page" }
+    $SavePageButton.Visibility=if($page -in @('settings','rules','pronunciation','streamerbot','voicestudio','polly','elevenlabs','azure','google','watson','uberduck','ttsmonster','acapela','cereproc')){'Visible'}else{'Collapsed'}
+    $SavePageButton.Tag=$page
+    $script:activePage = $page
     foreach ($key in $pages.Keys) { $pages[$key].Visibility = if ($key -eq $page) {'Visible'} else {'Collapsed'} }
     $mainNav = @{voices=$VoicesNav;playground=$PlaygroundNav;queue=$QueueNav;history=$HistoryNav;rules=$RulesNav;pronunciation=$PronunciationNav;activity=$ActivityNav;settings=$SettingsNav}
     foreach ($key in $mainNav.Keys) { $mainNav[$key].Style = $window.FindResource($(if($key -eq $page){'SelectedNavButton'}else{'NavButton'})) }
@@ -1438,6 +1444,15 @@ function Set-Page([string]$page) {
     if ($page -in @('queue','history')) { $script:playerStateNext = 0; $script:playerHistoryNext = 0 }
     Animate-PageHeading
     Animate-In $pages[$page]
+    } catch {
+        if (-not $script:isPreview) { throw }
+        $script:activePage = $previousPage
+        if ($pages -and $previousPage -and $pages.ContainsKey($previousPage)) {
+            foreach ($key in $pages.Keys) { $pages[$key].Visibility = if ($key -eq $previousPage) {'Visible'} else {'Collapsed'} }
+            try { Update-YapLoqNavigation $previousPage } catch {}
+        }
+        Write-YapLoqUiError $_
+    } finally { $script:changingPage = $false }
 }
 
 function Get-PollyRegionText {
