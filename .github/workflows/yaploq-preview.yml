@@ -1,0 +1,47 @@
+name: YapLoq isolated preview
+on:
+  push:
+    branches: [redesign/yaploq]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preview:
+    if: github.ref == 'refs/heads/redesign/yaploq'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: |
+          python -m pip install -r requirements-preview.txt
+          python -m pip install --no-deps --no-build-isolation -e .
+      - name: Test backend and preview boundaries
+        run: python -m pytest -q
+      - name: Test WPF
+        shell: powershell
+        run: |
+          powershell.exe -STA -NoProfile -ExecutionPolicy Bypass -File tests/test_wpf_functions.ps1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          powershell.exe -STA -NoProfile -ExecutionPolicy Bypass -File tests/test_history_rules_ui.ps1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          powershell.exe -STA -NoProfile -ExecutionPolicy Bypass -File tests/smoke_wpf.ps1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          powershell.exe -STA -NoProfile -ExecutionPolicy Bypass -File tests/test_yaploq_shell.ps1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Build separate preview
+        run: python -m PyInstaller --noconfirm --clean --distpath dist-preview --workpath build-preview YapLoq-preview.spec
+      - name: Verify packaged runtime
+        shell: powershell
+        run: |
+          $report = Join-Path $env:RUNNER_TEMP 'yaploq-package.json'
+          $process = Start-Process -FilePath (Resolve-Path 'dist-preview/YapLoq-preview/YapLoq-preview.exe') -ArgumentList @('--verify-package-output', ('"' + $report + '"')) -WindowStyle Hidden -PassThru
+          if (-not $process.WaitForExit(60000)) { throw 'Package check timed out' }
+          $result = Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
+          if ($process.ExitCode -ne 0 -or -not $result.ok -or -not $result.frozen) { throw 'Package check failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: YapLoq-preview-Windows-${{ github.sha }}
+          path: dist-preview/YapLoq-preview/

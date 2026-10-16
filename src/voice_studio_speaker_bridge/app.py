@@ -20,6 +20,7 @@ from .settings import Settings, default_config_dir
 from .voicestudio import VoiceStudioClient
 from .streamerbot import StreamerBotActions
 from .obs import ObsDucking
+from .channel import instance_name
 
 
 def acquire_backend_mutex():
@@ -29,7 +30,7 @@ def acquire_backend_mutex():
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     kernel32.CreateMutexW.argtypes = (wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR)
     kernel32.CreateMutexW.restype = wintypes.HANDLE
-    handle = kernel32.CreateMutexW(None, False, "Local\\VoxRelay.Backend")
+    handle = kernel32.CreateMutexW(None, False, instance_name("Backend"))
     if not handle:
         raise ctypes.WinError()
     if ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
@@ -55,7 +56,7 @@ def wait_for_desktop_exit() -> None:
     kernel32.CreateEventW.restype = wintypes.HANDLE
     kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
     kernel32.OpenProcess.restype = wintypes.HANDLE
-    signal = kernel32.CreateEventW(None, True, False, "Local\\VoxRelay.BackendStop")
+    signal = kernel32.CreateEventW(None, True, False, instance_name("BackendStop"))
     parent_pid = os.environ.get("VOXRELAY_PARENT_PID", "")
     parent = kernel32.OpenProcess(0x00100000, False, int(parent_pid)) if parent_pid else None
     try:

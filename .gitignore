@@ -27,6 +27,9 @@ __pycache__/
 htmlcov/
 build/
 dist/
+dist-preview/
+build-preview/
+data-preview/
 *.egg-info/
 
 # Packaged releases and editor files

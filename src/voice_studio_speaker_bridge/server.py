@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import json
 import logging
+import os
 import socketserver
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Lock, Thread
@@ -22,6 +23,7 @@ from .maintenance import Maintenance
 from . import __version__
 from .obs import ObsClient
 from .secrets import unprotect_windows_secret
+from .channel import is_preview
 
 
 @dataclass
@@ -100,10 +102,18 @@ class BridgeServers:
 
             def do_GET(self) -> None:
                 path = self.path.rstrip("/")
+                if path == "/api/identity":
+                    self._reply(200, {"channel": "yaploq-preview" if is_preview() else "voxrelay",
+                                      "launchId": os.environ.get("YAPLOQ_LAUNCH_ID", ""),
+                                      "ready": bridge.http_server is not None and bridge.ws_server is not None})
+                    return
                 if path == "/api/events":
                     self._reply(200, {"ok": True, "events": bridge.events.recent()})
                     return
                 if path == "/api/updates":
+                    if is_preview():
+                        self._reply(200, {"ok": True, "result": {"checked": False, "message": "Preview updates are provided separately."}})
+                        return
                     try:
                         result = Maintenance.check_updates()
                     except Exception:

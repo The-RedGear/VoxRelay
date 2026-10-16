@@ -12,7 +12,10 @@ public static class VoxRelayTaskbarIdentity {
     public static extern int SetCurrentProcessExplicitAppUserModelID(string appId);
 }
 '@
-[void][VoxRelayTaskbarIdentity]::SetCurrentProcessExplicitAppUserModelID('VoxRelay.Desktop')
+$script:isPreview = $env:YAPLOQ_PREVIEW -eq '1'
+$script:appIdentity = if ($script:isPreview) { 'YapLoq.Preview' } else { 'VoxRelay' }
+$script:appLabel = if ($script:isPreview) { 'YapLoq Preview' } else { 'VoxRelay' }
+[void][VoxRelayTaskbarIdentity]::SetCurrentProcessExplicitAppUserModelID($script:appIdentity + '.Desktop')
 
 # Bundled UI assets live next to this script (_internal when frozen).
 # Portable data always lives beside the install root (parent of _internal).
@@ -34,17 +37,18 @@ if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') {
     [void][System.Diagnostics.Process]::Start($psi)
     exit 0
 }
-$configDir = if ($env:VOXRELAY_DATA_DIR) { $env:VOXRELAY_DATA_DIR } else { Join-Path $appRoot 'data' }
+if ($script:isPreview -and -not $env:YAPLOQ_PREVIEW_ROOT) { throw 'Start preview using its dedicated launcher.' }
+$configDir = if ($script:isPreview) { Join-Path $env:YAPLOQ_PREVIEW_ROOT 'data-preview' } elseif ($env:VOXRELAY_DATA_DIR) { $env:VOXRELAY_DATA_DIR } else { Join-Path $appRoot 'data' }
 # Keep UI + backend on the same portable data folder (beside the app).
 $env:VOXRELAY_DATA_DIR = $configDir
 $legacyConfigDir = Join-Path $env:LOCALAPPDATA 'VoiceStudioSpeakerBridge'
 $legacyAppDir = Join-Path $env:LOCALAPPDATA 'VoxRelay'
 if (-not (Test-Path -LiteralPath $configDir)) {
     New-Item -ItemType Directory -Path $configDir -Force | Out-Null
-    foreach ($legacyPath in @(
+    foreach ($legacyPath in $(if ($script:isPreview) { @() } else { @(
         (Join-Path $legacyConfigDir 'settings.json'),
         (Join-Path $legacyAppDir 'settings.json')
-    )) {
+    ) })) {
         if (Test-Path -LiteralPath $legacyPath) {
             Copy-Item -LiteralPath $legacyPath -Destination (Join-Path $configDir 'settings.json')
             break
@@ -299,11 +303,21 @@ function Apply-AppFont($target) {
         $target.Add_KeyDown({param($sender,$e) if($e.Key -eq 'Escape'){$sender.Close()}})
     }
 }
+function Set-PreviewSettings($value) {
+    if (-not $script:isPreview) { return }
+    @{
+        http_address='127.0.0.1';ws_address='127.0.0.1';udp_address='127.0.0.1'
+        http_port=17582;ws_port=17581;udp_port=16670;enable_udp=$false
+        streamerbot_actions_enabled=$false;obs_ducking_enabled=$false
+        persist_queue=$false;check_updates_on_startup=$false
+    }.GetEnumerator() | ForEach-Object { $value | Add-Member -NotePropertyName $_.Key -NotePropertyValue $_.Value -Force }
+}
+
 function Ensure-SettingsFile {
     if (Test-Path -LiteralPath $configPath) { return }
     New-Item -ItemType Directory -Path $configDir -Force | Out-Null | Out-Null
     $legacyPath = Join-Path $legacyConfigDir 'settings.json'
-    if (Test-Path -LiteralPath $legacyPath) {
+    if (-not $script:isPreview -and (Test-Path -LiteralPath $legacyPath)) {
         Copy-Item -LiteralPath $legacyPath -Destination $configPath -Force
         return
     }
@@ -324,6 +338,7 @@ function Read-Settings {
     try {
         $value=Get-Content -LiteralPath $configPath -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
         if($value -isnot [pscustomobject]){throw 'Settings must be an object'}
+        Set-PreviewSettings $value
         return $value
     }
     catch {
@@ -333,6 +348,7 @@ function Read-Settings {
             if($restored -isnot [pscustomobject]){throw 'Backup must be an object'}
             $script:settingsRecovered=$true
             if ($BottomStatus) { $BottomStatus.Text = 'Recovered settings from backup. Save to repair the settings file.' }
+            Set-PreviewSettings $restored
             return $restored
         }
         throw 'Settings could not be loaded. Restore a backup from Settings.'
@@ -340,6 +356,7 @@ function Read-Settings {
 }
 function Write-Settings($value) {
     Ensure-SettingsFile
+    Set-PreviewSettings $value
     $temporary = $configPath + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
     try {
         $json = $value | ConvertTo-Json -Depth 24
@@ -358,6 +375,7 @@ function Protect-VoxRelaySecret([string]$value) {
     return [Convert]::ToBase64String($protected)
 }
 function Get-HttpPort {
+    if ($script:isPreview) { return 17582 }
     try {
         $s = Read-Settings
         if ($null -ne $s.http_port -and [int]$s.http_port -ge 1) { return [int]$s.http_port }
@@ -1399,6 +1417,7 @@ function Set-Page([string]$page) {
         voices=$VoicesPage; playground=$PlaygroundPage; queue=$QueuePage; history=$HistoryPage; rules=$RulesPage; pronunciation=$PronunciationPage;
         streamerbot=$StreamerBotPage; voicestudio=$VoiceStudioPage; polly=$PollyPage; elevenlabs=$ElevenLabsPage; azure=$AzurePage; google=$GooglePage; watson=$WatsonPage; uberduck=$UberDuckPage; ttsmonster=$TtsMonsterPage; acapela=$AcapelaPage; cereproc=$CereProcPage; settings=$SettingsPage; activity=$ActivityPage
     }
+    if ($script:yaploqPages) { foreach ($key in $script:yaploqPages.Keys) { $pages[$key] = $script:yaploqPages[$key] } }
     foreach ($key in $pages.Keys) { $pages[$key].Visibility = if ($key -eq $page) {'Visible'} else {'Collapsed'} }
     $mainNav = @{voices=$VoicesNav;playground=$PlaygroundNav;queue=$QueueNav;history=$HistoryNav;rules=$RulesNav;pronunciation=$PronunciationNav;activity=$ActivityNav;settings=$SettingsNav}
     foreach ($key in $mainNav.Keys) { $mainNav[$key].Style = $window.FindResource($(if($key -eq $page){'SelectedNavButton'}else{'NavButton'})) }
@@ -1414,6 +1433,7 @@ function Set-Page([string]$page) {
         activity=@('Activity','Speech events and application log')
     }
     if ($titles.ContainsKey($page)) { $PageTitle.Text = $titles[$page][0]; $PageSubtitle.Text = $titles[$page][1] }
+    if ($script:yaploqNav) { Update-YapLoqNavigation $page }
     if ($page -eq 'activity') { Refresh-Activity }
     if ($page -in @('queue','history')) { $script:playerStateNext = 0; $script:playerHistoryNext = 0 }
     Animate-PageHeading
@@ -2224,6 +2244,7 @@ function Refresh-ServiceState($Snapshot = $null, [bool]$FromPoll = $false) {
     } catch {}
     try {
         Update-NowPlayingBar $state $lastHistory
+        if ($script:yaploqNav) { Update-YapLoqDashboard $state }
     } catch {
         try {
             if ($BottomStatus) { $BottomStatus.Text = 'Player UI: ' + $_.Exception.Message; $BottomStatus.Visibility = 'Visible' }
@@ -3130,6 +3151,7 @@ function Get-TrayIconPath {
     return (Join-Path $configDir 'tray.ico')
 }
 function Promote-TrayIconInRegistry {
+    if ($script:isPreview) { return }
     # Promote whatever process owns the NotifyIcon (powershell host).
     try {
         $root = 'HKCU:\Control Panel\NotifyIconSettings'
@@ -3152,7 +3174,7 @@ function Promote-TrayIconInRegistry {
 function Initialize-TrayIcon {
     if ($script:trayIcon) { return }
     # Speaker.bot style: NotifyIcon lives in THIS process so restore/click stay on the UI thread.
-    Get-Process -Name 'VoxRelay.Tray' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    if (-not $script:isPreview) { Get-Process -Name 'VoxRelay.Tray' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
     $icoPath = Get-TrayIconPath
     try {
         if (Test-Path -LiteralPath $icoPath) { $script:trayOwnedIcon = [System.Drawing.Icon]::new($icoPath) }
@@ -3161,7 +3183,7 @@ function Initialize-TrayIcon {
         $script:trayOwnedIcon = [System.Drawing.SystemIcons]::Application.Clone()
     }
     $script:trayIcon = [System.Windows.Forms.NotifyIcon]::new()
-    $script:trayIcon.Text = 'VoxRelay'
+    $script:trayIcon.Text = $script:appLabel
     $script:trayIcon.Icon = $script:trayOwnedIcon
     $script:trayIcon.Visible = $false
 
@@ -3208,7 +3230,7 @@ function Hide-ToTray {
     if (-not $script:trayIcon) { return }
     $script:hiddenInTray = $true
     $script:trayIcon.Visible = $true
-    $script:trayIcon.Text = 'VoxRelay - Restore'
+    $script:trayIcon.Text = $script:appLabel + ' - Restore'
     Promote-TrayIconInRegistry
     # The main window runs on Dispatcher.Run(), so it can be genuinely hidden
     # without ending the application or leaving a borderless title-bar fragment.
@@ -3231,7 +3253,7 @@ function Restore-FromTray {
         if ($script:trayIcon -and -not ($script:minimizeToTray -or [bool]$MinimizeToTrayCheck.IsChecked)) {
             $script:trayIcon.Visible = $false
         } elseif ($script:trayIcon) {
-            $script:trayIcon.Text = 'VoxRelay'
+            $script:trayIcon.Text = $script:appLabel
             $script:trayIcon.Visible = $true
         }
         Write-TrayLog 'Restore-FromTray'
@@ -3248,7 +3270,7 @@ function Dispose-TrayIcon {
         try { $script:trayOwnedIcon.Dispose() } catch {}
         $script:trayOwnedIcon = $null
     }
-    Get-Process -Name 'VoxRelay.Tray' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    if (-not $script:isPreview) { Get-Process -Name 'VoxRelay.Tray' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
     Write-TrayLog 'Dispose-TrayIcon'
 }
 
@@ -3995,7 +4017,7 @@ $ResetSettingsButton.Add_Click({
         catch { $BottomStatus.Text=$_.Exception.Message }
     }
 })
-$script:restoreSignal = [Threading.EventWaitHandle]::new($false, [Threading.EventResetMode]::AutoReset, 'Local\VoxRelay.Restore')
+$script:restoreSignal = [Threading.EventWaitHandle]::new($false, [Threading.EventResetMode]::AutoReset, ('Local\' + $script:appIdentity + '.Restore'))
 $script:playerPollClock = [Diagnostics.Stopwatch]::StartNew()
 $script:playerStateNext = 0
 $script:playerHistoryNext = 0
@@ -4094,6 +4116,10 @@ if ($BottomStatusDot) { $BottomStatusDot.Fill = $SideStatus.Foreground }
 . (Join-Path $resourceRoot 'assets\RuleEditors.ps1')
 Install-NumericEditors
 Install-ProfanityEditor
+if ($script:isPreview) {
+    . (Join-Path $resourceRoot 'assets\YapLoqShell.ps1')
+    Install-YapLoqShell
+}
 try { Refresh-Grid } catch { $BottomStatus.Text = 'Could not load settings: ' + $_.Exception.Message }
 Start-Backend
 
@@ -4115,7 +4141,7 @@ $window.Add_ContentRendered({
         $initial = Read-Settings
         $getStarted = $window.FindName('GetStartedExpander')
         if ($getStarted) { $getStarted.IsExpanded = -not [bool]$initial.setup_completed }
-        if ($initial.setup_completed) { Set-Page 'voices' } else { Set-Page 'settings' }
+        if ($script:isPreview) { Set-Page 'playground' } elseif ($initial.setup_completed) { Set-Page 'voices' } else { Set-Page 'settings' }
         if ($initial.check_updates_on_startup) { Start-UpdateCheck $false }
     }) | Out-Null
 })

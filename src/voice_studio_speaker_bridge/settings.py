@@ -9,6 +9,7 @@ from threading import RLock
 
 from .models import VoiceAlias
 from .profanity import default_rules, normalize_rules
+from .channel import is_preview, preview_data_dir, apply_preview_limits
 
 
 APP_DIR_NAME = "VoxRelay"
@@ -16,6 +17,8 @@ LEGACY_APP_DIR_NAME = "VoiceStudioSpeakerBridge"
 
 
 def default_config_dir() -> Path:
+    if is_preview():
+        return preview_data_dir()
     portable = os.environ.get("VOXRELAY_DATA_DIR", "").strip()
     if portable:
         target = Path(portable).expanduser().resolve()
@@ -155,6 +158,12 @@ class Settings:
         self.load()
 
     def load(self) -> None:
+        try:
+            self._load()
+        finally:
+            apply_preview_limits(self)
+
+    def _load(self) -> None:
         if not self.path.exists():
             return
         previous_state = self.__dict__.copy()

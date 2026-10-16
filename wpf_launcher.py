@@ -11,6 +11,9 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import uuid
+
+from voice_studio_speaker_bridge.channel import is_preview, instance_name, preview_data_dir
 
 
 def _run_backend() -> int:
@@ -39,6 +42,8 @@ def _verify_package(output: Path) -> int:
                      "assets/ProfanityDialog.xaml", "assets/profanity-defaults.json",
                      "assets/VoxRelay-logo.png", "assets/VoxRelay.ico", "assets/VoxRelay-tray.ico",
                      "assets/fonts/Poppins/Poppins-Regular.ttf", "assets/fonts/Poppins/OFL.txt"]
+        if is_preview():
+            resources.append("assets/YapLoqShell.ps1")
         for name in resources:
             if not (root / name).is_file():
                 raise RuntimeError(f"Missing packaged resource: {name}")
@@ -109,11 +114,11 @@ def _single_instance() -> object | None:
     kernel32 = ctypes.windll.kernel32
     kernel32.CreateMutexW.argtypes = (wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR)
     kernel32.CreateMutexW.restype = wintypes.HANDLE
-    handle = kernel32.CreateMutexW(None, False, "Local\\VoxRelay.Desktop")
+    handle = kernel32.CreateMutexW(None, False, instance_name("Desktop"))
     if not handle or kernel32.GetLastError() == 183:
         kernel32.OpenEventW.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.LPCWSTR)
         kernel32.OpenEventW.restype = wintypes.HANDLE
-        event = kernel32.OpenEventW(2, False, "Local\\VoxRelay.Restore")
+        event = kernel32.OpenEventW(2, False, instance_name("Restore"))
         if event:
             kernel32.SetEvent(wintypes.HANDLE(event))
             kernel32.CloseHandle(wintypes.HANDLE(event))
@@ -123,14 +128,23 @@ def _single_instance() -> object | None:
     return handle
 
 
-def _backend_ready(timeout_sec: float = 10.0, port: int = 7582) -> bool:
+def _backend_ready(timeout_sec: float = 10.0, port: int = 7582, token: str = "") -> bool:
     deadline = time.time() + timeout_sec
     while time.time() < deadline:
         try:
-            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/state", timeout=1) as response:
+            endpoint = "/api/identity" if token else "/api/state"
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}{endpoint}", timeout=1) as response:
                 if response.status == 200:
+                    if token:
+                        identity = json.loads(response.read())
+                        if identity.get("launchId") != token or identity.get("channel") != "yaploq-preview":
+                            return False
+                        if identity.get("ready"):
+                            return True
+                        time.sleep(0.1)
+                        continue
                     return True
-        except (urllib.error.URLError, TimeoutError, OSError):
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError):
             time.sleep(0.25)
     return False
 
@@ -150,13 +164,15 @@ def main() -> int:
     frozen = bool(getattr(sys, "frozen", False))
     install_root = Path(sys.executable).resolve().parent if frozen else Path(__file__).resolve().parent
     resource_root = Path(getattr(sys, "_MEIPASS", install_root))
-    data_root = install_root / "data"
+    data_root = preview_data_dir() if is_preview() else Path(os.environ.get("VOXRELAY_DATA_DIR") or install_root / "data")
     data_root.mkdir(parents=True, exist_ok=True)
 
     environment = dict(os.environ)
     environment["VOXRELAY_DATA_DIR"] = str(data_root)
     environment["VSB_EXTERNAL_BACKEND"] = "1"
     environment["VOXRELAY_PARENT_PID"] = str(os.getpid())
+    token = str(uuid.uuid4()) if is_preview() else ""
+    environment["YAPLOQ_LAUNCH_ID"] = token
 
     # Prefer a live src/ package + Python when present so hotfixes (e.g. provider
     # enable flags) apply without waiting for a full PyInstaller rebuild.
@@ -204,8 +220,8 @@ def main() -> int:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    port = 7582
-    for filename in ("settings.json", "settings.json.bak"):
+    port = 17582 if is_preview() else 7582
+    for filename in (() if is_preview() else ("settings.json", "settings.json.bak")):
         try:
             config = json.loads((data_root / filename).read_text(encoding="utf-8-sig"))
             candidate = int(config.get("http_port", 7582))
@@ -214,10 +230,11 @@ def main() -> int:
             break
         except (OSError, ValueError, TypeError, AttributeError):
             continue
-    if not _backend_ready(port=port):
+    if not _backend_ready(port=port, token=token):
         if backend.poll() is None:
             backend.terminate()
-        ctypes.windll.user32.MessageBoxW(None, "VoxRelay could not start. Check data/bridge.log for details, and close any other running copy.", "VoxRelay", 0x10)
+        folder = "data-preview" if is_preview() else "data"
+        ctypes.windll.user32.MessageBoxW(None, f"Could not start the playback service. Check {folder}/bridge.log and close any copy using its ports.", "YapLoq Preview" if is_preview() else "VoxRelay", 0x10)
         return 1
 
     # Detach from any console inherited from python.exe so a terminal window
@@ -248,7 +265,7 @@ def main() -> int:
             kernel32 = ctypes.windll.kernel32
             kernel32.OpenEventW.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.LPCWSTR)
             kernel32.OpenEventW.restype = wintypes.HANDLE
-            signal = kernel32.OpenEventW(2, False, "Local\\VoxRelay.BackendStop")
+            signal = kernel32.OpenEventW(2, False, instance_name("BackendStop"))
             if signal:
                 kernel32.SetEvent(wintypes.HANDLE(signal))
                 kernel32.CloseHandle(wintypes.HANDLE(signal))
