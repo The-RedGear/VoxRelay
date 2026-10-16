@@ -35,7 +35,10 @@ function New-YapLoqButton([string]$label, [string]$route, [string]$iconSource = 
     if ($node) {
         $path = [Windows.Shapes.Path]::new()
         $path.Data = [Windows.Media.Geometry]::Parse($node.GetAttribute('Data'))
-        $path.Fill = $window.Foreground; $path.Stretch = 'Uniform'
+        $foreground = [Windows.Data.Binding]::new('Foreground')
+        $foreground.RelativeSource = [Windows.Data.RelativeSource]::new([Windows.Data.RelativeSourceMode]::FindAncestor,[Windows.Controls.Button],1)
+        [void]$path.SetBinding([Windows.Shapes.Shape]::FillProperty,$foreground)
+        $path.Stretch = 'Uniform'
         $path.Width = 16; $path.Height = 16; $path.Margin = '0,0,10,0'
         [void]$panel.Children.Add($path)
     }
@@ -205,7 +208,7 @@ function Install-YapLoqDashboard {
     $headline.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new())
     $column = [Windows.Controls.ColumnDefinition]::new(); $column.Width = 'Auto'; $headline.ColumnDefinitions.Add($column)
     $intro = [Windows.Controls.StackPanel]::new()
-    $title = [Windows.Controls.TextBlock]::new(); $title.Text = 'Make yourself heard.'; $title.FontSize = 22; $title.FontWeight = 'SemiBold'
+    $title = [Windows.Controls.TextBlock]::new(); $title.Text = 'Turn text into speech.'; $title.FontSize = 22; $title.FontWeight = 'SemiBold'
     $title.Foreground = [Windows.Media.BrushConverter]::new().ConvertFromString('#D9CCFF')
     [void]$intro.Children.Add($title)
     $hint = [Windows.Controls.TextBlock]::new(); $hint.Text = 'Choose a voice. Write a message. Press Speak.'; $hint.TextWrapping = 'Wrap'; $hint.Margin = '0,4,12,0'
@@ -341,15 +344,25 @@ function Install-YapLoqShell {
     Install-YapLoqStyles
     [xml]$script:shellMarkup = Get-Content -LiteralPath (Join-Path $resourceRoot 'VoxRelay.xaml') -Raw
     $window.Title = 'YapLoq Preview'
+    Initialize-AppBranding
     foreach ($name in @('TitleBrandLogo','SidebarBrandLogo','AboutBrandLogo')) {
         $image = $window.FindName($name)
         if ($image -and $image.Parent -is [Windows.Controls.Panel]) {
+            $parent = $image.Parent; $index = $parent.Children.IndexOf($image)
+            $branding = [Windows.Controls.StackPanel]::new(); $branding.Orientation = 'Horizontal'
+            $branding.Margin = $image.Margin; $branding.VerticalAlignment = 'Center'; $branding.HorizontalAlignment = 'Left'
+            [Windows.Controls.Grid]::SetRow($branding,[Windows.Controls.Grid]::GetRow($image))
+            [void]$parent.Children.Remove($image)
+            # Reuse the original transparent microphone mark, also used by the app/tray icons.
+            $image.Source = $window.Icon; $image.Margin = '0,0,8,0'
+            $image.Width = $image.Height = if ($name -eq 'TitleBrandLogo') { 24 } elseif ($name -eq 'AboutBrandLogo') { 48 } else { 36 }
+            $image.Visibility = 'Visible'
+            [Windows.Automation.AutomationProperties]::SetName($image,'YapLoq logo mark')
+            [void]$branding.Children.Add($image)
             $label = [Windows.Controls.TextBlock]::new(); $label.Text = 'YapLoq'; $label.FontWeight = 'SemiBold'
             $label.FontSize = if ($name -eq 'TitleBrandLogo') { 16 } else { 25 }
-            $label.Margin = $image.Margin; $label.VerticalAlignment = 'Center'; $label.Foreground = $window.Foreground
-            [Windows.Controls.Grid]::SetRow($label,[Windows.Controls.Grid]::GetRow($image))
-            $index = $image.Parent.Children.IndexOf($image)
-            $image.Parent.Children.Insert($index,$label); $image.Visibility = 'Collapsed'
+            $label.VerticalAlignment = 'Center'; $label.Foreground = $window.Foreground
+            [void]$branding.Children.Add($label); $parent.Children.Insert($index,$branding)
         }
     }
     $window.FindName('AppVersionLabel').Text = 'Preview'

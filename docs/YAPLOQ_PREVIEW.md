@@ -81,3 +81,10 @@ Hover/focus styling, section transitions, stronger page entrances and queue-chan
 reveals are included. Motion respects the Windows animation preference.
 The shell regression test exercises 132 provider selections plus repeated sidebar
 clicks and hover events, verifies direct back navigation and failed-route recovery.
+
+## Branding
+
+Keep the original microphone logo mark in the title bar, sidebar, About area and
+app/tray icons, paired with the YapLoq name. Dashboard copy describes text-to-speech
+directly: “Turn text into speech.” Action icons inherit their button foreground
+so accent buttons and selected navigation retain the correct contrast.
