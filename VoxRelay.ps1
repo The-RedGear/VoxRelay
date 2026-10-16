@@ -1224,7 +1224,7 @@ function Apply-ServiceStatusSummary($rows) {
     $summaryState = if ($bad -eq 0 -and $ok -eq $total) { 'ok' } elseif ($ok -eq 0) { 'bad' } else { 'warn' }
     $label = switch ($summaryState) {
         'ok' { 'Connected' }
-        'warn' { 'Partially Connected' }
+        'warn' { if ($script:statusFlyout) { 'Partial' } else { 'Partially Connected' } }
         default { 'Disconnected' }
     }
     $text = "$label ($ok/$total)"
@@ -1309,6 +1309,7 @@ function New-ServiceStatusRow($item) {
         $popup = $window.FindName('ServiceStatusPopup')
         if (-not $popup) { $popup = $ServiceStatusPopup }
         if ($popup) { $popup.IsOpen = $false }
+        if ($script:statusFlyout) { Close-YapLoqStatusMenu }
         if ($data -and $data.Page) {
             if ($data.Page -in @('streamerbot','voicestudio','polly','elevenlabs','azure','google','watson','uberduck','ttsmonster','acapela','cereproc')) {
                 Set-ServicesExpanded $true
@@ -1358,6 +1359,7 @@ function Refresh-ServiceHealth([bool]$probeBridge = $true) {
     return $rows
 }
 function Show-ServiceStatusMenu($placementTarget) {
+    if ($script:statusFlyout) { Show-YapLoqStatusMenu; return }
     $popup = $window.FindName('ServiceStatusPopup')
     if (-not $popup) { $popup = $ServiceStatusPopup }
     if (-not $popup) { return }

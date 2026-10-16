@@ -49,7 +49,9 @@ function New-YapLoqButton([string]$label, [string]$route, [string]$iconSource = 
 }
 
 function Open-YapLoqRoute([string]$route) {
-    if ($route -eq 'emergency-stop') {
+    if ($route -eq 'toggle-sidebar') {
+        Set-YapLoqSidebarCollapsed (-not $script:sidebarCollapsed)
+    } elseif ($route -eq 'emergency-stop') {
         try { Invoke-BridgePost '/clear-all' | Out-Null; Refresh-ServiceState; $BottomStatus.Text = 'Playback stopped; waiting speech cleared.' }
         catch { $BottomStatus.Text = $_.Exception.Message }
     } elseif ($route.StartsWith('owner:')) {
@@ -102,6 +104,7 @@ function Move-YapLoqRuleCard($control, $destination) {
 
 function Update-YapLoqNavigation([string]$page) {
     if (-not $script:yaploqNav) { return }
+    Close-YapLoqStatusMenu
     $owner = $script:routeOwners[$page]
     if (-not $owner) { return }
     $script:ownerLastPage[$owner] = $page
@@ -340,6 +343,102 @@ function Install-YapLoqServices {
     [void]$windows.Children.Add($save)
 }
 
+function Set-YapLoqSidebarCollapsed([bool]$collapsed, [bool]$persist = $true) {
+    $script:sidebarCollapsed = $collapsed
+    $script:sidebarColumn.Width = if ($collapsed) { 72 } else { 232 }
+    foreach ($button in @($script:yaploqNav.Values) + @($script:sidebarToggle)) {
+        $label = $button.Content.Children[1]
+        $icon = $button.Content.Children[0]
+        $label.Visibility = if ($collapsed) { 'Collapsed' } else { 'Visible' }
+        $icon.Margin = if ($collapsed) { '0' } else { '0,0,10,0' }
+        $button.Width = if ($collapsed) { 48 } else { [double]::NaN }
+        $button.Margin = if ($collapsed) { '12,3' } else { '10,3' }
+        $button.Padding = if ($collapsed) { '12,12' } else { '16,12' }
+        $button.HorizontalContentAlignment = if ($collapsed) { 'Center' } else { 'Left' }
+    }
+    $script:sidebarToggle.ToolTip = if ($collapsed) { 'Expand menu' } else { 'Collapse menu' }
+    [Windows.Automation.AutomationProperties]::SetName($script:sidebarToggle,[string]$script:sidebarToggle.ToolTip)
+    if (-not $collapsed) { Animate-In $script:sidebarNavigation }
+    if ($persist) {
+        $path = Join-Path $configDir 'ui-state.json'
+        $temporary = $path + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
+        try {
+            $state = if (Test-Path -LiteralPath $path) { Get-Content -LiteralPath $path -Raw | ConvertFrom-Json } else { [pscustomobject]@{} }
+            $state | Add-Member -NotePropertyName sidebarCollapsed -NotePropertyValue $collapsed -Force
+            [IO.File]::WriteAllText($temporary,($state | ConvertTo-Json),[Text.UTF8Encoding]::new($false))
+            if ([IO.File]::Exists($path)) { [IO.File]::Replace($temporary,$path,$null) } else { [IO.File]::Move($temporary,$path) }
+        } catch { $BottomStatus.Text = 'Layout changed, but the menu preference could not be saved.' }
+        finally { if ([IO.File]::Exists($temporary)) { [IO.File]::Delete($temporary) } }
+    }
+}
+
+function Position-YapLoqStatusMenu {
+    if (-not $script:statusFlyout -or -not $BridgeStatusButton.IsLoaded) { return }
+    $point = $BridgeStatusButton.TranslatePoint([Windows.Point]::new(0,0),$script:chromeRoot)
+    $right = [Math]::Max(8,$script:chromeRoot.ActualWidth - $point.X - $BridgeStatusButton.ActualWidth)
+    $script:statusFlyout.Margin = [Windows.Thickness]::new(0,4,$right,8)
+    $height = $script:chromeRoot.ActualHeight - $script:chromeRoot.RowDefinitions[0].ActualHeight - 12
+    $script:statusFlyout.MaxHeight = [Math]::Max(60,$height)
+}
+
+function Close-YapLoqStatusMenu {
+    if ($script:statusFlyout) { $script:statusFlyout.Visibility = 'Collapsed' }
+}
+
+function Show-YapLoqStatusMenu {
+    if ($script:statusFlyout.Visibility -eq 'Visible') { Close-YapLoqStatusMenu; return }
+    try { Render-ServiceStatusMenu (Refresh-ServiceHealth $false) }
+    catch { $BottomStatus.Text = 'Could not refresh service status.' }
+    Position-YapLoqStatusMenu
+    $script:statusFlyout.Visibility = 'Visible'
+    Animate-In $script:statusFlyout
+}
+
+function Install-YapLoqChrome {
+    # Keep all player shortcuts visible as the available page width changes.
+    $NowPlayingBar.Child.ColumnDefinitions[2].Width = 'Auto'
+    $script:sidebarNavigation = $script:yaploqNav.Dashboard.Parent
+    $sidebar = $script:sidebarNavigation.Parent.Parent
+    $script:sidebarColumn = $sidebar.Parent.Parent.ColumnDefinitions[0]
+    $sidebar.RowDefinitions[0].Height = 56
+    $script:sidebarToggle = New-YapLoqButton 'Collapse menu' 'toggle-sidebar' 'QueueNav'
+    [void]$sidebar.Children.Add($script:sidebarToggle)
+
+    # Reparent the existing status text/dot/chevron so health polling stays canonical.
+    $footer = $BridgeStatusButton.Parent
+    [void]$footer.Children.Remove($BridgeStatusButton); $footer.Visibility = 'Collapsed'
+    $buttons = $MinimizeButton.Parent
+    $buttons.Children.Insert(0,$BridgeStatusButton)
+    $BridgeStatusButton.Margin = '0,4,8,4'; $BridgeStatusButton.Padding = 0
+    $BridgeStatusButton.MinHeight = 0; $BridgeStatusButton.Height = 30
+    $BridgeStatusButton.MinWidth = 120; $BridgeStatusButton.MaxWidth = 220
+    $shell = $BridgeStatusButton.Content; $shell.Padding = '10,3'; $shell.CornerRadius = 6
+    $SideStatus.Parent.Children[0].Visibility = 'Collapsed'
+    $SideStatus.Margin = 0; $SideStatus.TextWrapping = 'NoWrap'; $SideStatus.TextTrimming = 'CharacterEllipsis'; $SideStatus.FontSize = 12
+    $tip = [Windows.Data.Binding]::new('Text'); $tip.Source = $SideStatus
+    [void]$BridgeStatusButton.SetBinding([Windows.FrameworkElement]::ToolTipProperty,$tip)
+    # The menu is a bounded visual inside the app, not a top-level Popup window.
+    $script:serviceStatusListRef = Get-ServiceStatusListPanel
+    $script:statusFlyout = $ServiceStatusPopup.Child; $ServiceStatusPopup.Child = $null
+    $script:statusFlyout.Visibility = 'Collapsed'; $script:statusFlyout.MinWidth = 0; $script:statusFlyout.Width = 300
+    $script:statusFlyout.HorizontalAlignment = 'Right'; $script:statusFlyout.VerticalAlignment = 'Top'
+    $content = $script:statusFlyout.Child; $script:statusFlyout.Child = $null
+    $scroll = [Windows.Controls.ScrollViewer]::new(); $scroll.VerticalScrollBarVisibility = 'Auto'; $scroll.HorizontalScrollBarVisibility = 'Disabled'
+    $scroll.Content = $content; $script:statusFlyout.Child = $scroll
+    $script:chromeRoot = $AppTitleBar.Parent
+    [Windows.Controls.Grid]::SetRow($script:statusFlyout,1); [Windows.Controls.Panel]::SetZIndex($script:statusFlyout,100)
+    [void]$script:chromeRoot.Children.Add($script:statusFlyout)
+    $window.Add_SizeChanged({Position-YapLoqStatusMenu})
+    $window.Add_Deactivated({Close-YapLoqStatusMenu})
+    $window.Add_PreviewMouseDown({
+        if ($script:statusFlyout.Visibility -eq 'Visible' -and -not $script:statusFlyout.IsMouseOver -and -not $BridgeStatusButton.IsMouseOver) { Close-YapLoqStatusMenu }
+    })
+    $window.Add_PreviewKeyDown({param($sender,$e) if($e.Key -eq 'Escape' -and $script:statusFlyout.Visibility -eq 'Visible'){Close-YapLoqStatusMenu;$e.Handled=$true}})
+    $collapsed = $false
+    try { $collapsed = [bool](Get-Content -LiteralPath (Join-Path $configDir 'ui-state.json') -Raw -ErrorAction Stop | ConvertFrom-Json).sidebarCollapsed } catch {}
+    Set-YapLoqSidebarCollapsed $collapsed $false
+}
+
 function Install-YapLoqShell {
     Install-YapLoqStyles
     [xml]$script:shellMarkup = Get-Content -LiteralPath (Join-Path $resourceRoot 'VoxRelay.xaml') -Raw
@@ -347,6 +446,7 @@ function Install-YapLoqShell {
     Initialize-AppBranding
     foreach ($name in @('TitleBrandLogo','SidebarBrandLogo','AboutBrandLogo')) {
         $image = $window.FindName($name)
+        if ($name -eq 'SidebarBrandLogo') { $image.Visibility = 'Collapsed'; continue }
         if ($image -and $image.Parent -is [Windows.Controls.Panel]) {
             $parent = $image.Parent; $index = $parent.Children.IndexOf($image)
             $branding = [Windows.Controls.StackPanel]::new(); $branding.Orientation = 'Horizontal'
@@ -412,6 +512,7 @@ function Install-YapLoqShell {
         $button = New-YapLoqButton $entry[0] ('owner:'+$entry[0]) $entry[1]
         $script:yaploqNav[$entry[0]] = $button; [void]$navigation.Children.Add($button)
     }
+    Install-YapLoqChrome
     Install-YapLoqDashboard
     Install-YapLoqQueue
     # Global queue and audio shortcuts remain alongside the existing player controls.

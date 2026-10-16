@@ -84,7 +84,20 @@ clicks and hover events, verifies direct back navigation and failed-route recove
 
 ## Branding
 
-Keep the original microphone logo mark in the title bar, sidebar, About area and
+Keep the original microphone logo mark in the title bar, About area and
 app/tray icons, paired with the YapLoq name. Dashboard copy describes text-to-speech
 directly: “Turn text into speech.” Action icons inherit their button foreground
 so accent buttons and selected navigation retain the correct contrast.
+
+## Sidebar and status control
+
+The sidebar has no logo header. Its menu toggle switches between page names and
+an icon-only rail; icons retain page-name tooltips and accessible labels. The
+choice is saved separately in `data-preview/ui-state.json` so backend settings
+writes cannot reset it.
+
+Service status is condensed beside Minimize in the title bar. Its dropdown is a
+scrollable, bounded visual inside the app below the title bar, rather than a
+separate Popup window. It reuses the existing health data and service shortcuts,
+and closes on a second click, outside click, Escape, page navigation or loss of
+window activation. Resizing keeps it inside the client area.

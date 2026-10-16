@@ -33,6 +33,8 @@ if ($window.FindName('AutoVoiceRulesExpander').Parent.Parent -ne $RulesPage.Cont
 if ($PlayStopButton.Visibility -ne 'Collapsed') { throw 'Dashboard duplicates player stop' }
 if ($PlayVoiceList.Items.Count -ne 1) { throw 'Dashboard lost voice selection' }
 if ($HttpBox.IsEnabled -or $EnableUdpCheck.IsEnabled) { throw 'Preview connection boundaries are editable' }
+if ($window.FindName('SidebarBrandLogo').Visibility -ne 'Collapsed') { throw 'Sidebar logo is still visible' }
+if ($BridgeStatusButton.Parent -ne $MinimizeButton.Parent -or $BridgeStatusButton.Parent.Children.IndexOf($BridgeStatusButton) -ne ($BridgeStatusButton.Parent.Children.IndexOf($MinimizeButton)-1)) { throw 'Status is not immediately before Minimize' }
 $sample=[pscustomobject]@{queue=@([pscustomobject]@{id='one';alias='Windows';text='Test message'})}
 Update-YapLoqDashboard $sample
 if ($script:dashboardUpcoming.Children.Count -ne 1 -or $script:dashboardUpcoming.Children[0].Text -notlike '*Test message') { throw 'Dashboard queue preview lost canonical state' }
@@ -70,6 +72,38 @@ foreach ($size in @(@(1180,760),@(980,640))) {
         }
     }
 }
+Set-Page 'playground'
+$window.Width=980;$window.Height=640
+$before=$script:shellContent.ActualWidth
+$script:sidebarToggle.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+$window.UpdateLayout();$window.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ContextIdle)
+if (-not $script:sidebarCollapsed -or $script:shellContent.ActualWidth -le $before) { throw 'Collapsing did not reclaim page space' }
+foreach ($utility in $NowPlayingHistoryButton.Parent.Children) {
+    $point=$utility.TranslatePoint([Windows.Point]::new(0,0),$NowPlayingBar)
+    if ($point.X+$utility.ActualWidth -gt $NowPlayingBar.ActualWidth) { throw 'Player shortcuts were clipped after sidebar collapse' }
+}
+foreach ($button in $script:yaploqNav.Values) {
+    if ($button.Content.Children[1].Visibility -ne 'Collapsed' -or -not $button.ToolTip) { throw 'Collapsed navigation lost icon-only labels/tooltips' }
+}
+if (-not (Get-Content (Join-Path $configDir 'ui-state.json') -Raw | ConvertFrom-Json).sidebarCollapsed) { throw 'Sidebar preference was not saved' }
+Show-ServiceStatusMenu $BridgeStatusButton
+$window.UpdateLayout();$window.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ContextIdle)
+Start-Sleep -Milliseconds 220
+$window.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ContextIdle)
+$window.UpdateLayout()
+if ($ServiceStatusPopup.IsOpen -or $script:statusFlyout.Parent -ne $script:chromeRoot -or $script:statusFlyout.Visibility -ne 'Visible') { throw 'Status menu is not an in-app flyout' }
+$position=$script:statusFlyout.TranslatePoint([Windows.Point]::new(0,0),$script:chromeRoot)
+if ($position.Y -lt $AppTitleBar.ActualHeight -or $position.Y+$script:statusFlyout.ActualHeight -gt $script:chromeRoot.ActualHeight) { throw 'Status menu escaped the client area' }
+if ($OutputDirectory) {
+    $bitmap=[Windows.Media.Imaging.RenderTargetBitmap]::new([int]$window.ActualWidth,[int]$window.ActualHeight,96,96,[Windows.Media.PixelFormats]::Pbgra32);$bitmap.Render($window)
+    $encoder=[Windows.Media.Imaging.PngBitmapEncoder]::new();$encoder.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($bitmap))
+    $file=[IO.File]::Create((Join-Path $OutputDirectory 'collapsed-status-980.png'));try{$encoder.Save($file)}finally{$file.Dispose()}
+}
+Show-ServiceStatusMenu $BridgeStatusButton
+if ($script:statusFlyout.Visibility -ne 'Collapsed') { throw 'Status button did not close the flyout' }
+Set-YapLoqSidebarCollapsed $false
+$window.UpdateLayout()
+if ($script:sidebarColumn.Width.Value -ne 232 -or $script:yaploqNav.Dashboard.Content.Children[1].Visibility -ne 'Visible') { throw 'Expanded navigation did not restore page names' }
 Set-Page 'history'; Open-YapLoqRoute 'owner:Voices'; Open-YapLoqRoute 'owner:Queue'
 $window.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ContextIdle)
 if ($script:activePage -ne 'history') { throw 'Queue subsection was not restored' }
