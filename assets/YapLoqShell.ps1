@@ -357,6 +357,11 @@ function Set-YapLoqSidebarCollapsed([bool]$collapsed, [bool]$persist = $true) {
         $button.HorizontalContentAlignment = if ($collapsed) { 'Center' } else { 'Left' }
     }
     $script:sidebarToggle.ToolTip = if ($collapsed) { 'Expand menu' } else { 'Collapse menu' }
+    $script:sidebarToggle.Content.Children[0].Data = [Windows.Media.Geometry]::Parse($(if ($collapsed) {
+        'M3 4h2v16H3z M10 6l6 6-6 6-1.4-1.4 4.6-4.6-4.6-4.6z'
+    } else {
+        'M3 4h2v16H3z M15 6l-6 6 6 6 1.4-1.4L11.8 12l4.6-4.6z'
+    }))
     [Windows.Automation.AutomationProperties]::SetName($script:sidebarToggle,[string]$script:sidebarToggle.ToolTip)
     if (-not $collapsed) { Animate-In $script:sidebarNavigation }
     if ($persist) {
@@ -441,7 +446,7 @@ function Install-YapLoqChrome {
 
 function Install-YapLoqShell {
     Install-YapLoqStyles
-    [xml]$script:shellMarkup = Get-Content -LiteralPath (Join-Path $resourceRoot 'VoxRelay.xaml') -Raw
+    [xml]$script:shellMarkup = Get-Content -LiteralPath (Join-Path $resourceRoot 'YapLoq.xaml') -Raw
     $window.Title = 'YapLoq Preview'
     Initialize-AppBranding
     foreach ($name in @('TitleBrandLogo','SidebarBrandLogo','AboutBrandLogo')) {

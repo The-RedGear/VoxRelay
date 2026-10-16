@@ -132,7 +132,7 @@ class TtsMonsterClient:
                         "key": self.api_key,
                         "ai": True,
                         "message": f"{alias.voice_id}: {text}",
-                        "details": {"provider": "VoxRelay"},
+                        "details": {"provider": "YapLoq"},
                     }
                 },
                 timeout=self.timeout,

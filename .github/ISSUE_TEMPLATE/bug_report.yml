@@ -6,7 +6,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: VoxRelay version
+      label: YapLoq version
     validations:
       required: true
   - type: textarea

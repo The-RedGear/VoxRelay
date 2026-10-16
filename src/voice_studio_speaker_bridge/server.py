@@ -103,7 +103,7 @@ class BridgeServers:
             def do_GET(self) -> None:
                 path = self.path.rstrip("/")
                 if path == "/api/identity":
-                    self._reply(200, {"channel": "yaploq-preview" if is_preview() else "voxrelay",
+                    self._reply(200, {"channel": "yaploq-preview" if is_preview() else "yaploq",
                                       "launchId": os.environ.get("YAPLOQ_LAUNCH_ID", ""),
                                       "ready": bridge.http_server is not None and bridge.ws_server is not None})
                     return
@@ -152,7 +152,7 @@ class BridgeServers:
                 bridge.settings.reload_if_changed()
                 self._reply(200, {
                     "ok": True,
-                    "name": "VoxRelay",
+                    "name": "YapLoq",
                     "version": __version__,
                     "notice": bridge.settings.recovery_notice,
                     "aliases": sorted(bridge.settings.aliases),
@@ -222,7 +222,7 @@ class BridgeServers:
                         if event_type is None:
                             raise ValueError("Choose a supported lifecycle event")
                         bridge.events.emit("integrationtest", event_type, {
-                            "id": "lifecycle-test", "text": "VoxRelay lifecycle test",
+                            "id": "lifecycle-test", "text": "YapLoq lifecycle test",
                             "alias": "Test", "voiceName": "test", "source": "Settings",
                             "user": "", "duration": 0.0,
                         })

@@ -1,10 +1,10 @@
-# VoxRelay
+# YapLoq
 
-![VoxRelay](assets/branding/1x/GitHub.png)
+<img src="assets/YapLoq-icon.png" width="128" alt="YapLoq microphone logo">
 
 **Voice automation for streamers.**
 
-VoxRelay is a Windows desktop TTS bridge built for Streamer.bot workflows. It
+YapLoq is a Windows desktop TTS bridge built for Streamer.bot workflows. It
 combines multiple voice providers, friendly voice aliases, pronunciation and
 moderation rules, queue management, audio routing, playback history, and
 Streamer.bot lifecycle actions in one application.
@@ -25,7 +25,7 @@ Streamer.bot lifecycle actions in one application.
 - Optional OBS audio ducking, normalization, fades and output tests
 - Live event inspector and private diagnostic exports
 
-**0.5.0-preview** is the current public preview (unsigned Windows build). See
+**YapLoq is under development on `redesign/yaploq`** (unsigned Windows preview). See
 [release notes](docs/RELEASE_NOTES.md), [the user guide](docs/USER_GUIDE.md),
 [Streamer.bot recipes](docs/STREAMERBOT.md), [provider adapters](docs/PROVIDERS.md),
 [legal notes](docs/LEGAL.md), and the [remaining release roadmap](ROADMAP.md).
@@ -34,14 +34,15 @@ Cloud TTS usage is billed by each provider. Only use voices you are authorized t
 
 ## Download
 
-[Download VoxRelay 0.5.0 preview for Windows](https://github.com/The-RedGear/VoxRelay/releases/download/v0.5.0-preview/VoxRelay-0.5.0-preview-Windows.zip)
+[Builds for the YapLoq redesign branch](https://github.com/The-RedGear/VoxRelay/actions/workflows/yaploq-preview.yml)
 
-Extract the complete folder and run `VoxRelay.exe`; Python is not required.
-This is an unsigned preview build. See the [release notes and checksum](https://github.com/The-RedGear/VoxRelay/releases/tag/v0.5.0-preview).
+Download a successful run's YapLoq preview artifact, extract the complete folder,
+and run `YapLoq-preview.exe`; Python is not required. Keep `_internal` beside it.
+This preview uses isolated data, ports and app identity; see [preview setup](docs/YAPLOQ_PREVIEW.md).
 
 ## Provider setup
 
-Open **Services** inside VoxRelay and configure at least one provider:
+Open **Services** inside YapLoq and configure at least one provider:
 
 - **VoiceStudio:** normally available locally at `http://127.0.0.1:3900`.
 - **Amazon Polly / ElevenLabs / Azure / Google / Watson / UberDuck / TTS.Monster / Acapela / CereProc:**
@@ -64,7 +65,7 @@ For Speaker.bot-compatible WebSocket events, configure Streamer.bot with:
 - Auto Connect: enabled
 - Auto Reconnect: enabled
 
-The **Streamer.bot** page in VoxRelay also provides copyable UDP commands and
+The **Streamer.bot** page in YapLoq also provides copyable UDP commands and
 optional lifecycle actions.
 
 ## Build from source
@@ -76,10 +77,10 @@ py -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -e . pytest pyinstaller cffi
 .\.venv\Scripts\python.exe -m pytest
-.\.venv\Scripts\python.exe -m PyInstaller --noconfirm --clean VoxRelay.spec
+.\.venv\Scripts\python.exe -m PyInstaller --noconfirm --clean YapLoq.spec
 ```
 
-The packaged application will be created under `dist\VoxRelay`.
+The packaged application will be created under `dist\YapLoq`.
 
 ## Contributing
 
@@ -88,17 +89,17 @@ Bug reports, feature requests, and pull requests are welcome. Read
 
 ## Privacy and responsible use
 
-VoxRelay runs locally. User settings, logs, generated audio, and history are
+YapLoq runs locally. User settings, logs, generated audio, and history are
 runtime data and are intentionally excluded from this repository. Only use
 voices and credentials you own or are authorized to use.
 
-VoxRelay is **not affiliated with** Streamer.bot, Speaker.bot, Amazon, Microsoft,
+YapLoq is **not affiliated with** Streamer.bot, Speaker.bot, Amazon, Microsoft,
 Google, ElevenLabs, IBM, or other named providers. Compatibility labels are for
 configuration only. See [`docs/LEGAL.md`](docs/LEGAL.md).
 
 ## License
 
-VoxRelay is available under the [MIT License](LICENSE). Third-party fonts,
+YapLoq is available under the [MIT License](LICENSE). Third-party fonts,
 libraries, and service trademarks are described in
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and [`docs/LEGAL.md`](docs/LEGAL.md).
 

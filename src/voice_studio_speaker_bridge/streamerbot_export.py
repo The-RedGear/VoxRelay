@@ -12,6 +12,7 @@ from . import __version__
 
 
 def _id(name: str) -> str:
+    # Preserve installed action/queue IDs across the rename to avoid duplicate imports.
     return str(uuid.uuid5(uuid.NAMESPACE_OID, "VoxRelay/" + name))
 
 
@@ -39,17 +40,17 @@ def export_actions(port: int, alias: str) -> str:
     actions = []
     for name, payload in commands:
         actions.append({"id": _id("action/"+name), "queue": queue_id, "enabled": True,
-            "excludeFromHistory": False, "name": "VoxRelay - "+name, "group": "VoxRelay",
+            "excludeFromHistory": False, "name": "YapLoq - "+name, "group": "YapLoq",
             "alwaysRun": False, "randomAction": False, "concurrent": True,
             "triggers": [], "actionGroups": [], "collapsedGroups": [],
             "actions": [{"id": _id("subaction/"+name), "weight": 0.0, "type": 2,
                 "group": None, "enabled": True, "index": 0, "port": port, "payload": payload}]})
     envelope = {
         "version": 10, "exportedFrom": "0.2.4", "minimumVersion": "0.2.4",
-        "meta": {"name": "VoxRelay speech and queue controls", "author": "VoxRelay",
+        "meta": {"name": "YapLoq speech and queue controls", "author": "YapLoq",
             "version": __version__, "autoRunAction": None, "minimumVersion": "0.2.4",
-            "description": "Speech and queue actions for VoxRelay. Attach your own triggers. Speak uses the selected alias, or random among Voices marked On. Item controls use ttsId. Importing can replace existing VoxRelay actions with the same names."},
-        "data": {"actions": actions, "queues": [{"id": queue_id, "name": "VoxRelay commands", "blocking": False}],
+            "description": "Speech and queue actions for YapLoq. Attach your own triggers. Speak uses the selected alias, or random among Voices marked On. Item controls use ttsId. Importing can replace existing YapLoq actions with the same names."},
+        "data": {"actions": actions, "queues": [{"id": queue_id, "name": "YapLoq commands", "blocking": False}],
             "commands": [], "websocketServers": [], "websocketClients": [], "timers": []}}
     binary = b"SBAE" + gzip.compress(json.dumps(envelope, ensure_ascii=False, separators=(",", ":")).encode("utf-8"), mtime=0)
     return base64.b64encode(binary).decode("ascii")

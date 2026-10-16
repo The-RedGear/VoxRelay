@@ -1,11 +1,11 @@
-# VoxRelay 0.5.0 preview — release notes
+# YapLoq 0.5.0 preview — release notes
 
-**Tag:** `v0.5.0-preview`  
-**Status:** public preview (unsigned Windows build)
+**Base version:** `0.5.0`
+**Status:** redesign-branch preview; no YapLoq release tag has been published.
 
 ## Highlights
 
-- New VoxRelay microphone branding, Poppins typography and cleaner, rounded UI
+- New YapLoq microphone branding, Poppins typography and cleaner, rounded UI
 - Click-to-seek media bar with smoother progress and selected-History playback
 - Replay existing recordings without duplicate cache files; one History/cache limit
 - Collapsible profanity rules with whole-word variants, replacements and hidden words
@@ -20,9 +20,9 @@
 
 ## Download
 
-1. Download `VoxRelay-0.5.0-preview-Windows.zip` from this Release.
-2. Extract the folder. Keep `_internal` beside `VoxRelay.exe`.
-3. Run `VoxRelay.exe` — Python is not required.
+1. Download a successful YapLoq preview build from the branch's Actions workflow.
+2. Extract the folder. Keep `_internal` beside `YapLoq-preview.exe`.
+3. Run `YapLoq-preview.exe` — Python is not required.
 
 Also included in the zip: `LICENSE`, `THIRD_PARTY_NOTICES.md`, `LEGAL.md`, `CHANGELOG.md`, and the `docs/` folder.
 
@@ -32,7 +32,7 @@ live integrations and your audio hardware should still be tested before a stream
 
 ## Important before you stream
 
-- **Provider billing:** cloud TTS usage is billed by each vendor under their own Terms of Service. VoxRelay does not sell voice minutes.
+- **Provider billing:** cloud TTS usage is billed by each vendor under their own Terms of Service. YapLoq does not sell voice minutes.
 - **Authorized voices only:** only use voices and cloned models you own or are licensed to use.
 - **Unsigned binary:** Windows SmartScreen may warn on first run. Code signing is planned; see `ROADMAP.md`.
 - **Secrets stay local:** API keys are encrypted with Windows DPAPI for the current Windows user. Moving `data/` to another PC or account requires re-entering keys.

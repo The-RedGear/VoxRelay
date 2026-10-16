@@ -7,11 +7,11 @@ from voice_studio_speaker_bridge.settings import Settings, default_config_dir
 
 
 def test_preview_never_imports_legacy_or_production_override(tmp_path, monkeypatch):
-    legacy = tmp_path / 'local' / 'VoxRelay'
+    legacy = tmp_path / 'local' / 'YapLoq'
     legacy.mkdir(parents=True)
     (legacy / 'settings.json').write_text('{"api_key":"production-secret"}')
     monkeypatch.setenv('LOCALAPPDATA', str(tmp_path / 'local'))
-    monkeypatch.setenv('VOXRELAY_DATA_DIR', str(legacy))
+    monkeypatch.setenv('YAPLOQ_DATA_DIR', str(legacy))
     monkeypatch.setenv('YAPLOQ_PREVIEW', '1')
     monkeypatch.setenv('YAPLOQ_PREVIEW_ROOT', str(tmp_path / 'preview'))
     target = default_config_dir()
@@ -52,7 +52,7 @@ def test_readiness_rejects_unrelated_backend():
     with patch.object(wpf_launcher.urllib.request, 'urlopen') as request:
         response = request.return_value.__enter__.return_value
         response.status = 200
-        response.read.return_value = b'{"channel":"voxrelay","launchId":"other","ready":true}'
+        response.read.return_value = b'{"channel":"yaploq","launchId":"other","ready":true}'
         assert not wpf_launcher._backend_ready(timeout_sec=1, port=17582, token='expected')
 
 

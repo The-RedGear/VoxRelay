@@ -1,22 +1,21 @@
-# VoxRelay branding asset checklist
+# YapLoq branding asset checklist
 
 ## Integrated artwork
 
-Original supplied artwork is preserved in `assets/branding/SVG`, `1x`, `16w`
+The original microphone artwork is preserved in `assets/branding/SVG`, `1x`, `16w`
 and `64w`. The microphone mark uses `#C4B6FF`; interactive controls retain the
 established `#B6A3FF` accent.
 
 Run `powershell.exe -STA -NoProfile -File tools/build_branding.ps1` to regenerate
-transparent `VoxRelay-logo.png`, `VoxRelay-symbol.png`, `VoxRelay-icon.png`, and
-the nine-resolution `VoxRelay.ico` / `VoxRelay-tray.ico` files from the SVG masters.
+transparent `YapLoq-logo.png`, `YapLoq-symbol.png`, `YapLoq-icon.png`, and
+the nine-resolution `YapLoq.ico` / `YapLoq-tray.ico` files from the SVG masters.
 The original artboard backgrounds are omitted only in these derived UI exports.
-The app lockup is generated from `assets/branding/SVG/Text Mark.svg`; the title
-bar and sidebar deliberately omit the Voice Automation tagline.
-The README uses the supplied GitHub banner at `assets/branding/1x/GitHub.png`.
-Use that same file in repository Settings → Social preview. The executable build
-already embeds `assets/VoxRelay.ico` through `VoxRelay.spec`.
+The title bar and About area pair the original microphone mark with a native
+YapLoq text label; there is no sidebar logo. Obsolete wordmark artwork has been
+removed from active assets. The README uses the microphone icon. The executable
+build embeds `assets/YapLoq.ico` through the YapLoq build specifications.
 
-These are production recommendations for VoxRelay, not hard limits unless noted.
+These are production recommendations for YapLoq, not hard limits unless noted.
 Start with editable vector artwork; we can generate the small exports and Windows
 icon from the masters. Do not build every size by hand.
 
@@ -25,7 +24,7 @@ icon from the masters. Do not build every size by hand.
 | Asset | Master / export | Use |
 |---|---|---|
 | Standalone symbol | SVG master; transparent PNG at 1024 × 1024 | App identity, About, profile image, source for Windows icons |
-| Horizontal logo: symbol + VoxRelay | SVG master; transparent PNG around 2000 × 500, preserving your actual proportions | Sidebar, About, README and website |
+| Horizontal logo: symbol + YapLoq | SVG master; transparent PNG around 2000 × 500, preserving your actual proportions | Sidebar, About, README and website |
 | Single-color symbol and logo | SVG in white and dark versions | Tiny tray icon, light/dark backgrounds, monochrome uses |
 | Repository / launch card | 1280 × 640 PNG or JPG, solid background, **under 1 MB** | GitHub social preview and link sharing |
 
@@ -35,12 +34,12 @@ Export raster art in sRGB. Use real transparency, not a checkerboard background.
 
 ## Windows icon exports (we can generate these)
 
-- `VoxRelay.ico`: one multi-resolution ICO containing 16, 20, 24, 32, 40, 48, 64,
-  128 and 256 pixel square images. This replaces `assets/VoxRelay.ico` for the
+- `YapLoq.ico`: one multi-resolution ICO containing 16, 20, 24, 32, 40, 48, 64,
+  128 and 256 pixel square images. This replaces `assets/YapLoq.ico` for the
   executable and window icon. Aim below 500 KB; this is a project target, not a
   Windows file-size limit.
-- `VoxRelay-icon.png`: transparent square PNG, 256 × 256. This replaces the
-  current tray source at `assets/VoxRelay-icon.png`.
+- `YapLoq-icon.png`: transparent square PNG, 256 × 256. This replaces the
+  current tray source at `assets/YapLoq-icon.png`.
 - Simplified tray mark: SVG master, tested at **16 × 16 and 20 × 20**. Use a
   recognizable silhouette with no lettering or fine detail. It can differ slightly
   from the full-size symbol for legibility. Test against light and dark taskbars.

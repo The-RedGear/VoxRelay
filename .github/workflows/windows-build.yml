@@ -5,6 +5,8 @@ permissions:
   contents: read
 jobs:
   build:
+    # Keep the existing released application's manual build off the redesign branch.
+    if: github.ref == 'refs/heads/main'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,12 +27,12 @@ jobs:
         shell: powershell
         run: powershell.exe -STA -NoProfile -ExecutionPolicy Bypass -File tests/test_branding.ps1
       - name: Package
-        run: python -m PyInstaller --noconfirm VoxRelay.spec
+        run: python -m PyInstaller --noconfirm YapLoq.spec
       - name: Verify packaged runtime
         shell: powershell
         run: |
-          $report = Join-Path $env:RUNNER_TEMP 'voxrelay-package-check.json'
-          $process = Start-Process -FilePath (Resolve-Path 'dist/VoxRelay/VoxRelay.exe') -ArgumentList @('--verify-package-output', ('"' + $report + '"')) -WindowStyle Hidden -PassThru
+          $report = Join-Path $env:RUNNER_TEMP 'yaploq-package-check.json'
+          $process = Start-Process -FilePath (Resolve-Path 'dist/YapLoq/YapLoq.exe') -ArgumentList @('--verify-package-output', ('"' + $report + '"')) -WindowStyle Hidden -PassThru
           if (-not $process.WaitForExit(60000)) { throw 'Packaged runtime check timed out' }
           if (-not (Test-Path -LiteralPath $report)) { throw 'Packaged runtime did not produce its report' }
           $result = Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
@@ -39,11 +41,11 @@ jobs:
       - name: Include user documentation
         shell: powershell
         run: |
-          Copy-Item -LiteralPath 'QUICK START.txt','LICENSE','THIRD_PARTY_NOTICES.md','README.md','ROADMAP.md','CHANGELOG.md','CODE_OF_CONDUCT.md','SECURITY.md','CONTRIBUTING.md' -Destination dist/VoxRelay
-          Copy-Item -LiteralPath docs -Destination dist/VoxRelay/docs -Recurse -Force
+          Copy-Item -LiteralPath 'QUICK START.txt','LICENSE','THIRD_PARTY_NOTICES.md','README.md','ROADMAP.md','CHANGELOG.md','CODE_OF_CONDUCT.md','SECURITY.md','CONTRIBUTING.md' -Destination dist/YapLoq
+          Copy-Item -LiteralPath docs -Destination dist/YapLoq/docs -Recurse -Force
           # Also surface these at package root for unzip-and-read
-          Copy-Item -LiteralPath 'docs/LEGAL.md','docs/RELEASE_NOTES.md' -Destination dist/VoxRelay -Force
+          Copy-Item -LiteralPath 'docs/LEGAL.md','docs/RELEASE_NOTES.md' -Destination dist/YapLoq -Force
       - uses: actions/upload-artifact@v4
         with:
-          name: VoxRelay-0.5.0-preview-Windows
-          path: dist/VoxRelay/
+          name: YapLoq-0.5.0-preview-Windows
+          path: dist/YapLoq/

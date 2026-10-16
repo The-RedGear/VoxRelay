@@ -1,4 +1,4 @@
-# VoxRelay release roadmap
+# YapLoq release roadmap
 
 Implemented items have automated coverage or runtime verification. The 0.5 build
 remains a preview until the live checks at the end are complete.

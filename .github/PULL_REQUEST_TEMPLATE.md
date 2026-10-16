@@ -10,4 +10,4 @@ Explain the problem this solves.
 
 - [ ] Tests pass locally
 - [ ] No credentials, settings, logs, caches, or generated audio are included
-- [ ] UI changes follow VoxRelay's established design
+- [ ] UI changes follow YapLoq's established design

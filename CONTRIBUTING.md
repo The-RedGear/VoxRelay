@@ -1,11 +1,11 @@
-# Contributing to VoxRelay
+# Contributing to YapLoq
 
-Thanks for helping improve VoxRelay.
+Thanks for helping improve YapLoq.
 
 ## Before opening an issue
 
 - Search existing issues first.
-- Include the VoxRelay version and Windows version.
+- Include the YapLoq version and Windows version.
 - Explain what you expected and what actually happened.
 - Include relevant log lines, but remove usernames, credentials, and private data.
 

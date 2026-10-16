@@ -37,17 +37,17 @@ def _verify_package(output: Path) -> int:
         from voice_studio_speaker_bridge.settings import Settings
 
         root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
-        resources = ["VoxRelay.ps1", "VoxRelay.xaml", "ImportPreview.xaml",
+        resources = ["YapLoq.ps1", "YapLoq.xaml", "ImportPreview.xaml",
                      "assets/RuleEditors.ps1", "assets/ProfanityPanel.xaml",
                      "assets/ProfanityDialog.xaml", "assets/profanity-defaults.json",
-                     "assets/VoxRelay-logo.png", "assets/VoxRelay.ico", "assets/VoxRelay-tray.ico",
+                     "assets/YapLoq-logo.png", "assets/YapLoq.ico", "assets/YapLoq-tray.ico",
                      "assets/fonts/Poppins/Poppins-Regular.ttf", "assets/fonts/Poppins/OFL.txt"]
         if is_preview():
             resources.append("assets/YapLoqShell.ps1")
         for name in resources:
             if not (root / name).is_file():
                 raise RuntimeError(f"Missing packaged resource: {name}")
-        with tempfile.TemporaryDirectory(prefix="voxrelay-package-") as folder:
+        with tempfile.TemporaryDirectory(prefix="yaploq-package-") as folder:
             settings = Settings(Path(folder) / "settings.json")
             if not settings.profanity_rules:
                 raise RuntimeError("Default moderation rules did not load")
@@ -81,20 +81,20 @@ def _self_test(output: Path) -> int:
         from voice_studio_speaker_bridge.providers import registry
         from voice_studio_speaker_bridge.windows_voices import WindowsVoiceClient
         resource_root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
-        for name in ("VoxRelay.ps1", "VoxRelay.xaml", "ImportPreview.xaml"):
+        for name in ("YapLoq.ps1", "YapLoq.xaml", "ImportPreview.xaml"):
             if not (resource_root / name).is_file():
                 raise RuntimeError(f"Missing desktop resource: {name}")
         client = WindowsVoiceClient()
         voices = client.list_voices()
         if not voices:
             raise RuntimeError("No installed Windows voices are available for the runtime check")
-        wav = client.synthesize_wav("VoxRelay runtime check.", VoiceAlias("Check", provider="windows", voice_id=voices[0]["voice_id"]))
+        wav = client.synthesize_wav("YapLoq runtime check.", VoiceAlias("Check", provider="windows", voice_id=voices[0]["voice_id"]))
         pcm, duration = AudioPlayer().decode_wav(wav)
         from xml.etree import ElementTree
         namespace = "http://www.w3.org/2001/10/synthesis"
         root = ElementTree.Element("{"+namespace+"}speak", {"version": "1.0",
             "{http://www.w3.org/XML/1998/namespace}lang": voices[0]["language"]})
-        root.text = "VoxRelay "
+        root.text = "YapLoq "
         pause = ElementTree.SubElement(root, "{"+namespace+"}break", {"time": "100ms"})
         pause.tail = "is ready."
         ssml_wav = client.synthesize_wav(ElementTree.tostring(root, encoding="unicode"),
@@ -164,13 +164,13 @@ def main() -> int:
     frozen = bool(getattr(sys, "frozen", False))
     install_root = Path(sys.executable).resolve().parent if frozen else Path(__file__).resolve().parent
     resource_root = Path(getattr(sys, "_MEIPASS", install_root))
-    data_root = preview_data_dir() if is_preview() else Path(os.environ.get("VOXRELAY_DATA_DIR") or install_root / "data")
+    data_root = preview_data_dir() if is_preview() else Path(os.environ.get("YAPLOQ_DATA_DIR") or os.environ.get("VOXRELAY_DATA_DIR") or install_root / "data")
     data_root.mkdir(parents=True, exist_ok=True)
 
     environment = dict(os.environ)
-    environment["VOXRELAY_DATA_DIR"] = str(data_root)
+    environment["YAPLOQ_DATA_DIR"] = str(data_root)
     environment["VSB_EXTERNAL_BACKEND"] = "1"
-    environment["VOXRELAY_PARENT_PID"] = str(os.getpid())
+    environment["YAPLOQ_PARENT_PID"] = str(os.getpid())
     token = str(uuid.uuid4()) if is_preview() else ""
     environment["YAPLOQ_LAUNCH_ID"] = token
 
@@ -234,7 +234,7 @@ def main() -> int:
         if backend.poll() is None:
             backend.terminate()
         folder = "data-preview" if is_preview() else "data"
-        ctypes.windll.user32.MessageBoxW(None, f"Could not start the playback service. Check {folder}/bridge.log and close any copy using its ports.", "YapLoq Preview" if is_preview() else "VoxRelay", 0x10)
+        ctypes.windll.user32.MessageBoxW(None, f"Could not start the playback service. Check {folder}/bridge.log and close any copy using its ports.", "YapLoq Preview" if is_preview() else "YapLoq", 0x10)
         return 1
 
     # Detach from any console inherited from python.exe so a terminal window
@@ -249,7 +249,7 @@ def main() -> int:
     startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
     startupinfo.wShowWindow = 0
     shell = subprocess.Popen(
-        ["powershell.exe", "-STA", "-NoProfile", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File", str(resource_root / "VoxRelay.ps1")],
+        ["powershell.exe", "-STA", "-NoProfile", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File", str(resource_root / "YapLoq.ps1")],
         cwd=str(install_root),
         env=environment,
         startupinfo=startupinfo,

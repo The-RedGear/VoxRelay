@@ -8,7 +8,7 @@ def is_preview() -> bool:
 
 
 def instance_name(part: str) -> str:
-    return "Local\\" + ("YapLoq.Preview" if is_preview() else "VoxRelay") + "." + part
+    return "Local\\" + ("YapLoq.Preview" if is_preview() else "YapLoq") + "." + part
 
 
 def preview_data_dir() -> Path:

@@ -13,7 +13,7 @@ class AcapelaClient:
         self,
         account: str = "",
         password_encrypted: str = "",
-        application_name: str = "VoxRelay",
+        application_name: str = "YapLoq",
         timeout: float = 120,
     ):
         if not account or not password_encrypted:
@@ -23,7 +23,7 @@ class AcapelaClient:
         except (OSError, ValueError, AttributeError) as exc:
             raise ValueError("Saved Acapela password could not be unlocked. Re-enter it on this Windows account.") from exc
         self.account = account.strip()
-        self.app_name = (application_name or "VoxRelay").strip() or "VoxRelay"
+        self.app_name = (application_name or "YapLoq").strip() or "YapLoq"
         self.timeout = timeout
         if not self.password:
             raise ValueError("Acapela password is empty")

@@ -3,9 +3,9 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase
 $root = Split-Path -Parent $PSScriptRoot
 $tokens=$null; $errors=$null
-$ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'VoxRelay.ps1'),[ref]$tokens,[ref]$errors)
+$ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'YapLoq.ps1'),[ref]$tokens,[ref]$errors)
 if ($errors.Count) { throw ($errors | Out-String) }
-$reader = [Xml.XmlReader]::Create((Join-Path $root 'VoxRelay.xaml'))
+$reader = [Xml.XmlReader]::Create((Join-Path $root 'YapLoq.xaml'))
 try { $window=[Windows.Markup.XamlReader]::Load($reader) } finally { $reader.Dispose() }
 $visual=$window.Content
 $visual.SetValue([Windows.Documents.TextElement]::ForegroundProperty,$window.Foreground)
@@ -13,7 +13,7 @@ $visual.SetValue([Windows.Documents.TextElement]::FontFamilyProperty,[Windows.Me
 $window.FindName('AliasGrid').ItemsSource=@([pscustomobject]@{Name='Windows voice';Profile='Microsoft David Desktop - Windows voices';Group='Favorites';Model='sapi';Speed='1.0'})
 $window.FindName('AliasProviderFilter').ItemsSource=@('All engines','VoiceStudio','Amazon Polly','Windows voices')
 $window.FindName('AliasProviderFilter').SelectedIndex=0
-$window.FindName('QueueGrid').ItemsSource=@([pscustomobject]@{Status='Playing';Alias='Windows voice';User='viewer';Text='VoxRelay is ready.'})
+$window.FindName('QueueGrid').ItemsSource=@([pscustomobject]@{Status='Playing';Alias='Windows voice';User='viewer';Text='YapLoq is ready.'})
 $window.WindowStartupLocation='Manual';$window.Left=-20000;$window.Top=-20000
 $window.ShowInTaskbar=$false;$window.ShowActivated=$false
 $window.Show()

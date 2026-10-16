@@ -12,11 +12,11 @@ VSVersionInfo(
     kids=[
         StringFileInfo([
             StringTable('040904B0', [
-                StringStruct('FileDescription', 'VoxRelay Voice Automation'),
+                StringStruct('FileDescription', 'YapLoq Text to Speech'),
                 StringStruct('FileVersion', '0.5.0.0'),
-                StringStruct('InternalName', 'VoxRelay'),
-                StringStruct('OriginalFilename', 'VoxRelay.exe'),
-                StringStruct('ProductName', 'VoxRelay'),
+                StringStruct('InternalName', 'YapLoq'),
+                StringStruct('OriginalFilename', 'YapLoq.exe'),
+                StringStruct('ProductName', 'YapLoq'),
                 StringStruct('ProductVersion', '0.5.0-preview'),
             ]),
         ]),

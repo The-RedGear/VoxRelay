@@ -1,7 +1,7 @@
-# VoxRelay 0.5 preview
+# YapLoq 0.5 preview
 
-Run `VoxRelay.exe` from the extracted folder. Keep its `_internal` folder beside it.
-VoxRelay uses the `data` folder beside the EXE. A second launch restores the
+For this redesign preview, run `YapLoq-preview.exe` and use its isolated `data-preview` folder. See `YAPLOQ_PREVIEW.md` for preview limits. Standard builds use `YapLoq.exe`; keep the `_internal` folder beside the executable.
+YapLoq uses the `data` folder beside the EXE. A second launch restores the
 existing window rather than starting another playback service.
 
 ## First voice
@@ -27,7 +27,7 @@ For smaller custom pools (Wallace + Master Chief + Sgt Johnson only), open
 
 Saved keys are encrypted for the current Windows account (DPAPI). Moving `data` to
 another PC or account requires entering keys again. Cloud providers bill usage on
-their own accounts — VoxRelay does not sell minutes.
+their own accounts — YapLoq does not sell minutes.
 
 ## Streamer.bot identities
 
@@ -79,7 +79,7 @@ and short fades. Samples are clipped safely when amplified.
 
 OBS ducking is optional. Enable OBS's WebSocket server, enter its address and
 password, load inputs, choose the music/desktop input, and set its speech volume.
-VoxRelay remembers the original volume and restores it when the queue finishes.
+YapLoq remembers the original volume and restores it when the queue finishes.
 Do not select the TTS input itself. A forced process termination or power loss
 cannot guarantee an OBS volume restoration.
 
@@ -130,7 +130,7 @@ be unavailable to unauthenticated checks.
 
 ## Compatibility
 
-VoxRelay supplies Speaker.bot-compatible commands and event subscriptions over
+YapLoq supplies Speaker.bot-compatible commands and event subscriptions over
 WebSocket, plus local HTTP and UDP commands. It has its own identity and does not
 reproduce every Speaker.bot provider or feature.
 

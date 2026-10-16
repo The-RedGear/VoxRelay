@@ -7,7 +7,7 @@ predicate and capability tuple. Adapters implement `list_voices()` and
 
 Discovery returns dictionaries containing `voice_id`, `name`, `provider`, `model`
 and `language`. Optional `engines` and `language_name` describe provider-specific
-choices. Synthesis returns a complete WAV; device playback belongs to VoxRelay.
+choices. Synthesis returns a complete WAV; device playback belongs to YapLoq.
 Never play audio directly in a provider, or one request can produce two outputs.
 
 Use bounded network timeouts. Generation cancellation discards a cancelled result

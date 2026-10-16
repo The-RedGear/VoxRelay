@@ -1,13 +1,13 @@
 # Third-party notices
 
-This file lists third-party material distributed with VoxRelay or used to build
-it. VoxRelay itself is licensed under the MIT License (see [`LICENSE`](LICENSE)).
+This file lists third-party material distributed with YapLoq or used to build
+it. YapLoq itself is licensed under the MIT License (see [`LICENSE`](LICENSE)).
 
 ## Bundled assets
 
 ### Poppins typeface
 
-VoxRelay uses **Poppins** by the Poppins Project Authors (Indian Type Foundry,
+YapLoq uses **Poppins** by the Poppins Project Authors (Indian Type Foundry,
 Jonny Pinhorn, and Ninad Kale), bundled locally for offline use under the SIL Open
 Font License, Version 1.1.
 
@@ -16,7 +16,7 @@ Font License, Version 1.1.
 
 ### Inter typeface
 
-VoxRelay includes the **Inter** typeface by Rasmus Andersson.
+YapLoq includes the **Inter** typeface by Rasmus Andersson.
 
 - License: SIL Open Font License, Version 1.1
 - Full text: [`assets/INTER-LICENSE.txt`](assets/INTER-LICENSE.txt)
@@ -50,7 +50,7 @@ Exact versions are pinned by your install environment or release build.
 
 ## External services (not redistributed)
 
-VoxRelay can call third-party speech APIs. Those services are **not** part of
+YapLoq can call third-party speech APIs. Those services are **not** part of
 this repository. Using them requires your own accounts and acceptance of each
 provider's terms, including but not limited to:
 
@@ -68,7 +68,7 @@ provider's terms, including but not limited to:
 
 API request shapes for several cloud engines were cross-checked against public
 documentation and against [OpenSpeaker](https://github.com/EvaisaDev/OpenSpeaker)
-(MIT License) as an interoperability reference. VoxRelay does not redistribute
+(MIT License) as an interoperability reference. YapLoq does not redistribute
 OpenSpeaker source code.
 
 ## Trademarks

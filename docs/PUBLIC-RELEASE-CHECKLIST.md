@@ -10,7 +10,7 @@ and before publishing a Windows Release build.
 - [x] [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md) lists Inter OFL + deps
 - [x] [`assets/INTER-LICENSE.txt`](../assets/INTER-LICENSE.txt) ships with fonts
 - [x] [`docs/LEGAL.md`](LEGAL.md) covers MIT summary, trademarks, user duties
-- [x] Packaged `dist/VoxRelay` includes LICENSE + THIRD_PARTY_NOTICES + docs/ (incl. LEGAL.md) + root `LEGAL.md` / `RELEASE_NOTES.md` via `windows-build.yml`
+- [x] Packaged `dist/YapLoq` includes LICENSE + THIRD_PARTY_NOTICES + docs/ (incl. LEGAL.md) + root `LEGAL.md` / `RELEASE_NOTES.md` via `windows-build.yml`
 
 ## Version identity
 
@@ -45,7 +45,7 @@ and before publishing a Windows Release build.
 
 - [ ] Import generated `.sb` actions and test Speak + queue controls
 - [ ] Smoke Windows + VoiceStudio + at least one cloud provider from Playground and UDP
-- [x] Publish GitHub Release `v0.5.0-preview` with the Windows zip and SHA-256 checksum
+- [ ] Publish a YapLoq GitHub Release with its own tag, Windows zip and SHA-256 checksum after preview approval
 - [x] Flip repo to Public after the Release exists
 - [x] Clean GitHub Windows build: 102 tests, desktop functions, History/Rules and branding checks
 - [x] Frozen EXE resource/audio checks and local silent Windows voice/SSML synthesis
@@ -54,7 +54,7 @@ and before publishing a Windows Release build.
 ## Pre-publish commands
 
 ```powershell
-cd "path\to\VoxRelay"
+cd "path\to\YapLoq"
 git status
 python -m pytest -q
 # optional secret scan

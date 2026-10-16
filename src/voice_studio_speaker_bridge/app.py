@@ -57,7 +57,7 @@ def wait_for_desktop_exit() -> None:
     kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
     kernel32.OpenProcess.restype = wintypes.HANDLE
     signal = kernel32.CreateEventW(None, True, False, instance_name("BackendStop"))
-    parent_pid = os.environ.get("VOXRELAY_PARENT_PID", "")
+    parent_pid = os.environ.get("YAPLOQ_PARENT_PID") or os.environ.get("VOXRELAY_PARENT_PID", "")
     parent = kernel32.OpenProcess(0x00100000, False, int(parent_pid)) if parent_pid else None
     try:
         if parent_pid and not parent:
@@ -88,7 +88,7 @@ class BridgeApp:
 
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title("VoxRelay")
+        self.root.title("YapLoq")
         self.root.geometry("860x680")
         self.root.minsize(760, 590)
         self._configure_theme()
@@ -154,7 +154,7 @@ class BridgeApp:
         header = ttk.Frame(self.root, style="Header.TFrame", padding=(14, 12, 14, 6))
         header.grid(row=0, column=0, sticky="ew")
         header.columnconfigure(0, weight=1)
-        ttk.Label(header, text="VoxRelay", style="Title.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(header, text="YapLoq", style="Title.TLabel").grid(row=0, column=0, sticky="w")
         ttk.Label(header, text="Cloned voices for Streamer.bot - Speaker.bot stays independent", style="Subtitle.TLabel").grid(row=1, column=0, sticky="w", pady=(1, 0))
 
         connection = ttk.LabelFrame(self.root, text="VoiceStudio connection", padding=10)
@@ -376,7 +376,7 @@ class BridgeApp:
         if not selection:
             messagebox.showinfo("Select an alias", "Select an alias to test.")
             return
-        text = simpledialog.askstring("Test voice", "Text to speak:", initialvalue="VoxRelay is ready.")
+        text = simpledialog.askstring("Test voice", "Text to speak:", initialvalue="YapLoq is ready.")
         if text:
             try:
                 self.engine.enqueue(text, self.settings.aliases[selection[0]])
@@ -471,7 +471,7 @@ def main() -> None:
     if "--headless" in sys.argv:
         instance_mutex = acquire_backend_mutex()
         if instance_mutex is None:
-            logging.warning("Another VoxRelay backend is already running; exiting duplicate")
+            logging.warning("Another YapLoq backend is already running; exiting duplicate")
             return
         settings = Settings()
         events = EventBus()
@@ -484,7 +484,7 @@ def main() -> None:
         engine.start()
         servers.start()
         streamerbot_actions.start()
-        logging.info("VoxRelay service started in headless mode")
+        logging.info("YapLoq service started in headless mode")
         try:
             wait_for_desktop_exit()
         except KeyboardInterrupt:

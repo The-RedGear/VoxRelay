@@ -9,12 +9,12 @@ $configPath = Join-Path $configDir 'settings.json'
 $logPath = Join-Path $configDir 'bridge.log'
 $legacyConfigDir = Join-Path $configDir 'no-legacy'
 $tokens=$null; $errors=$null
-$ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $appRoot 'VoxRelay.ps1'),[ref]$tokens,[ref]$errors)
+$ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $appRoot 'YapLoq.ps1'),[ref]$tokens,[ref]$errors)
 if ($errors.Count) { throw ($errors | Out-String) }
 foreach($definition in $ast.FindAll({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst]},$true)) { Invoke-Expression $definition.Extent.Text }
 Initialize-RoundedChrome
-$window=Load-Xaml (Join-Path $appRoot 'VoxRelay.xaml')
-[xml]$markup=Get-Content -LiteralPath (Join-Path $appRoot 'VoxRelay.xaml') -Raw
+$window=Load-Xaml (Join-Path $appRoot 'YapLoq.xaml')
+[xml]$markup=Get-Content -LiteralPath (Join-Path $appRoot 'YapLoq.xaml') -Raw
 foreach($node in $markup.SelectNodes('//*[@Name]')){Set-Variable -Name $node.GetAttribute('Name') -Value $window.FindName($node.GetAttribute('Name'))}
 $script:profiles=@{}; $script:profileModels=@{}; $script:profileModelOptions=@{}; $script:servicesExpanded=$true; $script:loadingSettings=$false
 Apply-AppFont $window

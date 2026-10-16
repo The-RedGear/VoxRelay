@@ -7,15 +7,16 @@ Add-Type -AssemblyName WindowsFormsIntegration
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
-public static class VoxRelayTaskbarIdentity {
+public static class YapLoqTaskbarIdentity {
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     public static extern int SetCurrentProcessExplicitAppUserModelID(string appId);
 }
 '@
 $script:isPreview = $env:YAPLOQ_PREVIEW -eq '1'
-$script:appIdentity = if ($script:isPreview) { 'YapLoq.Preview' } else { 'VoxRelay' }
-$script:appLabel = if ($script:isPreview) { 'YapLoq Preview' } else { 'VoxRelay' }
-[void][VoxRelayTaskbarIdentity]::SetCurrentProcessExplicitAppUserModelID($script:appIdentity + '.Desktop')
+if (-not $env:YAPLOQ_DATA_DIR -and $env:VOXRELAY_DATA_DIR) { $env:YAPLOQ_DATA_DIR = $env:VOXRELAY_DATA_DIR }
+$script:appIdentity = if ($script:isPreview) { 'YapLoq.Preview' } else { 'YapLoq' }
+$script:appLabel = if ($script:isPreview) { 'YapLoq Preview' } else { 'YapLoq' }
+[void][YapLoqTaskbarIdentity]::SetCurrentProcessExplicitAppUserModelID($script:appIdentity + '.Desktop')
 
 # Bundled UI assets live next to this script (_internal when frozen).
 # Portable data always lives beside the install root (parent of _internal).
@@ -33,20 +34,22 @@ if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') {
     $psi.WorkingDirectory = $appRoot
     $psi.UseShellExecute = $false
     if ($env:VSB_EXTERNAL_BACKEND) { $psi.EnvironmentVariables['VSB_EXTERNAL_BACKEND'] = $env:VSB_EXTERNAL_BACKEND }
-    if ($env:VOXRELAY_DATA_DIR) { $psi.EnvironmentVariables['VOXRELAY_DATA_DIR'] = $env:VOXRELAY_DATA_DIR }
+    if ($env:YAPLOQ_DATA_DIR) { $psi.EnvironmentVariables['YAPLOQ_DATA_DIR'] = $env:YAPLOQ_DATA_DIR }
     [void][System.Diagnostics.Process]::Start($psi)
     exit 0
 }
 if ($script:isPreview -and -not $env:YAPLOQ_PREVIEW_ROOT) { throw 'Start preview using its dedicated launcher.' }
-$configDir = if ($script:isPreview) { Join-Path $env:YAPLOQ_PREVIEW_ROOT 'data-preview' } elseif ($env:VOXRELAY_DATA_DIR) { $env:VOXRELAY_DATA_DIR } else { Join-Path $appRoot 'data' }
+$configDir = if ($script:isPreview) { Join-Path $env:YAPLOQ_PREVIEW_ROOT 'data-preview' } elseif ($env:YAPLOQ_DATA_DIR) { $env:YAPLOQ_DATA_DIR } else { Join-Path $appRoot 'data' }
 # Keep UI + backend on the same portable data folder (beside the app).
-$env:VOXRELAY_DATA_DIR = $configDir
+$env:YAPLOQ_DATA_DIR = $configDir
 $legacyConfigDir = Join-Path $env:LOCALAPPDATA 'VoiceStudioSpeakerBridge'
-$legacyAppDir = Join-Path $env:LOCALAPPDATA 'VoxRelay'
+$legacyAppDir = Join-Path $env:LOCALAPPDATA 'YapLoq'
+$legacyBrandDir = Join-Path $env:LOCALAPPDATA 'VoxRelay' # Read-only import compatibility.
 if (-not (Test-Path -LiteralPath $configDir)) {
     New-Item -ItemType Directory -Path $configDir -Force | Out-Null
     foreach ($legacyPath in $(if ($script:isPreview) { @() } else { @(
         (Join-Path $legacyConfigDir 'settings.json'),
+        (Join-Path $legacyBrandDir 'settings.json'),
         (Join-Path $legacyAppDir 'settings.json')
     ) })) {
         if (Test-Path -LiteralPath $legacyPath) {
@@ -67,7 +70,7 @@ $script:backendOnline = $false
 $script:backendFailUntil = [datetime]::MinValue
 
 function Initialize-RoundedChrome {
-    if ('VoxRelayRoundedChrome' -as [type]) { return }
+    if ('YapLoqRoundedChrome' -as [type]) { return }
     Add-Type -ReferencedAssemblies @('PresentationFramework','PresentationCore','WindowsBase','System.Xaml') -TypeDefinition @'
 using System;
 using System.Globalization;
@@ -80,7 +83,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 
-public static class VoxRelayMotion {
+public static class YapLoqMotion {
     private static bool initialized;
     public static void Initialize() {
         if (initialized) return;
@@ -125,7 +128,7 @@ public static class VoxRelayMotion {
     private static void Opened(object sender, RoutedEventArgs args) { Reveal(sender as UIElement,0.9,110); }
 }
 
-public sealed class VoxRelayMarkerPosition : IMultiValueConverter {
+public sealed class YapLoqMarkerPosition : IMultiValueConverter {
     public object Convert(object[] values, Type target, object parameter, CultureInfo culture) {
         if (values.Length < 2 || !(values[0] is double) || !(values[1] is double)) return new Thickness(0);
         double edge = (double)values[0], width = (double)values[1];
@@ -134,7 +137,7 @@ public sealed class VoxRelayMarkerPosition : IMultiValueConverter {
     public object[] ConvertBack(object value, Type[] targets, object parameter, CultureInfo culture) { throw new NotSupportedException(); }
 }
 
-public static class VoxRelayRoundedChrome {
+public static class YapLoqRoundedChrome {
     private static readonly ConditionalWeakTable<Window, object> windows = new ConditionalWeakTable<Window, object>();
     public static void Attach(Window window) {
         object existing;
@@ -221,8 +224,8 @@ public static class VoxRelayRoundedChrome {
     }
 }
 '@
-    [VoxRelayRoundedChrome]::Initialize()
-    [VoxRelayMotion]::Initialize()
+    [YapLoqRoundedChrome]::Initialize()
+    [YapLoqMotion]::Initialize()
 }
 Initialize-RoundedChrome
 
@@ -233,7 +236,7 @@ function Load-Xaml([string]$path) {
     $reader = [System.Xml.XmlReader]::Create($path, $settings)
     try {
         $loaded = [Windows.Markup.XamlReader]::Load($reader)
-        if ($loaded -is [Windows.Window]) { [VoxRelayRoundedChrome]::Attach($loaded) }
+        if ($loaded -is [Windows.Window]) { [YapLoqRoundedChrome]::Attach($loaded) }
         return $loaded
     } finally {
         $reader.Dispose()
@@ -261,12 +264,12 @@ function Get-DisplayText([string]$text) {
     return $text
 }
 function Initialize-AppBranding {
-    $iconPath=Join-Path $resourceRoot 'assets\VoxRelay.ico'
+    $iconPath=Join-Path $resourceRoot 'assets\YapLoq.ico'
     if(Test-Path -LiteralPath $iconPath){
         $decoder=[Windows.Media.Imaging.BitmapDecoder]::Create([Uri]::new($iconPath),[Windows.Media.Imaging.BitmapCreateOptions]::PreservePixelFormat,[Windows.Media.Imaging.BitmapCacheOption]::OnLoad)
         $window.Icon=$decoder.Frames[$decoder.Frames.Count-1]
     }
-    $logoPath=Join-Path $resourceRoot 'assets\VoxRelay-logo.png'
+    $logoPath=Join-Path $resourceRoot 'assets\YapLoq-logo.png'
     if (-not (Test-Path -LiteralPath $logoPath)) { return }
     $logo=[Windows.Media.Imaging.BitmapImage]::new()
     $logo.BeginInit();$logo.CacheOption='OnLoad';$logo.UriSource=[Uri]::new($logoPath);$logo.EndInit();$logo.Freeze()
@@ -276,7 +279,7 @@ function Initialize-AppBranding {
     }
 }
 function Apply-AppFont($target) {
-    if ($target -is [Windows.Window]) { [VoxRelayRoundedChrome]::Attach($target) }
+    if ($target -is [Windows.Window]) { [YapLoqRoundedChrome]::Attach($target) }
     if (-not $script:appFontFamily) {
         $fontFolder = [Uri]::new(((Join-Path $resourceRoot 'assets\fonts\Poppins') + [IO.Path]::DirectorySeparatorChar))
         $script:appFontFamily = [Windows.Media.FontFamily]::new($fontFolder, './#Poppins')
@@ -297,7 +300,7 @@ function Apply-AppFont($target) {
         }
         $target.UseLayoutRounding = $true
         $target.SnapsToDevicePixels = $true
-        $target.Add_ContentRendered({param($sender,$e) [VoxRelayMotion]::Reveal($sender.Content,0.96,130)})
+        $target.Add_ContentRendered({param($sender,$e) [YapLoqMotion]::Reveal($sender.Content,0.96,130)})
         $target.MaxHeight = [Windows.SystemParameters]::WorkArea.Height - 24
         $target.Icon=$window.Icon
         $target.Add_KeyDown({param($sender,$e) if($e.Key -eq 'Escape'){$sender.Close()}})
@@ -368,7 +371,7 @@ function Write-Settings($value) {
         $script:settingsRecovered=$false
     } finally { if ([IO.File]::Exists($temporary)) { [IO.File]::Delete($temporary) } }
 }
-function Protect-VoxRelaySecret([string]$value) {
+function Protect-YapLoqSecret([string]$value) {
     if ([string]::IsNullOrEmpty($value)) { return '' }
     $bytes = [Text.Encoding]::UTF8.GetBytes($value)
     $protected = [Security.Cryptography.ProtectedData]::Protect($bytes, $null, [Security.Cryptography.DataProtectionScope]::CurrentUser)
@@ -397,16 +400,16 @@ function Start-Backend {
     $psi.FileName = $python
     $psi.Arguments = '-m voice_studio_speaker_bridge --headless'
     $psi.WorkingDirectory = $appRoot
-    # UseShellExecute=false so PYTHONPATH / VOXRELAY_DATA_DIR reach the child.
+    # UseShellExecute=false so PYTHONPATH / YAPLOQ_DATA_DIR reach the child.
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $false
     $srcPath = Join-Path $appRoot 'src'
     $env:PYTHONPATH = $srcPath
-    $env:VOXRELAY_DATA_DIR = $configDir
+    $env:YAPLOQ_DATA_DIR = $configDir
     try { $psi.EnvironmentVariables['PYTHONPATH'] = $srcPath } catch {}
     try { $psi.Environment['PYTHONPATH'] = $srcPath } catch {}
-    try { $psi.EnvironmentVariables['VOXRELAY_DATA_DIR'] = $configDir } catch {}
-    try { $psi.Environment['VOXRELAY_DATA_DIR'] = $configDir } catch {}
+    try { $psi.EnvironmentVariables['YAPLOQ_DATA_DIR'] = $configDir } catch {}
+    try { $psi.Environment['YAPLOQ_DATA_DIR'] = $configDir } catch {}
     $script:backend = [System.Diagnostics.Process]::Start($psi)
 }
 function Wait-BackendReady([int]$timeoutMs = 8000) {
@@ -466,7 +469,7 @@ function Enable-RoundedClip {
     & $handler $Element $null
 }
 
-$window = Load-Xaml (Join-Path $resourceRoot 'VoxRelay.xaml')
+$window = Load-Xaml (Join-Path $resourceRoot 'YapLoq.xaml')
 $window.UseLayoutRounding = $true
 $window.SnapsToDevicePixels = $true
 $window.MinWidth = [Math]::Min(980,[Windows.SystemParameters]::WorkArea.Width-24)
@@ -516,7 +519,7 @@ $controlNames | ForEach-Object { Set-Variable -Name $_ -Value $window.FindName($
 $NowPlayingSeekThumb = $window.FindName('NowPlayingSeekThumb')
 if ($NowPlayingSeekThumb) {
     $markerBinding = [Windows.Data.MultiBinding]::new()
-    $markerBinding.Converter = [VoxRelayMarkerPosition]::new()
+    $markerBinding.Converter = [YapLoqMarkerPosition]::new()
     $edgeBinding = [Windows.Data.Binding]::new('ActualWidth'); $edgeBinding.Source = $NowPlayingProgressFill
     $trackBinding = [Windows.Data.Binding]::new('ActualWidth'); $trackBinding.Source = $NowPlayingProgressTrack
     [void]$markerBinding.Bindings.Add($edgeBinding); [void]$markerBinding.Bindings.Add($trackBinding)
@@ -545,11 +548,11 @@ $QueueSummaryText=$window.FindName('QueueSummaryText')
 $WindowsVoicesCheck=$window.FindName('WindowsVoicesCheck')
 $PlaySsmlCheck=$window.FindName('PlaySsmlCheck')
 
-function Get-VoxRelayVersion {
+function Get-YapLoqVersion {
     foreach ($candidate in @(
         (Join-Path $appRoot 'src\voice_studio_speaker_bridge\__init__.py'),
         (Join-Path $resourceRoot 'src\voice_studio_speaker_bridge\__init__.py'),
-        (Join-Path (Split-Path -Parent $appRoot) 'VoxRelay-src\src\voice_studio_speaker_bridge\__init__.py')
+        (Join-Path (Split-Path -Parent $appRoot) 'YapLoq-src\src\voice_studio_speaker_bridge\__init__.py')
     )) {
         if (-not (Test-Path -LiteralPath $candidate)) { continue }
         $match = Select-String -LiteralPath $candidate -Pattern '__version__\s*=\s*"([^"]+)"' | Select-Object -First 1
@@ -557,7 +560,7 @@ function Get-VoxRelayVersion {
     }
     return '0.5.0'
 }
-$script:appVersion = Get-VoxRelayVersion
+$script:appVersion = Get-YapLoqVersion
 if ($AppVersionLabel) { $AppVersionLabel.Text = $script:appVersion }
 if ($AboutVersionText) { $AboutVersionText.Text = 'Developer' }
 
@@ -756,30 +759,30 @@ function New-ServiceGuideCard([string]$title, [string[]]$steps, $links) {
 function Add-StreamerBotGuideDetails($hostPanel) {
     $sections = [ordered]@{
         'Message sources: chat, !tts commands, and rewards' = @(
-            'Twitch chat: use Twitch > Chat > Chat Message on VoxRelay - Speak. Keep %message% on line 3 of its UDP Broadcast sub-action.',
-            '!tts command: create a command named !tts with the Start match option. Add Core > Commands > Command Triggered to VoxRelay - Speak and select that command. Change line 3 of the UDP payload to %rawInput% so !tts Hello speaks Hello.',
-            'Channel points: create a reward with User Input Required enabled. Add its Twitch reward-redemption trigger to VoxRelay - Speak. Change line 3 to %rawInput%.',
+            'Twitch chat: use Twitch > Chat > Chat Message on YapLoq - Speak. Keep %message% on line 3 of its UDP Broadcast sub-action.',
+            '!tts command: create a command named !tts with the Start match option. Add Core > Commands > Command Triggered to YapLoq - Speak and select that command. Change line 3 of the UDP payload to %rawInput% so !tts Hello speaks Hello.',
+            'Channel points: create a reward with User Input Required enabled. Add its Twitch reward-redemption trigger to YapLoq - Speak. Change line 3 to %rawInput%.',
             'Use a separate copy of Speak for different message sources. Test with the actual chat command or redemption; a manual test does not automatically provide chat variables.'
         )
         'Optional: make an avatar or scene react to playback' = @(
-            'This is VoxRelay sending actions back to Streamer.bot. It is separate from incoming speech and is not needed to hear TTS.',
+            'This is YapLoq sending actions back to Streamer.bot. It is separate from incoming speech and is not needed to hear TTS.',
             'In Streamer.bot, open Servers/Clients > HTTP Server. Start it, enable Auto Start, and note its host and port. The usual local address is http://127.0.0.1:7474.',
-            'Create Streamer.bot actions for the effects you want, such as Avatar Show and Avatar Hide. In VoxRelay, enable playback actions, enter that HTTP address, and put the exact action names in the matching fields. Save, then use each Test button.',
+            'Create Streamer.bot actions for the effects you want, such as Avatar Show and Avatar Hide. In YapLoq, enable playback actions, enter that HTTP address, and put the exact action names in the matching fields. Save, then use each Test button.',
             'Queued runs when the first audio is ready. Playing runs when the queue first starts speaking. Finished runs when the queue ends, after the end delay. Added while speaking handles another message joining an active session.',
             'For an avatar: put Avatar Show in Queued, set Delay before playback to give it time to appear, and put Avatar Hide in Finished. Use Delay after playback to keep it visible briefly afterward.'
         )
         'Troubleshooting: find where the message stops' = @(
-            'Nothing appears in VoxRelay Queue: check that the Streamer.bot action and trigger are enabled, the UDP listener is enabled in VoxRelay, and the UDP Broadcast port matches VoxRelay. Restart VoxRelay after changing listener settings.',
+            'Nothing appears in YapLoq Queue: check that the Streamer.bot action and trigger are enabled, the UDP listener is enabled in YapLoq, and the UDP Broadcast port matches YapLoq. Restart YapLoq after changing listener settings.',
             'The words %message% or %rawInput% are spoken: the trigger did not supply that variable. Use the matching message source above, or add a message argument to the Core > Test trigger.',
             'The queue advances but there is no sound: test the alias directly in Voices and check Settings > Audio output. A cloud engine may also need credentials or credits.',
             'Speech works but avatar actions do not: check Streamer.bot HTTP Server is running, the HTTP address matches it, playback actions are enabled, and action names match exactly. Port 7474 is for callbacks; the UDP port (usually 6670) is for incoming speech.',
             'A line is spoken twice: check for overlapping chat and command triggers, two UDP Broadcast sub-actions, or a second TTS action attached to the same event.'
         )
         'Manual setup and what the ports mean' = @(
-            'The import is the easiest route. If building an action yourself, add Core > Network > UDP Broadcast in Streamer.bot, use VoxRelay''s UDP port, and paste the speech payload from this page. Keep each payload field on its own line.',
-            'You do not need to start Streamer.bot''s UDP server to send UDP Broadcast messages to VoxRelay. You do not need a WebSocket connection for this setup either.',
-            'The WebSocket port belongs to VoxRelay and is only for custom integrations. The HTTP address on this page belongs to Streamer.bot and is only used for optional playback actions.',
-            'The imported Pause, Resume, Skip, and Clear actions can use hotkeys, buttons, or commands. Remove item and Move item need a real %ttsId% argument; they do not select a row in VoxRelay automatically.'
+            'The import is the easiest route. If building an action yourself, add Core > Network > UDP Broadcast in Streamer.bot, use YapLoq''s UDP port, and paste the speech payload from this page. Keep each payload field on its own line.',
+            'You do not need to start Streamer.bot''s UDP server to send UDP Broadcast messages to YapLoq. You do not need a WebSocket connection for this setup either.',
+            'The WebSocket port belongs to YapLoq and is only for custom integrations. The HTTP address on this page belongs to Streamer.bot and is only used for optional playback actions.',
+            'The imported Pause, Resume, Skip, and Clear actions can use hotkeys, buttons, or commands. Remove item and Move item need a real %ttsId% argument; they do not select a row in YapLoq automatically.'
         )
     }
     foreach ($title in $sections.Keys) {
@@ -848,15 +851,15 @@ function Install-ServiceGuides {
             Title = 'Streamer.bot setup - start here'
             Steps = @(
                 'Check your voice first. In Voices, add an alias and use Test voice. Continue once you can hear it.',
-                'Allow incoming speech below: check Listen for Streamer.bot UDP speak requests, leave UDP port at 6670 unless another app uses it, and click Save connection. Restart VoxRelay if you changed the port or enabled the listener.',
-                'In Send speech from Streamer.bot below, choose your voice and click Export actions (.sb). VoxRelay copies the import code and also saves a file.',
-                'In Streamer.bot, click Import on the top toolbar. Paste the copied code into Import String (or drag the .sb file into that box), review the VoxRelay actions, and click Import. The actions do not run until you give them a trigger.',
-                'For a first test, select VoxRelay - Speak in Streamer.bot. Add a Core > Test trigger with a message argument such as Hello from Streamer.bot. Right-click that trigger and choose Test Trigger. Watch VoxRelay Queue and listen for your chosen voice.',
-                'Choose what should speak. For Twitch chat, add Twitch > Chat > Chat Message to VoxRelay - Speak; it provides %message%. For a !tts command or channel-point reward, expand Message sources below for the correct text variable. Add only the trigger you want.'
+                'Allow incoming speech below: check Listen for Streamer.bot UDP speak requests, leave UDP port at 6670 unless another app uses it, and click Save connection. Restart YapLoq if you changed the port or enabled the listener.',
+                'In Send speech from Streamer.bot below, choose your voice and click Export actions (.sb). YapLoq copies the import code and also saves a file.',
+                'In Streamer.bot, click Import on the top toolbar. Paste the copied code into Import String (or drag the .sb file into that box), review the YapLoq actions, and click Import. The actions do not run until you give them a trigger.',
+                'For a first test, select YapLoq - Speak in Streamer.bot. Add a Core > Test trigger with a message argument such as Hello from Streamer.bot. Right-click that trigger and choose Test Trigger. Watch YapLoq Queue and listen for your chosen voice.',
+                'Choose what should speak. For Twitch chat, add Twitch > Chat > Chat Message to YapLoq - Speak; it provides %message%. For a !tts command or channel-point reward, expand Message sources below for the correct text variable. Add only the trigger you want.'
             )
             Links = @(
                 @{ Label = 'Import instructions'; Url = 'https://docs.streamer.bot/guide/core/import-export' }
-                @{ Label = 'VoxRelay Streamer.bot guide'; Url = 'docs:STREAMERBOT.md' }
+                @{ Label = 'YapLoq Streamer.bot guide'; Url = 'docs:STREAMERBOT.md' }
                 @{ Label = 'User guide'; Url = 'docs:USER_GUIDE.md' }
             )
         }
@@ -919,7 +922,7 @@ function Install-ServiceGuides {
             Title = 'Google Cloud TTS quick setup'
             Steps = @(
                 'In Google Cloud Console, enable the Cloud Text-to-Speech API for your project.',
-                'Create an API key or service-account JSON, then paste the values VoxRelay asks for below.',
+                'Create an API key or service-account JSON, then paste the values YapLoq asks for below.',
                 'Enable, Save, Test & load voices, then add a Voices alias.'
             )
             Links = @(
@@ -959,7 +962,7 @@ function Install-ServiceGuides {
             Title = 'TTS.Monster quick setup'
             Steps = @(
                 'Sign in to TTS.Monster and open your overlay / developer token settings.',
-                'Paste the overlay URL and token VoxRelay asks for below.',
+                'Paste the overlay URL and token YapLoq asks for below.',
                 'Enable, Save, Test & load voices, then create a Voices alias.'
             )
             Links = @(
@@ -1159,7 +1162,7 @@ function Build-ServiceHealthRows([bool]$online, $voices, $errors) {
 
     # Core bridge always listed.
     $bridgeState = if ($online) { 'ok' } else { 'bad' }
-    [void]$rows.Add([pscustomobject]@{ Id = 'bridge'; Name = 'VoxRelay bridge'; State = $bridgeState; Page = 'settings'; Detail = $(if ($online) { 'HTTP / UDP ready' } else { 'Offline' }) })
+    [void]$rows.Add([pscustomobject]@{ Id = 'bridge'; Name = 'YapLoq bridge'; State = $bridgeState; Page = 'settings'; Detail = $(if ($online) { 'HTTP / UDP ready' } else { 'Offline' }) })
 
     # Only enabled integrations / engines.
     $udpOn = $false
@@ -1601,7 +1604,7 @@ function Refresh-Grid([switch]$VoicesOnly) {
     $AcapelaEnabledCheck.IsChecked = [bool]$settings.acapela_enabled
     $AcapelaAccountBox.Text = [string]$settings.acapela_account
     $AcapelaPasswordBox.Password = ''
-    $AcapelaAppNameBox.Text = [string]$(if ($settings.acapela_application_name) { $settings.acapela_application_name } else { 'VoxRelay' })
+    $AcapelaAppNameBox.Text = [string]$(if ($settings.acapela_application_name) { $settings.acapela_application_name } else { 'YapLoq' })
     $AcapelaStatus.Text = if ([string]::IsNullOrWhiteSpace([string]$settings.acapela_password_encrypted)) { 'No password saved yet' } else { 'Password saved securely for this Windows account' }
     $CereProcEnabledCheck.IsChecked = [bool]$settings.cereproc_enabled
     $CereProcUsernameBox.Text = [string]$settings.cereproc_username
@@ -1776,7 +1779,7 @@ function Complete-VoiceRefresh($result, $deviceResult = $null) {
         if($script:setupWindowsPending){$script:setupWindowsPending=$false;Create-WindowsDefaultAlias}
     } catch {
         Update-BridgeStatus $false
-        $BottomStatus.Text = 'Bridge offline. Restart VoxRelay if this persists.'
+        $BottomStatus.Text = 'Bridge offline. Restart YapLoq if this persists.'
     }
 }
 function Refresh-Activity {
@@ -2510,8 +2513,8 @@ function Export-StreamerBotActions {
         $alias = Get-ExportSpeakAlias
         if (-not $alias) { throw 'Add a voice in Voices first, then choose it here.' }
         $saved = Read-Settings
-        if (-not $saved.enable_udp) { throw 'Enable the UDP listener and save the connection settings first. Restart VoxRelay if you just enabled it.' }
-        if ([int]$UdpBox.Text -ne [int]$saved.udp_port) { throw 'Save the UDP port and restart VoxRelay before exporting actions.' }
+        if (-not $saved.enable_udp) { throw 'Enable the UDP listener and save the connection settings first. Restart YapLoq if you just enabled it.' }
+        if ([int]$UdpBox.Text -ne [int]$saved.udp_port) { throw 'Save the UDP port and restart YapLoq before exporting actions.' }
         $result = Invoke-BridgePost '/api/maintenance/streamerbot-export' @{ alias=$alias }
         $path = [string]$result.result.path
         $code = Get-Content -LiteralPath $path -Raw -Encoding UTF8
@@ -2763,7 +2766,7 @@ function Update-QueueControlPayload {
     $action = [string]$item.Tag
     $needsId = $action -in @('remove','moveup','movedown')
     $QueueControlPayloadBox.Text = "VCONTROL`r`n$action" + $(if ($needsId) { "`r`n%ttsId%" } else { '' })
-    $QueueControlHint.Text = if ($needsId) { 'Uses %ttsId% from a VoxRelay lifecycle action. You can also replace it with a queue speech ID.' } else { 'This action does not need a queue item ID.' }
+    $QueueControlHint.Text = if ($needsId) { 'Uses %ttsId% from a YapLoq lifecycle action. You can also replace it with a queue speech ID.' } else { 'This action does not need a queue item ID.' }
 }
 function Test-QueueControl {
     $item = $QueueControlCommandBox.SelectedItem
@@ -2805,7 +2808,7 @@ function Save-ElevenLabsSettings {
     $s = Read-Settings
     Set-JsonProperty $s 'elevenlabs_enabled' ([bool]$ElevenLabsEnabledCheck.IsChecked)
     if ($ElevenLabsApiKeyBox.Password) {
-        Set-JsonProperty $s 'elevenlabs_api_key_encrypted' (Protect-VoxRelaySecret $ElevenLabsApiKeyBox.Password)
+        Set-JsonProperty $s 'elevenlabs_api_key_encrypted' (Protect-YapLoqSecret $ElevenLabsApiKeyBox.Password)
         $ElevenLabsApiKeyBox.Password = ''
         $ElevenLabsStatus.Text = 'API key saved securely for this Windows account'
     }
@@ -2826,7 +2829,7 @@ function Save-AzureSettings {
     Set-JsonProperty $s 'azure_enabled' ([bool]$AzureEnabledCheck.IsChecked)
     Set-JsonProperty $s 'azure_region' $AzureRegionBox.Text.Trim()
     if ($AzureKeyBox.Password) {
-        Set-JsonProperty $s 'azure_subscription_key_encrypted' (Protect-VoxRelaySecret $AzureKeyBox.Password)
+        Set-JsonProperty $s 'azure_subscription_key_encrypted' (Protect-YapLoqSecret $AzureKeyBox.Password)
         $AzureKeyBox.Password = ''
         $AzureStatus.Text = 'Subscription key saved securely for this Windows account'
     }
@@ -2847,7 +2850,7 @@ function Save-GoogleSettings {
     Set-JsonProperty $s 'google_enabled' ([bool]$GoogleEnabledCheck.IsChecked)
     Set-JsonProperty $s 'google_service_account_path' $GoogleServiceAccountBox.Text.Trim()
     if ($GoogleApiKeyBox.Password) {
-        Set-JsonProperty $s 'google_api_key_encrypted' (Protect-VoxRelaySecret $GoogleApiKeyBox.Password)
+        Set-JsonProperty $s 'google_api_key_encrypted' (Protect-YapLoqSecret $GoogleApiKeyBox.Password)
         $GoogleApiKeyBox.Password = ''
         $GoogleStatus.Text = 'API key saved securely for this Windows account'
     } elseif ($GoogleServiceAccountBox.Text.Trim()) {
@@ -2870,7 +2873,7 @@ function Save-WatsonSettings {
     Set-JsonProperty $s 'watson_enabled' ([bool]$WatsonEnabledCheck.IsChecked)
     Set-JsonProperty $s 'watson_service_url' $WatsonServiceUrlBox.Text.Trim().TrimEnd('/')
     if ($WatsonApiKeyBox.Password) {
-        Set-JsonProperty $s 'watson_api_key_encrypted' (Protect-VoxRelaySecret $WatsonApiKeyBox.Password)
+        Set-JsonProperty $s 'watson_api_key_encrypted' (Protect-YapLoqSecret $WatsonApiKeyBox.Password)
         $WatsonApiKeyBox.Password = ''
         $WatsonStatus.Text = 'API key saved securely for this Windows account'
     }
@@ -2890,7 +2893,7 @@ function Save-UberDuckSettings {
     $s = Read-Settings
     Set-JsonProperty $s 'uberduck_enabled' ([bool]$UberDuckEnabledCheck.IsChecked)
     if ($UberDuckApiKeyBox.Password) {
-        Set-JsonProperty $s 'uberduck_api_key_encrypted' (Protect-VoxRelaySecret $UberDuckApiKeyBox.Password)
+        Set-JsonProperty $s 'uberduck_api_key_encrypted' (Protect-YapLoqSecret $UberDuckApiKeyBox.Password)
         $UberDuckApiKeyBox.Password = ''
         $UberDuckStatus.Text = 'API key saved securely for this Windows account'
     }
@@ -2911,7 +2914,7 @@ function Save-TtsMonsterSettings {
     Set-JsonProperty $s 'ttsmonster_enabled' ([bool]$TtsMonsterEnabledCheck.IsChecked)
     Set-JsonProperty $s 'ttsmonster_overlay_url' $TtsMonsterOverlayBox.Text.Trim()
     if ($TtsMonsterTokenBox.Password) {
-        Set-JsonProperty $s 'ttsmonster_api_token_encrypted' (Protect-VoxRelaySecret $TtsMonsterTokenBox.Password)
+        Set-JsonProperty $s 'ttsmonster_api_token_encrypted' (Protect-YapLoqSecret $TtsMonsterTokenBox.Password)
         $TtsMonsterTokenBox.Password = ''
         $TtsMonsterStatus.Text = 'API token saved securely for this Windows account'
     } elseif ($TtsMonsterOverlayBox.Text.Trim()) {
@@ -2933,9 +2936,9 @@ function Save-AcapelaSettings {
     $s = Read-Settings
     Set-JsonProperty $s 'acapela_enabled' ([bool]$AcapelaEnabledCheck.IsChecked)
     Set-JsonProperty $s 'acapela_account' $AcapelaAccountBox.Text.Trim()
-    Set-JsonProperty $s 'acapela_application_name' $(if ($AcapelaAppNameBox.Text.Trim()) { $AcapelaAppNameBox.Text.Trim() } else { 'VoxRelay' })
+    Set-JsonProperty $s 'acapela_application_name' $(if ($AcapelaAppNameBox.Text.Trim()) { $AcapelaAppNameBox.Text.Trim() } else { 'YapLoq' })
     if ($AcapelaPasswordBox.Password) {
-        Set-JsonProperty $s 'acapela_password_encrypted' (Protect-VoxRelaySecret $AcapelaPasswordBox.Password)
+        Set-JsonProperty $s 'acapela_password_encrypted' (Protect-YapLoqSecret $AcapelaPasswordBox.Password)
         $AcapelaPasswordBox.Password = ''
         $AcapelaStatus.Text = 'Password saved securely for this Windows account'
     }
@@ -2956,7 +2959,7 @@ function Save-CereProcSettings {
     Set-JsonProperty $s 'cereproc_enabled' ([bool]$CereProcEnabledCheck.IsChecked)
     Set-JsonProperty $s 'cereproc_username' $CereProcUsernameBox.Text.Trim()
     if ($CereProcPasswordBox.Password) {
-        Set-JsonProperty $s 'cereproc_password_encrypted' (Protect-VoxRelaySecret $CereProcPasswordBox.Password)
+        Set-JsonProperty $s 'cereproc_password_encrypted' (Protect-YapLoqSecret $CereProcPasswordBox.Password)
         $CereProcPasswordBox.Password = ''
         $CereProcStatus.Text = 'Password saved securely for this Windows account'
     }
@@ -2980,11 +2983,11 @@ function Save-PollySettings {
         Set-JsonProperty $s 'polly_profile' $PollyProfileBox.Text.Trim()
         if ($PollyAccessKeyBox.Password -or $PollySecretKeyBox.Password) {
             if (-not $PollyAccessKeyBox.Password -or -not $PollySecretKeyBox.Password) { throw 'Enter both the Access Key ID and Secret Access Key.' }
-            Set-JsonProperty $s 'polly_access_key_encrypted' (Protect-VoxRelaySecret $PollyAccessKeyBox.Password)
-            Set-JsonProperty $s 'polly_secret_key_encrypted' (Protect-VoxRelaySecret $PollySecretKeyBox.Password)
-            Set-JsonProperty $s 'polly_session_token_encrypted' (Protect-VoxRelaySecret $PollySessionTokenBox.Password)
+            Set-JsonProperty $s 'polly_access_key_encrypted' (Protect-YapLoqSecret $PollyAccessKeyBox.Password)
+            Set-JsonProperty $s 'polly_secret_key_encrypted' (Protect-YapLoqSecret $PollySecretKeyBox.Password)
+            Set-JsonProperty $s 'polly_session_token_encrypted' (Protect-YapLoqSecret $PollySessionTokenBox.Password)
         }
-        elseif ($PollySessionTokenBox.Password) { Set-JsonProperty $s 'polly_session_token_encrypted' (Protect-VoxRelaySecret $PollySessionTokenBox.Password) }
+        elseif ($PollySessionTokenBox.Password) { Set-JsonProperty $s 'polly_session_token_encrypted' (Protect-YapLoqSecret $PollySessionTokenBox.Password) }
         Write-Settings $s
         $PollyAccessKeyBox.Password = ''; $PollySecretKeyBox.Password = ''
         $PollySessionTokenBox.Password = ''
@@ -3103,7 +3106,7 @@ function Show-TestDialog([string]$alias) {
 '@
     $d=[Windows.Markup.XamlReader]::Load([System.Xml.XmlNodeReader]::new($testXaml));$d.Owner=$window
     Apply-AppFont $d
-    $d.FindName('Heading').Text='Test '+$alias;$box=$d.FindName('Text');$box.Text='VoxRelay is ready.';$box.SelectAll()
+    $d.FindName('Heading').Text='Test '+$alias;$box=$d.FindName('Text');$box.Text='YapLoq is ready.';$box.SelectAll()
     $script:testResult=$null;$d.FindName('TitleBar').Add_MouseLeftButtonDown({$d.DragMove()});$d.FindName('Close').Add_Click({$d.Close()});$d.FindName('Cancel').Add_Click({$d.Close()});$d.FindName('Speak').Add_Click({if($box.Text.Trim()){$script:testResult=$box.Text;$d.DialogResult=$true}})
     $d.Add_ContentRendered({$box.Focus()});[void]$d.ShowDialog();return $script:testResult
 }
@@ -3161,7 +3164,7 @@ function Write-TrayLog([string]$message) {
 }
 function Get-TrayIconPath {
     # Use shipped artwork directly, never an outdated generated icon in data/.
-    foreach($name in @('VoxRelay-tray.ico','VoxRelay.ico')) {
+    foreach($name in @('YapLoq-tray.ico','YapLoq.ico')) {
         $path=Join-Path $resourceRoot ('assets\'+$name)
         if(Test-Path -LiteralPath $path){return $path}
     }
@@ -3179,10 +3182,10 @@ function Promote-TrayIconInRegistry {
             $exe = [string]$props.ExecutablePath
             $tip = [string]$props.IconText
             $initial = [string]$props.InitialTooltip
-            if (($tip -eq 'VoxRelay') -or ($initial -eq 'VoxRelay') -or ($exe -like '*powershell*') -or ($exe -like '*VoxRelay*')) {
-                if ($tip -eq 'VoxRelay' -or $initial -eq 'VoxRelay' -or $exe -eq $exeHint -or $exe -like '*VoxRelay.Tray.exe*') {
+            if (($tip -eq 'YapLoq') -or ($initial -eq 'YapLoq') -or ($exe -like '*powershell*') -or ($exe -like '*YapLoq*')) {
+                if ($tip -eq 'YapLoq' -or $initial -eq 'YapLoq' -or $exe -eq $exeHint -or $exe -like '*YapLoq.Tray.exe*') {
                     New-ItemProperty -Path $_.PSPath -Name IsPromoted -PropertyType DWord -Value 1 -Force | Out-Null
-                    New-ItemProperty -Path $_.PSPath -Name IconText -PropertyType String -Value 'VoxRelay' -Force | Out-Null
+                    New-ItemProperty -Path $_.PSPath -Name IconText -PropertyType String -Value 'YapLoq' -Force | Out-Null
                 }
             }
         }
@@ -3191,7 +3194,7 @@ function Promote-TrayIconInRegistry {
 function Initialize-TrayIcon {
     if ($script:trayIcon) { return }
     # Speaker.bot style: NotifyIcon lives in THIS process so restore/click stay on the UI thread.
-    if (-not $script:isPreview) { Get-Process -Name 'VoxRelay.Tray' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
+    if (-not $script:isPreview) { Get-Process -Name 'YapLoq.Tray' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
     $icoPath = Get-TrayIconPath
     try {
         if (Test-Path -LiteralPath $icoPath) { $script:trayOwnedIcon = [System.Drawing.Icon]::new($icoPath) }
@@ -3287,7 +3290,7 @@ function Dispose-TrayIcon {
         try { $script:trayOwnedIcon.Dispose() } catch {}
         $script:trayOwnedIcon = $null
     }
-    if (-not $script:isPreview) { Get-Process -Name 'VoxRelay.Tray' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
+    if (-not $script:isPreview) { Get-Process -Name 'YapLoq.Tray' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
     Write-TrayLog 'Dispose-TrayIcon'
 }
 
@@ -3708,7 +3711,7 @@ function Set-ObsSettings($settings) {
     Set-JsonProperty $settings 'obs_url' $ObsUrlBox.Text.Trim()
     Set-JsonProperty $settings 'obs_input' $ObsInputBox.Text.Trim()
     Set-JsonProperty $settings 'obs_duck_volume' ([double]$ObsDuckVolumeSlider.Value)
-    if($ObsPasswordBox.Password){Set-JsonProperty $settings 'obs_password_encrypted' (Protect-VoxRelaySecret $ObsPasswordBox.Password)}
+    if($ObsPasswordBox.Password){Set-JsonProperty $settings 'obs_password_encrypted' (Protect-YapLoqSecret $ObsPasswordBox.Password)}
 }
 $TestObsButton.Add_Click({
     try {
@@ -3966,7 +3969,7 @@ $RestoreBackupButton.Add_Click({
     } catch { $BottomStatus.Text = $_.Exception.Message }
 })
 $ImportPresetsButton.Add_Click({
-    $picker = [Microsoft.Win32.OpenFileDialog]::new(); $picker.Filter = 'VoxRelay presets (*.json)|*.json'
+    $picker = [Microsoft.Win32.OpenFileDialog]::new(); $picker.Filter = 'YapLoq presets (*.json)|*.json'
     if ($picker.ShowDialog($window)) {
         try {
             $payload = Get-Content -LiteralPath $picker.FileName -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -4025,12 +4028,12 @@ $CheckUpdatesButton.Add_Click({Start-UpdateCheck $true})
 $ResetSettingsButton.Add_Click({
     $dialog=Load-Xaml (Join-Path $resourceRoot 'ImportPreview.xaml');$dialog.Owner=$window;$dialog.Resources.MergedDictionaries.Add($window.Resources);Apply-AppFont $dialog
     $dialog.FindName('PreviewTitle').Text='Reset settings'
-    $dialog.FindName('PreviewNote').Text='Reset voices, rules, credentials and preferences to defaults? A backup is created first. History and saved audio are kept. Restart VoxRelay afterward.'
+    $dialog.FindName('PreviewNote').Text='Reset voices, rules, credentials and preferences to defaults? A backup is created first. History and saved audio are kept. Restart YapLoq afterward.'
     $dialog.FindName('PreviewList').Visibility='Collapsed'
     $dialog.FindName('PreviewImport').Content='Reset settings';$dialog.FindName('PreviewImport').Style=$window.FindResource('PrimaryButton')
     $dialog.FindName('PreviewTitleBar').Add_MouseLeftButtonDown({$dialog.DragMove()});$dialog.FindName('PreviewClose').Add_Click({$dialog.Close()});$dialog.FindName('PreviewCancel').Add_Click({$dialog.Close()});$dialog.FindName('PreviewImport').Add_Click({$dialog.DialogResult=$true})
     if($dialog.ShowDialog()){
-        try { Invoke-BridgePost '/api/maintenance/reset' @{confirmation='RESET'} | Out-Null;Refresh-Grid;Refresh-BackupList;$BottomStatus.Text='Settings reset. Restart VoxRelay to finish.' }
+        try { Invoke-BridgePost '/api/maintenance/reset' @{confirmation='RESET'} | Out-Null;Refresh-Grid;Refresh-BackupList;$BottomStatus.Text='Settings reset. Restart YapLoq to finish.' }
         catch { $BottomStatus.Text=$_.Exception.Message }
     }
 })

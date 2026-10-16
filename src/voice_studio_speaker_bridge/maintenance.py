@@ -37,7 +37,7 @@ class Maintenance:
         self.settings.reload_if_changed()
         self.settings.save()
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
-        destination = self._folder("backups") / f"VoxRelay-{stamp}.json"
+        destination = self._folder("backups") / f"YapLoq-{stamp}.json"
         shutil.copy2(self.settings.path, destination)
         return str(destination)
 
@@ -56,7 +56,11 @@ class Maintenance:
         self.settings.load()
 
     def backups(self) -> list[str]:
-        return sorted((path.name for path in self._folder("backups").glob("VoxRelay-*.json")), reverse=True)
+        for legacy in self._folder("backups").glob("VoxRelay-*.json"):
+            renamed = legacy.with_name("YapLoq-" + legacy.name.removeprefix("VoxRelay-"))
+            if not renamed.exists():
+                shutil.copy2(legacy, renamed)
+        return sorted((path.name for path in self._folder("backups").glob("YapLoq-*.json")), reverse=True)
 
     def profiles(self) -> list[str]:
         return sorted((path.stem.removeprefix("profile-") for path in self._folder("profiles").glob("profile-*.json")), key=str.casefold)
@@ -111,7 +115,7 @@ class Maintenance:
     @staticmethod
     def check_updates() -> dict:
         request = Request("https://api.github.com/repos/The-RedGear/VoxRelay/releases/latest",
-                          headers={"Accept": "application/vnd.github+json", "User-Agent": "VoxRelay/"+__version__})
+                          headers={"Accept": "application/vnd.github+json", "User-Agent": "YapLoq/"+__version__})
         try:
             with urlopen(request, timeout=5) as response:
                 data = json.loads(response.read(100000))
@@ -120,18 +124,20 @@ class Maintenance:
                 return {"checked": False, "message": "No public release is available yet. Private releases can be accessed on GitHub."}
             raise ValueError("Could not check for updates. Try again later.") from exc
         tag = str(data.get("tag_name", ""))
+        if not any(str(asset.get("name", "")).casefold().startswith("yaploq") for asset in data.get("assets", [])):
+            return {"checked": False, "message": "No YapLoq release is available yet. Preview builds are provided separately."}
         match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", tag)
         if not match:
             return {"checked": False, "message": "No stable release is available yet."}
         available = tuple(map(int, match.groups())) > tuple(map(int, __version__.split(".")))
         return {"checked": True, "available": available, "version": tag,
-                "message": f"VoxRelay {tag} is available on GitHub." if available else "You have the latest stable version."}
+                "message": f"YapLoq {tag} is available on GitHub." if available else "You have the latest stable version."}
 
     def diagnostics(self, state: dict, events: list[dict]) -> str:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
-        destination = self._folder("exports") / f"VoxRelay-diagnostics-{stamp}.zip"
+        destination = self._folder("exports") / f"YapLoq-diagnostics-{stamp}.zip"
         safe = {
-            "app": "VoxRelay", "version": __version__, "python": platform.python_version(),
+            "app": "YapLoq", "version": __version__, "python": platform.python_version(),
             "system": platform.system(), "release": platform.release(),
             "queueLength": state.get("queueLength", 0), "paused": state.get("paused", False),
             "pollyEnabled": self.settings.polly_enabled,
@@ -147,9 +153,9 @@ class Maintenance:
         self.settings.reload_if_changed()
         data = json.loads(self.settings.path.read_text(encoding="utf-8-sig"))
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
-        destination = self._folder("exports") / f"VoxRelay-presets-{stamp}.json"
+        destination = self._folder("exports") / f"YapLoq-presets-{stamp}.json"
         # Presets exclude provider credentials and local/network configuration.
-        payload = {"format": "VoxRelay-presets", "version": 1,
+        payload = {"format": "YapLoq-presets", "version": 1,
                    "settings": {key: data.get(key) for key in PRESET_KEYS}}
         destination.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         return str(destination)
@@ -174,7 +180,7 @@ class Maintenance:
             if not members:
                 raise ValueError(f"Playlist has no valid voices: {match}")
             voice = f"playlist:{match}"
-        destination = self._folder("exports") / "VoxRelay-actions.sb"
+        destination = self._folder("exports") / "YapLoq-actions.sb"
         destination.write_text(export_actions(self.settings.udp_port, voice), encoding="utf-8")
         return str(destination)
 
@@ -192,18 +198,18 @@ class Maintenance:
             voice = voices[0]
             match = re.fullmatch(r"Amazon Polly - .+ - (.+) \((standard|neural|long-form|generative)\)", str(voice.get("name", "")))
             if not match:
-                skipped.append({"name": name, "reason": "This voice engine is not installed in VoxRelay."})
+                skipped.append({"name": name, "reason": "This voice engine is not installed in YapLoq."})
                 continue
             aliases[name] = {"provider": "polly", "voice_id": match[1], "model": match[2],
                              "volume": max(0, min(2, float(voice.get("volume", 1)))), "speed": 1,
                              "group": "Imported"}
-        return {"format": "VoxRelay-presets", "version": 1, "settings": {"aliases": aliases},
+        return {"format": "YapLoq-presets", "version": 1, "settings": {"aliases": aliases},
                 "skipped": skipped,
                 "note": "Audio devices and engine-specific rate/pitch need review. Multi-voice aliases import their first supported voice only. AWS credentials are configured separately."}
 
     def import_presets(self, payload: dict) -> dict:
-        if payload.get("format") != "VoxRelay-presets" or payload.get("version") != 1:
-            raise ValueError("Choose a VoxRelay preset file")
+        if payload.get("format") not in {"YapLoq-presets", "VoxRelay-presets"} or payload.get("version") != 1:
+            raise ValueError("Choose a YapLoq preset file")
         values = payload.get("settings")
         if not isinstance(values, dict):
             raise ValueError("Preset settings must be an object")

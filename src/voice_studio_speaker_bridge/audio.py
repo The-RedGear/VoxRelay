@@ -175,7 +175,7 @@ class AudioPlayer:
                 nchannels=1,
                 sample_rate=SAMPLE_RATE,
                 device_id=self._device_id(),
-                app_name="VoxRelay",
+                app_name="YapLoq",
             )
             stream = self._stream_pcm(pcm,
                 lambda: self.playing and not (cancel_event is not None and cancel_event.is_set()),

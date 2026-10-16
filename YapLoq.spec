@@ -5,7 +5,7 @@ a = Analysis(
     ['wpf_launcher.py'],
     pathex=['src'],
     binaries=[],
-    datas=[('VoxRelay.ps1', '.'), ('VoxRelay.xaml', '.'), ('ImportPreview.xaml', '.'), ('assets', 'assets')],
+    datas=[('YapLoq.ps1', '.'), ('YapLoq.xaml', '.'), ('ImportPreview.xaml', '.'), ('assets', 'assets')],
     hiddenimports=['boto3', 'botocore', 'miniaudio', '_cffi_backend', 'cffi', 'websockets', 'google.auth', 'google.oauth2.service_account'],
     hookspath=[],
     hooksconfig={},
@@ -21,7 +21,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='VoxRelay',
+    name='YapLoq',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -32,7 +32,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['assets/VoxRelay.ico'],
+    icon=['assets/YapLoq.ico'],
     version='version_info.txt',
 )
 coll = COLLECT(
@@ -42,5 +42,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='VoxRelay',
+    name='YapLoq',
 )

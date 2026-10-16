@@ -182,7 +182,7 @@ class SpeechEngine:
 
     def _enqueue(self, text: str, alias: VoiceAlias, source: str, user: str, priority: int, *, recording: str = "") -> SpeechJob:
         if self._stop.is_set():
-            raise ValueError("VoxRelay is shutting down")
+            raise ValueError("YapLoq is shutting down")
         if not self._enabled:
             raise ValueError("TTS is disabled")
         self.settings.reload_if_changed()

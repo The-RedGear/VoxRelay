@@ -10,7 +10,7 @@ or private user data in the report.
 
 ## Credential handling
 
-VoxRelay credentials must never be committed to the repository. Secrets entered
+YapLoq credentials must never be committed to the repository. Secrets entered
 in the desktop app (AWS keys, ElevenLabs / Azure / Google / Watson / UberDuck /
 TTS.Monster tokens, Acapela / CereProc passwords, OBS passwords, and similar
 values) are protected with Windows DPAPI for the current Windows user account on
@@ -26,7 +26,7 @@ Do not share:
 
 ## Scope
 
-In scope: VoxRelay source, packaged Windows builds published by this project,
+In scope: YapLoq source, packaged Windows builds published by this project,
 and the local HTTP / WebSocket / UDP listeners as documented.
 
 Out of scope: vulnerabilities solely in third-party TTS providers, Streamer.bot,

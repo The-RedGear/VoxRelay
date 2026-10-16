@@ -1,12 +1,12 @@
 # Streamer.bot recipes
 
-The VoxRelay Streamer.bot page copies UDP payloads for speech and queue controls.
-Use UDP Broadcast with port 6670, unless you changed it in VoxRelay.
+The YapLoq Streamer.bot page copies UDP payloads for speech and queue controls.
+Use UDP Broadcast with port 6670, unless you changed it in YapLoq.
 
 Alternatively, choose the Speak alias and select **Export actions (.sb)**. Import
 that file using Streamer.bot's Import dialog and review its ten actions before
 applying it. It does not create triggers or run an action automatically. Export
-IDs are stable, so later imports update the same VoxRelay actions. Keep your own
+IDs are stable, so later imports update the same YapLoq actions. Keep your own
 customizations under different action names or disable overwriting in the import
 preview. The generator targets the official v10 export envelope (0.2.4 schema).
 Live import behavior across Streamer.bot versions still needs verification.
@@ -48,7 +48,7 @@ Do not put Streamer.bot's `%user%` object JSON on the identity lines — in curr
 Streamer.bot builds `%user%` often expands to a whole `{"badges":...,"login":...}`
 blob. Use `%displayName%` + `%userName%` instead. Automatic voice rules match either
 identity case-insensitively. A single optional identity line is also accepted and
-matched as both display and login. If a JSON user object still arrives, VoxRelay
+matched as both display and login. If a JSON user object still arrives, YapLoq
 extracts `name` / `login` automatically.
 
 ```text

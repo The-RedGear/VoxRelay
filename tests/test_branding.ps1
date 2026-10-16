@@ -3,22 +3,22 @@ $ErrorActionPreference='Stop'
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System.Xaml,System.Windows.Forms,System.Drawing,WindowsFormsIntegration
 $resourceRoot=Split-Path -Parent $PSScriptRoot
 $tokens=$null;$errors=$null
-$ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $resourceRoot 'VoxRelay.ps1'),[ref]$tokens,[ref]$errors)
+$ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $resourceRoot 'YapLoq.ps1'),[ref]$tokens,[ref]$errors)
 if($errors.Count){throw ($errors | Out-String)}
 foreach($fn in $ast.FindAll({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst]},$true)){Invoke-Expression $fn.Extent.Text}
 Initialize-RoundedChrome
-$window=Load-Xaml (Join-Path $resourceRoot 'VoxRelay.xaml')
+$window=Load-Xaml (Join-Path $resourceRoot 'YapLoq.xaml')
 Apply-AppFont $window;Initialize-AppBranding
 if($window.FindName('AppVersionLabel').VerticalAlignment -ne 'Center'){throw 'Title version is not vertically aligned'}
-if((Get-Content -LiteralPath (Join-Path $resourceRoot 'VoxRelay.xaml') -Raw) -match 'Voice Automation|V O I C E   A U T O M A T I O N'){throw 'Header taglines should be removed'}
+if((Get-Content -LiteralPath (Join-Path $resourceRoot 'YapLoq.xaml') -Raw) -match 'Voice Automation|V O I C E   A U T O M A T I O N'){throw 'Header taglines should be removed'}
 if($window.Icon.PixelWidth -ne 256){throw 'Window icon is not using the high-resolution artwork'}
 foreach($name in @('TitleBrandLogo','SidebarBrandLogo','AboutBrandLogo')){
     $image=$window.FindName($name)
-    if(-not $image.Source -or $image.Source.PixelWidth -ne 2000){throw "Missing brand artwork: $name"}
+    if(-not $image.Source -or $image.Source.PixelWidth -lt 256){throw "Missing brand artwork: $name"}
 }
 $configDir=Join-Path $resourceRoot 'data/nonexistent-brand-test'
-if((Get-TrayIconPath) -ne (Join-Path $resourceRoot 'assets\VoxRelay-tray.ico')){throw 'Tray is using cached legacy artwork'}
-foreach($name in @('VoxRelay.ico','VoxRelay-tray.ico')){
+if((Get-TrayIconPath) -ne (Join-Path $resourceRoot 'assets\YapLoq-tray.ico')){throw 'Tray is using cached legacy artwork'}
+foreach($name in @('YapLoq.ico','YapLoq-tray.ico')){
     $bytes=[IO.File]::ReadAllBytes((Join-Path $resourceRoot ('assets\'+$name)))
     if([BitConverter]::ToUInt16($bytes,2) -ne 1 -or [BitConverter]::ToUInt16($bytes,4) -ne 9){throw 'Missing icon resolutions'}
     for($i=0;$i -lt 9;$i++){
@@ -42,7 +42,7 @@ foreach($width in @(980,1180,1600)){
     $window.Width=$width;$window.UpdateLayout()
     foreach($name in @('TitleBrandLogo','SidebarBrandLogo')){
         $image=$window.FindName($name)
-        if($image.ActualHeight -lt 20 -or $image.ActualWidth -lt 100){throw "Brand is clipped at $width"}
+        if($image.ActualHeight -lt 20 -or $image.ActualWidth -lt 20){throw "Brand is clipped at $width"}
     }
     if($OutputDirectory){
         [void][IO.Directory]::CreateDirectory($OutputDirectory)

@@ -2,7 +2,8 @@
 
 This preview includes isolated runtime boundaries, six-page navigation, a purple
 Dashboard with clear speech/setup actions, Queue/History and the persistent player.
-Production `main`, `VoxRelay.spec` and both existing workflows are unchanged.
+Production `main` and the released application are unchanged. The existing manual
+Windows build is restricted to main; this branch uses the isolated preview build.
 
 ## Run from source
 
@@ -26,11 +27,11 @@ production settings, history, credentials or recovery queues automatically.
 Preview uses loopback HTTP 17582 and WebSocket 17581. UDP, Streamer.bot lifecycle
 actions, OBS ducking, queue recovery and production update checks are disabled.
 These restrictions are enforced on every settings load, including backup/profile
-reload. The preview data path deliberately ignores `VOXRELAY_DATA_DIR`.
+reload. The preview data path deliberately ignores `YAPLOQ_DATA_DIR`.
 Cloud providers can be configured manually for testing and may incur provider costs.
 
 Desktop/backend mutexes, Restore/BackendStop events, taskbar identity and tray
-tooltip are separated from VoxRelay. Preview never kills VoxRelay.Tray or modifies
+tooltip are separated from YapLoq. Preview never kills YapLoq.Tray or modifies
 production tray registry entries. The launcher only opens the shell after both
 preview servers are ready and a fresh launch identifier matches. A port occupied
 by an unrelated service causes startup to fail rather than attach to it.
@@ -64,8 +65,7 @@ changes. Legacy rule precedence and serialized keys are preserved here. Windows
 voice enablement now has a dedicated editor in the Services dropdown. Rules are
 one workspace under Queue, covering voice selection, routing, message filtering
 and queue limits. The old voiceRules route redirects to this same workspace.
-No schema/API migration, release publication, production updater change or tag
-is part of this slice. Live production/preview coexistence, audio-device behavior
+No release publication or tag is part of this preview. Live production/preview coexistence, audio-device behavior
 and Streamer.bot still require manual verification.
 
 ## Navigation and motion update

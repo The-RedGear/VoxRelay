@@ -243,7 +243,7 @@ class SpeakerBotProtocol:
                 "version": "0.1.6",
                 "os": "windows",
                 "apiVersion": 2,
-                "bridgeName": "VoxRelay",
+                "bridgeName": "YapLoq",
                 "bridgeVersion": __version__,
             }
         if normalized == "getevents":

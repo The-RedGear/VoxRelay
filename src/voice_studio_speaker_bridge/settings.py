@@ -12,30 +12,28 @@ from .profanity import default_rules, normalize_rules
 from .channel import is_preview, preview_data_dir, apply_preview_limits
 
 
-APP_DIR_NAME = "VoxRelay"
+APP_DIR_NAME = "YapLoq"
 LEGACY_APP_DIR_NAME = "VoiceStudioSpeakerBridge"
+LEGACY_BRAND_DIR_NAME = "VoxRelay"  # Read-only migration source, never the new destination.
 
 
 def default_config_dir() -> Path:
     if is_preview():
         return preview_data_dir()
-    portable = os.environ.get("VOXRELAY_DATA_DIR", "").strip()
-    if portable:
-        target = Path(portable).expanduser().resolve()
-        legacy = Path(os.environ.get("LOCALAPPDATA", Path.home() / ".config")) / APP_DIR_NAME
+    base = Path(os.environ.get("LOCALAPPDATA", Path.home() / ".config"))
+    portable = (os.environ.get("YAPLOQ_DATA_DIR") or os.environ.get("VOXRELAY_DATA_DIR", "")).strip()
+    target = Path(portable).expanduser().resolve() if portable else base / APP_DIR_NAME
+    for name in (APP_DIR_NAME, LEGACY_BRAND_DIR_NAME, LEGACY_APP_DIR_NAME):
+        legacy = base / name
+        if legacy.resolve() == target.resolve():
+            continue
         if not (target / "settings.json").exists() and (legacy / "settings.json").exists():
             target.mkdir(parents=True, exist_ok=True)
-            for name in ("settings.json", "history.json"):
-                source = legacy / name
-                if source.exists():
-                    shutil.copy2(source, target / name)
-        return target
-    base = Path(os.environ.get("LOCALAPPDATA", Path.home() / ".config"))
-    target = base / APP_DIR_NAME
-    legacy = base / LEGACY_APP_DIR_NAME
-    if not (target / "settings.json").exists() and (legacy / "settings.json").exists():
-        target.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(legacy / "settings.json", target / "settings.json")
+            for filename in ("settings.json", "history.json"):
+                source = legacy / filename
+                if source.exists() and not (target / filename).exists():
+                    shutil.copy2(source, target / filename)
+            break
     return target
 
 
@@ -74,7 +72,7 @@ class Settings:
         self.acapela_enabled = False
         self.acapela_account = ""
         self.acapela_password_encrypted = ""
-        self.acapela_application_name = "VoxRelay"
+        self.acapela_application_name = "YapLoq"
         self.cereproc_enabled = False
         self.cereproc_username = ""
         self.cereproc_password_encrypted = ""
@@ -211,7 +209,7 @@ class Settings:
             self.acapela_enabled = bool(data.get("acapela_enabled", self.acapela_enabled))
             self.acapela_account = str(data.get("acapela_account", self.acapela_account)).strip()
             self.acapela_password_encrypted = str(data.get("acapela_password_encrypted", self.acapela_password_encrypted)).strip()
-            self.acapela_application_name = str(data.get("acapela_application_name", self.acapela_application_name)).strip() or "VoxRelay"
+            self.acapela_application_name = str(data.get("acapela_application_name", self.acapela_application_name)).strip() or "YapLoq"
             self.cereproc_enabled = bool(data.get("cereproc_enabled", self.cereproc_enabled))
             self.cereproc_username = str(data.get("cereproc_username", self.cereproc_username)).strip()
             self.cereproc_password_encrypted = str(data.get("cereproc_password_encrypted", self.cereproc_password_encrypted)).strip()

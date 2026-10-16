@@ -2,7 +2,7 @@
 
 ## 0.5.0 preview
 
-- Applies the supplied VoxRelay microphone and wordmark to the title bar,
+- Applies the supplied YapLoq microphone and wordmark to the title bar,
   sidebar, About panel, Windows executable/window icons, tray and README banner.
   Original vector masters and reproducible icon exports are included.
 

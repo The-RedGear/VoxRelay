@@ -188,7 +188,7 @@ class ReliabilityTests(unittest.TestCase):
         path = Maintenance(self.settings).export_presets()
         data = json.loads(Path(path).read_text())
         self.assertNotIn("api_key", data["settings"])
-        self.assertEqual(data["format"], "VoxRelay-presets")
+        self.assertEqual(data["format"], "YapLoq-presets")
 
     def test_reorder_moves_a_pending_item_before_target(self):
         first = self.engine.enqueue("first", self.alias)

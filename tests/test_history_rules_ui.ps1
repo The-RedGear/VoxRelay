@@ -2,12 +2,12 @@ $ErrorActionPreference='Stop'
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System.Xaml,System.Windows.Forms,WindowsFormsIntegration
 $root=Split-Path -Parent $PSScriptRoot;$resourceRoot=$root
 $tokens=$null;$errors=$null
-$ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'VoxRelay.ps1'),[ref]$tokens,[ref]$errors)
+$ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'YapLoq.ps1'),[ref]$tokens,[ref]$errors)
 if($errors.Count){throw ($errors | Out-String)}
 foreach($fn in $ast.FindAll({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst]},$true)){Invoke-Expression $fn.Extent.Text}
 Initialize-RoundedChrome
-$window=Load-Xaml (Join-Path $root 'VoxRelay.xaml')
-[xml]$xml=Get-Content -LiteralPath (Join-Path $root 'VoxRelay.xaml') -Raw
+$window=Load-Xaml (Join-Path $root 'YapLoq.xaml')
+[xml]$xml=Get-Content -LiteralPath (Join-Path $root 'YapLoq.xaml') -Raw
 foreach($n in $xml.SelectNodes('//*[@Name]')){Set-Variable $n.GetAttribute('Name') $window.FindName($n.GetAttribute('Name'))}
 Apply-AppFont $window
 Initialize-AppBranding
