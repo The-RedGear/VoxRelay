@@ -45,6 +45,12 @@ metadata for the authoritative license text.
 | PyInstaller (build) | GPL-2.0-or-later with Bootloader exception | Windows packaging |
 | pytest (dev) | MIT | Tests |
 | cffi (build/runtime helper) | MIT | Native bindings used by audio stack |
+| resvg_py / resvg | See upstream package metadata (MIT/Apache-2.0) | SVG icon rendering |
+
+The offline MDI collection is included in `assets/mdi-icons.json` with its
+Pictogrammers authorship and Apache-2.0 license metadata. Icons selected from
+other Icônes/Iconify collections are downloaded to the local preview cache;
+each collection retains its own license, available in the Icônes collection info.
 
 Exact versions are pinned by your install environment or release build.
 

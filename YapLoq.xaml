@@ -971,6 +971,7 @@
        </Grid>
        <Border Name="AliasGridHost" Grid.Row="2" CornerRadius="11" BorderBrush="#50485C" BorderThickness="1" Background="#15131D" ClipToBounds="True">
         <DataGrid Name="AliasGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" BorderThickness="0" CanUserAddRows="False" CanUserDeleteRows="False">
+         <DataGrid.RowStyle><Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}"><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="DataGridRow"><Grid Background="Transparent"><Border Name="VoiceRow" CornerRadius="7" Margin="4,2" Background="{TemplateBinding Background}" BorderBrush="Transparent" BorderThickness="1"/><DataGridCellsPresenter/></Grid><ControlTemplate.Triggers><Trigger Property="IsSelected" Value="True"><Setter TargetName="VoiceRow" Property="Background" Value="{Binding AccentBackground}"/><Setter TargetName="VoiceRow" Property="BorderBrush" Value="{Binding Accent}"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style></DataGrid.RowStyle>
          <DataGrid.Columns>
           <DataGridTemplateColumn Header="ON" Width="52" CanUserSort="True" SortMemberPath="Enabled">
            <DataGridTemplateColumn.CellTemplate>
@@ -979,7 +980,7 @@
             </DataTemplate>
            </DataGridTemplateColumn.CellTemplate>
           </DataGridTemplateColumn>
-          <DataGridTextColumn Header="ALIAS" Binding="{Binding Name}" Width="*" ElementStyle="{StaticResource GridText}" />
+          <DataGridTemplateColumn Header="ALIAS" Width="*" SortMemberPath="Name"><DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel Orientation="Horizontal" VerticalAlignment="Center"><Path Data="{Binding IconGeometry}" Width="17" Height="17" Stretch="Uniform" Fill="{Binding IconBrush}" Margin="0,0,9,0" ToolTip="{Binding IconId}"/><TextBlock Text="{Binding Name}" VerticalAlignment="Center"/></StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
           <DataGridTextColumn Header="VOICE PROFILE" Binding="{Binding Profile}" Width="2*" ElementStyle="{StaticResource GridText}" />
           <DataGridTextColumn Header="GROUP" Binding="{Binding Group}" Width="120" ElementStyle="{StaticResource GridText}" />
           <DataGridTextColumn Header="MODEL" Binding="{Binding Model}" Width="120" ElementStyle="{StaticResource GridText}" />
@@ -2183,7 +2184,7 @@
            <ColumnDefinition Width="Auto" />
            <ColumnDefinition Width="*" />
           </Grid.ColumnDefinitions>
-          <Border Width="34" Height="34" CornerRadius="7" Background="#33282231" BorderBrush="#50485C" BorderThickness="1" VerticalAlignment="Center">
+          <Border Name="NowPlayingVoiceBadge" Width="34" Height="34" CornerRadius="7" Background="#33282231" BorderBrush="#50485C" BorderThickness="1" VerticalAlignment="Center">
            <Grid>
             <Grid Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center">
              <Viewbox Width="18" Height="18" Name="NowPlayingNoteHost">

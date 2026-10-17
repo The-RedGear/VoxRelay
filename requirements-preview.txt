@@ -1,4 +1,5 @@
 altgraph==0.17.5
+resvg_py==0.5.0
 boto3==1.43.114
 botocore==1.43.114
 cffi==2.1.1

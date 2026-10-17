@@ -159,6 +159,14 @@ def _backend_ready(timeout_sec: float = 10.0, port: int = 7582, token: str = "")
 
 
 def main() -> int:
+    if '--render-icon-output' in sys.argv:
+        from voice_studio_speaker_bridge.voice_icons import render_icon
+        index = sys.argv.index('--render-icon-output')
+        try:
+            render_icon(sys.argv[index+1], Path(sys.argv[index+2]))
+            return 0
+        except Exception:
+            return 1
     if "--verify-package-output" in sys.argv:
         return _verify_package(Path(sys.argv[sys.argv.index("--verify-package-output")+1]))
     if "--self-test-output" in sys.argv:

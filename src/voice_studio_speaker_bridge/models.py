@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import uuid
 import math
+import re
 from threading import Event
 from time import monotonic
 
@@ -23,8 +24,18 @@ class VoiceAlias:
     favorite: bool = False
     enabled: bool = True
     ssml: bool = False
+    icon_id: str = "mdi:music-note"
+    color: str = "#B6A3FF"
 
     def __post_init__(self):
+        palette = {"#E6A0B1", "#E8AD91", "#E4CA8B", "#A9C98C", "#87C9AF", "#86C6CB", "#91B4E4", "#A4A4E8", "#B6A3FF", "#D3A0D5"}
+        self.color = str(self.color).upper() if str(self.color).upper() in palette else "#B6A3FF"
+        icon = str(self.icon_id).strip().lower()
+        if icon.startswith("mdi-"):
+            icon = "mdi:" + icon[4:]
+        elif ":" not in icon:
+            icon = "mdi:" + icon
+        self.icon_id = icon if re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*:[a-z0-9]+(?:-[a-z0-9]+)*", icon) else "mdi:music-note"
         folded = self.name.strip().casefold()
         if (
             not self.name.strip()
@@ -54,6 +65,8 @@ class VoiceAlias:
             favorite=bool(value.get("favorite", False)),
             enabled=bool(value.get("enabled", True)),
             ssml=bool(value.get("ssml", False)),
+            icon_id=str(value.get("icon_id", "mdi:music-note")),
+            color=str(value.get("color", "#B6A3FF")),
         )
 
     def to_dict(self) -> dict:
@@ -70,6 +83,8 @@ class VoiceAlias:
             "favorite": self.favorite,
             "enabled": self.enabled,
             "ssml": self.ssml,
+            "icon_id": self.icon_id,
+            "color": self.color,
         }
 
 

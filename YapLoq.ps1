@@ -1550,6 +1550,16 @@ function Refresh-Grid([switch]$VoicesOnly) {
         $enabled = if ($null -eq $a.enabled) { $true } else { [bool]$a.enabled }
         $rows.Add([pscustomobject]@{ Name=$property.Name; Provider=$provider; Profile=$profile; Group=[string]$a.group; Model=$a.model; Speed=$a.speed; VoiceId=$a.voice_id; Volume=$a.volume; Language=$a.language; Instruct=$a.instruct; OutputDevice=[string]$a.output_device; Favorite=[bool]$a.favorite; Enabled=$enabled })
     }
+    foreach($row in $rows){
+        $accent=Get-VoiceAccent ([string]$settings.aliases.($row.Name).color)
+        $resolvedIcon=Resolve-VoiceIcon ([string]$settings.aliases.($row.Name).icon_id) -Color $accent
+        $row | Add-Member -NotePropertyName IconId -NotePropertyValue $resolvedIcon.Id -Force
+        $row | Add-Member -NotePropertyName IconGeometry -NotePropertyValue $resolvedIcon.Geometry -Force
+        $row | Add-Member -NotePropertyName Accent -NotePropertyValue $accent -Force
+        $row | Add-Member -NotePropertyName Color -NotePropertyValue $accent -Force
+        $row | Add-Member -NotePropertyName IconBrush -NotePropertyValue $(if($resolvedIcon.Brush){$resolvedIcon.Brush}else{[Windows.Media.BrushConverter]::new().ConvertFromString($accent)}) -Force
+        $row | Add-Member -NotePropertyName AccentBackground -NotePropertyValue ('#33'+$accent.Substring(1)) -Force
+    }
     $AliasGrid.ItemsSource = $rows
     $AliasProviderFilter.Items.Clear()
     [void]$AliasProviderFilter.Items.Add('All engines')
@@ -2134,6 +2144,17 @@ function Update-NowPlayingBar($state, $lastHistory) {
         $script:nowPlayingMode = if ($paused) { 'paused' } else { 'idle' }
     }
     $script:nowPlayingSubtitleText = [string]$NowPlayingSubtitle.Text
+    $voiceRow=@($AliasGrid.ItemsSource|Where-Object{$_.Name -eq $NowPlayingTitle.Text})[0]
+    $voiceAccent=if($voiceRow){Get-VoiceAccent ([string]$voiceRow.Accent)}else{'#B6A3FF'}
+    $spinner=$window.FindName('NowPlayingLoadingGlyph')
+    if($spinner){$spinner.Stroke=[Windows.Media.BrushConverter]::new().ConvertFromString($voiceAccent)}
+    $glyph=$window.FindName('NowPlayingGlyph')
+    if($glyph){
+        $glyph.Fill=if($voiceRow){$voiceRow.IconBrush}else{[Windows.Media.BrushConverter]::new().ConvertFromString($voiceAccent)}
+        $glyph.Data=if($voiceRow){$voiceRow.IconGeometry}else{(Resolve-VoiceIcon 'mdi:music-note').Geometry}
+        $badge=$window.FindName('NowPlayingVoiceBadge')
+        if($badge){$badge.Background=[Windows.Media.BrushConverter]::new().ConvertFromString('#33'+$voiceAccent.Substring(1));$badge.BorderBrush=[Windows.Media.BrushConverter]::new().ConvertFromString($voiceAccent)}
+    }
 
     # Loading icon
     if ($isGenerating) {
@@ -2462,6 +2483,60 @@ function Speak-Text([string]$alias, [string]$text, [string]$source = 'Playground
         $BottomStatus.Text = 'Speech queued for ' + $alias
     } catch { $BottomStatus.Text = $_.Exception.Message }
 }
+function Get-VoiceAccent([string]$color) {
+    $palette=@('#E6A0B1','#E8AD91','#E4CA8B','#A9C98C','#87C9AF','#86C6CB','#91B4E4','#A4A4E8','#B6A3FF','#D3A0D5')
+    if($color.ToUpperInvariant() -in $palette){return $color.ToUpperInvariant()}
+    return '#B6A3FF'
+}
+
+function Resolve-VoiceIcon([string]$identifier, [switch]$Fetch, [string]$Color='#B6A3FF') {
+    if (-not $script:mdiVoiceIcons) {
+        $script:mdiVoiceIcons=Get-Content -LiteralPath (Join-Path $resourceRoot 'assets\mdi-icons.json') -Raw | ConvertFrom-Json
+    }
+    $id=$identifier.Trim().ToLowerInvariant()
+    if($id.StartsWith('mdi-')){$id='mdi:'+$id.Substring(4)}elseif(-not$id.Contains(':')){$id='mdi:'+$id}
+    if($id -notmatch '^[a-z0-9]+(?:-[a-z0-9]+)*:[a-z0-9]+(?:-[a-z0-9]+)*$'){$id='mdi:music-note'}
+    if(-not$id.StartsWith('mdi:')){
+        $cache=Join-Path $configDir ('icon-cache\'+$id.Replace(':','--')+'.png')
+        if($Fetch -and -not(Test-Path -LiteralPath $cache)){
+            $runner=if($env:YAPLOQ_ICON_RUNNER){$env:YAPLOQ_ICON_RUNNER}else{Join-Path $appRoot 'YapLoq-preview.exe'}
+            $process=[Diagnostics.ProcessStartInfo]::new();$process.FileName=$runner;$process.UseShellExecute=$false;$process.CreateNoWindow=$true
+            $process.Arguments='--render-icon-output '+$id+' "'+$cache+'"'
+            $child=[Diagnostics.Process]::Start($process)
+            if(-not$child.WaitForExit(12000)){ $child.Kill() }
+        }
+        $brush=$null
+        if(Test-Path -LiteralPath $cache){
+            try{
+                $bitmap=[Windows.Media.Imaging.BitmapImage]::new();$bitmap.BeginInit();$bitmap.CacheOption='OnLoad';$bitmap.UriSource=[Uri]::new($cache);$bitmap.EndInit();$bitmap.Freeze()
+                $mask=[Windows.Media.ImageBrush]::new($bitmap);$mask.Stretch='Uniform';$mask.Freeze()
+                $drawing=[Windows.Media.DrawingGroup]::new();$drawing.OpacityMask=$mask
+                $paint=[Windows.Media.BrushConverter]::new().ConvertFromString((Get-VoiceAccent $Color))
+                [void]$drawing.Children.Add([Windows.Media.GeometryDrawing]::new($paint,$null,[Windows.Media.RectangleGeometry]::new([Windows.Rect]::new(0,0,96,96))))
+                $drawing.Freeze();$brush=[Windows.Media.DrawingBrush]::new($drawing);$brush.Stretch='Uniform';$brush.Freeze()
+            }catch{}
+        }
+        $shape=if($brush){[Windows.Media.Geometry]::Parse('M0 0H24V24H0Z')}else{(Resolve-VoiceIcon 'mdi:music-note').Geometry}
+        return [pscustomobject]@{Id=$id;Geometry=$shape;Brush=$brush;Loaded=($null -ne $brush)}
+    }
+    $name=$id.Substring(4)
+    $entry=$script:mdiVoiceIcons.icons.PSObject.Properties[$name]
+    if(-not$entry){$id='mdi:music-note';$entry=$script:mdiVoiceIcons.icons.PSObject.Properties['music-note']}
+    # Only the trusted collection's geometry is read. User text is never parsed as markup.
+    $match=[regex]::Match([string]$entry.Value.body,'\bd="([^"]+)"')
+    try{$geometry=[Windows.Media.Geometry]::Parse($match.Groups[1].Value)}catch{$id='mdi:music-note';$geometry=[Windows.Media.Geometry]::Parse('M12 3V13.55A4 4 0 1 0 14 17V7H18V3Z')}
+    return [pscustomobject]@{Id=$id;Geometry=$geometry;Brush=$null;Loaded=$true}
+}
+
+function Set-VoiceFavorite([string]$name,[bool]$favorite) {
+    $settings=Read-Settings
+    if(-not$settings.aliases.PSObject.Properties[$name]){return}
+    # Change only this flag; retain color, icon and all provider-specific fields.
+    Set-JsonProperty $settings.aliases.$name 'favorite' $favorite
+    Write-Settings $settings
+    Refresh-Grid -VoicesOnly
+}
+
 function Save-Alias($oldName, $value) {
     $s = Read-Settings
     $folded = $value.Name.Trim().ToLowerInvariant()
@@ -2474,13 +2549,20 @@ function Save-Alias($oldName, $value) {
         return
     }
     $favorite = if ($oldName) { [bool]$s.aliases.$oldName.favorite } else { $false }
+    if ($null -ne $value.Favorite) { $favorite = [bool]$value.Favorite }
+    $iconId=if($oldName){[string]$s.aliases.$oldName.icon_id}else{'mdi:music-note'}
+    if($null -ne $value.IconId){$iconId=[string]$value.IconId}
+    $iconId=(Resolve-VoiceIcon $iconId -Fetch).Id
+    $color=if($oldName){[string]$s.aliases.$oldName.color}else{'#B6A3FF'}
+    if($null -ne $value.Color){$color=[string]$value.Color}
+    $color=Get-VoiceAccent $color
     $enabled = if ($oldName -and $null -ne $s.aliases.$oldName.enabled) { [bool]$s.aliases.$oldName.enabled } else { $true }
     if ($null -ne $value.Enabled) { $enabled = [bool]$value.Enabled }
     if ($oldName -and $oldName -ne $value.Name) { $s.aliases.PSObject.Properties.Remove($oldName) }
     $alias = [pscustomobject]@{
         provider = $value.Provider; voice_id = $value.VoiceId; model = $value.Model; speed = [double]$value.Speed
         volume = [double]$value.Volume; language = [string]$value.Language; instruct = [string]$value.Instruct; group = [string]$value.Group
-        output_device = [string]$value.OutputDevice; favorite = $favorite; enabled = $enabled
+        output_device = [string]$value.OutputDevice; favorite = $favorite; enabled = $enabled; icon_id = $iconId; color=$color
     }
     Set-JsonProperty $s.aliases $value.Name $alias
     Write-Settings $s
@@ -3013,6 +3095,15 @@ function Save-PollySettings {
 
 
 function Show-AliasDialog($existing) {
+    # Hydrate appearance from the persisted alias, not a potentially stale list row.
+    $savedAppearance=$null
+    if($existing -and $existing.Name){
+        $editorSettings=Read-Settings
+        $savedAppearance=$editorSettings.aliases.PSObject.Properties[[string]$existing.Name]
+    }
+    $editorColor=Get-VoiceAccent $(if($savedAppearance){[string]$savedAppearance.Value.color}else{[string]$existing.Color})
+    $editorIconId=if($savedAppearance){[string]$savedAppearance.Value.icon_id}else{[string]$existing.IconId}
+    $editorFavorite=if($savedAppearance){[bool]$savedAppearance.Value.favorite}else{[bool]$existing.Favorite}
     [xml]$dialogXaml=@'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Width="620" Height="780" WindowStartupLocation="CenterOwner" ResizeMode="NoResize" WindowStyle="None" AllowsTransparency="True" Background="Transparent" Foreground="#F6F3FA">
  <Window.Resources>
@@ -3026,6 +3117,14 @@ function Show-AliasDialog($existing) {
   <Grid Grid.Row="1"><Grid.RowDefinitions><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
    <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="24,20,14,0"><StackPanel Margin="0,0,10,18">
     <TextBlock Text="Alias name" Foreground="#B9B2C2"/><TextBox Name="NameBox" Margin="0,7,0,17"/>
+    <CheckBox Name="AliasFavoriteCheck" Content="Favorite voice" Foreground="#F6F3FA" Margin="0,0,0,16" ToolTip="Include this voice in the favorites filter"/>
+    <TextBlock Text="Voice icon" Foreground="#B9B2C2"/>
+    <Grid Margin="0,7,0,4"><Grid.ColumnDefinitions><ColumnDefinition Width="36"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+     <Path Name="AliasIconPreview" Width="22" Height="22" Stretch="Uniform" Fill="#B6A3FF" VerticalAlignment="Center"/>
+     <TextBox Name="AliasIconId" Grid.Column="1" Text="mdi:music-note" ToolTip="Paste any Icônes identifier, such as picon:alien, then leave the field to load it"/>
+     <Button Name="BrowseVoiceIcons" Grid.Column="2" Content="Browse icons" Margin="10,0,0,0"/>
+    </Grid>
+    <TextBlock Name="AliasIconHint" Foreground="#B9B2C2" FontSize="11" Margin="0,0,0,16" Text="Paste collection:name from Icônes. New icons download once and are cached."/>
     <TextBlock Text="Voice provider and profile" Foreground="#B9B2C2"/><TextBox Name="ProfileSearchBox" Margin="0,7,0,8" ToolTip="Search by voice, language, or engine"/><Border Name="ProfileListHost" Height="200" Margin="0,0,0,17" Background="#1E1A27" BorderBrush="#50485C" BorderThickness="1" CornerRadius="8" ClipToBounds="False"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions><Border Grid.Row="0" Background="#9915131D" BorderBrush="#50485C" BorderThickness="0,0,0,1" Padding="14,8,14,7"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="1.25*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="0.95*"/></Grid.ColumnDefinitions><TextBlock Text="VOICE" Foreground="#B9B2C2" FontSize="10" FontWeight="Bold"/><TextBlock Grid.Column="1" Text="LANGUAGE" Foreground="#B9B2C2" FontSize="10" FontWeight="Bold"/><TextBlock Grid.Column="2" Text="ENGINE" Foreground="#B9B2C2" FontSize="10" FontWeight="Bold"/></Grid></Border><ListBox Name="ProfileBox" Grid.Row="1" Background="Transparent" BorderThickness="0" Padding="4" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto"><ListBox.ItemTemplate><DataTemplate><Grid Margin="2,0"><Grid.ColumnDefinitions><ColumnDefinition Width="1.25*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="0.95*"/></Grid.ColumnDefinitions><TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="{Binding Language}" Opacity="0.72" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/><TextBlock Grid.Column="2" Text="{Binding Engine}" Opacity="0.72" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/></Grid></DataTemplate></ListBox.ItemTemplate></ListBox></Grid></Border>
     <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="16"/><ColumnDefinition/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Engine model" Foreground="#B9B2C2"/><ComboBox Name="ModelBox" Margin="0,7,0,0"/></StackPanel><StackPanel Grid.Column="2"><TextBlock Text="Speed" Foreground="#B9B2C2"/><Slider Name="SpeedBox" Minimum="0.5" Maximum="2" TickFrequency="0.05" IsSnapToTickEnabled="True" Value="1" Margin="0,7,0,0" AutomationProperties.Name="Alias speed"/><TextBlock Text="{Binding ElementName=SpeedBox,Path=Value,StringFormat={}{0:0.00}x}"/></StackPanel></Grid>
     <Grid Margin="0,14,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="16"/><ColumnDefinition/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Group (optional)" Foreground="#B9B2C2"/><TextBox Name="GroupBox" Margin="0,7,0,0"/></StackPanel><StackPanel Grid.Column="2"><TextBlock Text="Volume" Foreground="#B9B2C2"/><Slider Name="VolumeBox" Minimum="0" Maximum="2" TickFrequency="0.05" IsSnapToTickEnabled="True" Value="1" Margin="0,7,0,0" AutomationProperties.Name="Alias volume"/><TextBlock Text="{Binding ElementName=VolumeBox,Path=Value,StringFormat={}{0:P0}}"/></StackPanel></Grid>
@@ -3044,6 +3143,58 @@ function Show-AliasDialog($existing) {
     $d.MaxHeight = [Windows.SystemParameters]::WorkArea.Height - 30
     $n=$d.FindName('NameBox');$p=$d.FindName('ProfileBox');$m=$d.FindName('ModelBox');$sp=$d.FindName('SpeedBox');$g=$d.FindName('GroupBox');$vol=$d.FindName('VolumeBox');$lang=$d.FindName('LanguageBox');$style=$d.FindName('StyleBox')
     $profileSearch=$d.FindName('ProfileSearchBox');$aliasOutput=$d.FindName('AliasOutputBox');$aliasValidation=$d.FindName('AliasValidationText')
+    $iconBox=$d.FindName('AliasIconId');$iconPreview=$d.FindName('AliasIconPreview');$iconHint=$d.FindName('AliasIconHint')
+    $nameField=$d.FindName('NameBox');$editorPanel=$nameField.Parent
+    $favoriteField=$d.FindName('AliasFavoriteCheck')
+    $favoriteField.Template=$window.FindName('FavoritesOnlyCheck').Template
+    $favoriteField.Content=$null;$favoriteField.ToolTip='Favorite voice';$favoriteField.Margin='10,0,0,0'
+    [Windows.Automation.AutomationProperties]::SetName($favoriteField,'Favorite voice')
+    $nameIndex=$editorPanel.Children.IndexOf($nameField)
+    [void]$editorPanel.Children.Remove($nameField);[void]$editorPanel.Children.Remove($favoriteField)
+    $oldIconRow=$iconPreview.Parent;[void]$oldIconRow.Children.Remove($iconPreview);$oldIconRow.ColumnDefinitions[0].Width=0
+    $identityRow=[Windows.Controls.Grid]::new();$identityRow.Margin='0,7,0,12'
+    foreach($width in @('52','*','Auto')){$column=[Windows.Controls.ColumnDefinition]::new();$column.Width=$width;$identityRow.ColumnDefinitions.Add($column)}
+    $iconBadge=[Windows.Controls.Border]::new();$iconBadge.Width=42;$iconBadge.Height=42;$iconBadge.CornerRadius=8;$iconBadge.BorderThickness=1;$iconBadge.Child=$iconPreview
+    $nameField.Margin=0;[Windows.Controls.Grid]::SetColumn($nameField,1);[Windows.Controls.Grid]::SetColumn($favoriteField,2)
+    [void]$identityRow.Children.Add($iconBadge);[void]$identityRow.Children.Add($nameField);[void]$identityRow.Children.Add($favoriteField);$editorPanel.Children.Insert($nameIndex,$identityRow)
+    $paletteRow=[Windows.Controls.WrapPanel]::new();$paletteRow.Margin='0,0,0,16'
+    $paletteRow.Tag=$editorColor
+    $colorNames=@('Rose','Peach','Gold','Lime','Mint','Teal','Blue','Indigo','Violet','Orchid')
+    $palette=@('#E6A0B1','#E8AD91','#E4CA8B','#A9C98C','#87C9AF','#86C6CB','#91B4E4','#A4A4E8','#B6A3FF','#D3A0D5')
+    for($i=0;$i -lt $palette.Count;$i++){
+        $swatch=[Windows.Controls.Button]::new();$swatch.Width=30;$swatch.Height=30;$swatch.Padding=4;$swatch.Margin='0,0,8,4';$swatch.Tag=$palette[$i];$swatch.ToolTip=$colorNames[$i]
+        [Windows.Automation.AutomationProperties]::SetName($swatch,$colorNames[$i]+' voice color')
+        $swatch.MinHeight=30;$swatch.MinWidth=30
+        $dot=[Windows.Shapes.Ellipse]::new();$dot.Width=18;$dot.Height=18;$dot.Fill=[Windows.Media.BrushConverter]::new().ConvertFromString($palette[$i]);$swatch.Content=$dot
+        $swatch.Add_Click({param($sender,$e)
+            $paletteRow.Tag=[string]$sender.Tag
+            foreach($choice in $paletteRow.Children){$choice.BorderThickness=if($choice.Tag -eq $paletteRow.Tag){2}else{0};$choice.BorderBrush=[Windows.Media.BrushConverter]::new().ConvertFromString($paletteRow.Tag)}
+            $brush=[Windows.Media.BrushConverter]::new().ConvertFromString($paletteRow.Tag);$iconPreview.Fill=$brush;$iconBadge.BorderBrush=$brush;$iconBadge.Background=[Windows.Media.BrushConverter]::new().ConvertFromString('#33'+$paletteRow.Tag.Substring(1));$nameField.BorderBrush=$brush
+            $coloredIcon=Resolve-VoiceIcon $iconBox.Text -Color ([string]$paletteRow.Tag)
+            $iconPreview.Data=$coloredIcon.Geometry
+            if($coloredIcon.Brush){$iconPreview.Fill=$coloredIcon.Brush}
+            $profileList=$d.FindName('ProfileBox')
+            $profileStyleMarkup=[Windows.Markup.XamlWriter]::Save($d.FindResource([Windows.Controls.ListBoxItem]))
+            $profileStyleMarkup=$profileStyleMarkup -replace '(?i)#(?:FF)?B6A3FF',([string]$paletteRow.Tag)
+            $profileList.ItemContainerStyle=[Windows.Markup.XamlReader]::Parse($profileStyleMarkup)
+            $saveVoiceButton=$d.FindName('Save');$saveVoiceButton.Background=$brush;$saveVoiceButton.BorderBrush=$brush
+        })
+        [void]$paletteRow.Children.Add($swatch)
+    }
+    $editorPanel.Children.Insert($nameIndex+1,$paletteRow)
+    $selectedSwatch=@($paletteRow.Children|Where-Object{$_.Tag -eq $paletteRow.Tag})[0]
+    $selectedSwatch.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+    $updateIcon={
+        $resolved=Resolve-VoiceIcon $iconBox.Text -Color ([string]$paletteRow.Tag)
+        $iconPreview.Data=if($resolved.Loaded){$resolved.Geometry}else{(Resolve-VoiceIcon 'mdi:music-note').Geometry}
+        $iconPreview.Fill=if($resolved.Brush){$resolved.Brush}else{[Windows.Media.BrushConverter]::new().ConvertFromString([string]$paletteRow.Tag)}
+        $iconHint.Text=if(-not$resolved.Loaded){"Browse icons, copy an icon's code, and paste it here. Leave the field to load it."}elseif($resolved.Id -eq 'mdi:music-note' -and $iconBox.Text.Trim() -notin @('mdi:music-note','music-note','mdi-music-note')){'Icon not found. Browse icons and paste its collection:name code.'}else{"Browse icons, copy an icon's code, and paste it here."}
+    }
+    $iconBox.Add_TextChanged($updateIcon)
+    $iconBox.Add_LostKeyboardFocus({[void](Resolve-VoiceIcon $iconBox.Text -Fetch);& $updateIcon})
+    if($editorIconId){$iconBox.Text=$editorIconId}
+    & $updateIcon
+    $d.FindName('BrowseVoiceIcons').Add_Click({Open-VoxLink 'https://icones.js.org/'})
     [void]$aliasOutput.Items.Add('Use stream output')
     foreach ($device in @($OutputDeviceBox.Items)) { if ($device -ne '[Default]') { [void]$aliasOutput.Items.Add([string]$device) } }
     $aliasOutput.SelectedIndex=0
@@ -3075,6 +3226,7 @@ function Show-AliasDialog($existing) {
         }
     })
     if($existing){
+        $d.FindName('AliasFavoriteCheck').IsChecked = $editorFavorite
         $n.Text=$existing.Name;$sp.Value=[double]$existing.Speed;$g.Text=[string]$existing.Group;$vol.Value=[double]$existing.Volume;$lang.Text=[string]$existing.Language;$style.Text=[string]$existing.Instruct
         $provider=if($existing.Provider){[string]$existing.Provider}else{'voicestudio'};$wanted=$provider+'|'+$existing.VoiceId
         $match=$p.Items|Where-Object{ $_.Key -eq $wanted }|Select-Object -First 1
@@ -3096,6 +3248,9 @@ function Show-AliasDialog($existing) {
             if ($speed -lt 0.5 -or $speed -gt 2 -or $volume -lt 0 -or $volume -gt 2) { throw 'Speed must be 0.5 to 2; volume must be 0 to 2.' }
             $key = if ($p.SelectedItem.PSObject.Properties['Key']) { [string]$p.SelectedItem.Key } else { ([regex]::Match([string]$p.SelectedItem,'\[([^\]]+)\]$')).Groups[1].Value };$parts=$key.Split('|',2)
             $script:dialogResult=[pscustomobject]@{Name=$n.Text.Trim();Provider=$parts[0];VoiceId=$parts[1];Model=[string]$m.SelectedItem;Speed=$speed;Group=$g.Text.Trim();Volume=$volume;Language=$lang.Text.Trim();Instruct=$style.Text.Trim();OutputDevice=$(if($aliasOutput.SelectedIndex -gt 0){[string]$aliasOutput.SelectedItem}else{''})}
+            $script:dialogResult | Add-Member -NotePropertyName Favorite -NotePropertyValue ([bool]$d.FindName('AliasFavoriteCheck').IsChecked) -Force
+            $script:dialogResult | Add-Member -NotePropertyName IconId -NotePropertyValue ((Resolve-VoiceIcon $iconBox.Text).Id) -Force
+            $script:dialogResult | Add-Member -NotePropertyName Color -NotePropertyValue ([string]$paletteRow.Tag) -Force
             $d.DialogResult=$true
         } catch { $aliasValidation.Text=$_.Exception.Message }
     })
@@ -3928,8 +4083,7 @@ $FavoritesOnlyCheck.Add_Unchecked({ Filter-VoiceAliases })
 $ToggleFavoriteButton.Add_Click({
     $row = $AliasGrid.SelectedItem
     if ($row) {
-        $s = Read-Settings; Set-JsonProperty $s.aliases.($row.Name) 'favorite' (-not $row.Favorite)
-        Write-Settings $s; Refresh-Grid -VoicesOnly
+        Set-VoiceFavorite $row.Name (-not $row.Favorite)
         $BottomStatus.Text=if($row.Favorite){'Removed from favorites'}else{'Added to favorites'}
     }
 })
