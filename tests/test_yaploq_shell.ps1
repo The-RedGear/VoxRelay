@@ -135,6 +135,12 @@ if(-not [object]::ReferenceEquals($recentPreview,$script:dashboardUpcoming.Child
 $active=[pscustomobject]@{current=[pscustomobject]@{id='active';alias='Mint voice';text='Speaking now';status='Playing'};queue=@();paused=$false}
 Update-YapLoqDashboard $active
 if($script:dashboardUpcoming.Children[0].Tag.Status -ne 'Playing' -or $script:dashboardUpcoming.Children[1].Tag.Id -ne 'replayed'){throw 'Dashboard preview must put active speech before recent history'}
+$completed=[pscustomobject]@{id='active';timestamp='2099-01-01T00:00:00Z';alias='Mint voice';text='Speaking now';status='Playing';source='Manual';audioPath='active.wav'}
+Update-YapLoqDashboard ([pscustomobject]@{current=$null;lastPlayed=$completed;queue=@();paused=$false})
+if($script:dashboardUpcoming.Children[0].Tag.Id -ne 'active' -or $script:dashboardUpcoming.Children[0].Tag.Status -ne 'Finished'){throw 'Just-finished Dashboard speech disappeared while history was catching up'}
+$script:recentHistoryItems=@([pscustomobject]@{Id='active';Timestamp='2099-01-01T00:00:00Z';Alias='Mint voice';Text='Speaking now';Status='Finished';HasAudio=$true},[pscustomobject]@{Id='replayed';Timestamp='2026-01-01T00:00:00Z';Alias='EventVoice';Text='Replay me';Status='Finished';HasAudio=$true})
+Update-YapLoqDashboard ([pscustomobject]@{current=$null;lastPlayed=$completed;queue=@();paused=$false})
+if($script:dashboardUpcoming.Children[0].Tag.Id -ne 'active' -or @($script:dashboardUpcoming.Children|Where-Object{$_.Tag.Id -eq 'active'}).Count -ne 1){throw 'History catch-up moved or duplicated the newest Dashboard speech'}
 foreach($name in @('AudioSettingsExpander','LocalApiSettingsExpander','LimitsSettingsExpander','WindowSettingsExpander','DataSupportSettingsExpander')) {
     if($window.FindName($name).Header.Children[0] -isnot [Windows.Shapes.Path]){throw ('Settings section lacks icon: '+$name)}
 }

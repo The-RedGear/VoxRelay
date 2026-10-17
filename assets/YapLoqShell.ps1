@@ -420,6 +420,15 @@ function Update-YapLoqDashboard($state) {
     foreach($item in $items){$item|Add-Member NoteProperty PreviewKind 'Live' -Force}
     $liveIds=@($live.Id)
     $recent=@($script:recentHistoryItems|Where-Object{$_ -and $_.Id -notin $liveIds})
+    # State is polled faster than history. Keep the just-finished recording in its
+    # chronological slot until the matching history snapshot arrives instead of
+    # briefly removing it from the Dashboard.
+    $recentIds=@($recent.Id)
+    if($state.lastPlayed -and $state.lastPlayed.source -ne 'History recording' -and $state.lastPlayed.id -notin $liveIds -and $state.lastPlayed.id -notin $recentIds){
+        $finished=New-QueueSpeechRow $state.lastPlayed
+        $finished.Status='Finished';$finished|Add-Member NoteProperty PreviewKind 'History' -Force
+        $items+=$finished
+    }
     foreach($recording in $recent){$display=$recording|Select-Object *;if($replayStatuses.ContainsKey([string]$recording.Id)){$display.Status=$replayStatuses[[string]$recording.Id]};Add-SpeechRowAppearance $display;$display|Add-Member NoteProperty PreviewKind 'History' -Force;$items+= $display}
     $items=@(Sort-YapLoqSpeechRows $items | Select-Object -First 6)
     # Compare displayed fields only. Do not serialize brush objects or rebuild/restart
