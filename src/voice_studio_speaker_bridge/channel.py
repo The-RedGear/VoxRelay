@@ -27,4 +27,3 @@ def apply_preview_limits(settings) -> None:
     # Keep desktop endpoints isolated, but honor integration settings so preview
     # can receive real speech and exercise Streamer.Bot/OBS connections.
     settings.persist_queue = False
-    settings.check_updates_on_startup = False

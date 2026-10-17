@@ -8,8 +8,6 @@ from pathlib import Path
 import shutil
 import re
 import uuid
-from urllib.request import Request, urlopen
-from urllib.error import HTTPError
 import zipfile
 
 from .settings import Settings
@@ -114,24 +112,12 @@ class Maintenance:
 
     @staticmethod
     def check_updates() -> dict:
-        request = Request("https://api.github.com/repos/The-RedGear/VoxRelay/releases/latest",
-                          headers={"Accept": "application/vnd.github+json", "User-Agent": "YapLoq/"+__version__})
+        from .updates import release_info
         try:
-            with urlopen(request, timeout=5) as response:
-                data = json.loads(response.read(100000))
-        except HTTPError as exc:
-            if exc.code == 404:
-                return {"checked": False, "message": "No public release is available yet. Private releases can be accessed on GitHub."}
-            raise ValueError("Could not check for updates. Try again later.") from exc
-        tag = str(data.get("tag_name", ""))
-        if not any(str(asset.get("name", "")).casefold().startswith("yaploq") for asset in data.get("assets", [])):
-            return {"checked": False, "message": "No YapLoq release is available yet. Preview builds are provided separately."}
-        match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", tag)
-        if not match:
-            return {"checked": False, "message": "No stable release is available yet."}
-        available = tuple(map(int, match.groups())) > tuple(map(int, __version__.split(".")))
-        return {"checked": True, "available": available, "version": tag,
-                "message": f"YapLoq {tag} is available on GitHub." if available else "You have the latest stable version."}
+            from .channel import is_preview
+            return release_info(is_preview())
+        except Exception:
+            return {"checked": False, "message": "Could not check GitHub Releases. Check your connection and try again."}
 
     def diagnostics(self, state: dict, events: list[dict]) -> str:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")

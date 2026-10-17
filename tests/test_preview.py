@@ -36,7 +36,8 @@ def test_preview_preserves_integrations_but_isolates_desktop_on_reload(tmp_path,
         assert settings.http_address == settings.ws_address == '127.0.0.1'
         assert settings.udp_address == '0.0.0.0'
         assert all((settings.enable_udp, settings.streamerbot_actions_enabled, settings.obs_ducking_enabled))
-        assert not any((settings.persist_queue, settings.check_updates_on_startup))
+        assert not settings.persist_queue
+        assert settings.check_updates_on_startup
 
 
 def test_windows_signals_are_separate(monkeypatch):

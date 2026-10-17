@@ -24,3 +24,6 @@ jobs:
       - name: Verify responsive page layouts
         shell: powershell
         run: powershell.exe -STA -NoProfile -ExecutionPolicy Bypass -File tests/smoke_wpf.ps1
+      - name: Verify update window and installer scripts
+        shell: powershell
+        run: powershell.exe -STA -NoProfile -ExecutionPolicy Bypass -File tests/test_updates_ui.ps1

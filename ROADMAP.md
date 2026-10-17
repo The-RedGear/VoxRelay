@@ -34,6 +34,7 @@ Defer additional providers and cosmetic expansion until these are verified.
 ## Release experience
 - [x] First-run setup card with a no-account Windows voice option
 - [x] Manual and optional startup update checks; version display
+- [x] GitHub Releases update window, background verified downloads, idle restart and rollback helper (public-release upgrade rehearsal still required)
 - [x] Settings backup, restore and reset
 - [x] Speaker.bot alias migration preview (supported Polly aliases)
 - [x] Voice search, engine filters, favorites and test playback

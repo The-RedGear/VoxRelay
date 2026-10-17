@@ -45,7 +45,16 @@ jobs:
           Copy-Item -LiteralPath docs -Destination dist/YapLoq/docs -Recurse -Force
           # Also surface these at package root for unzip-and-read
           Copy-Item -LiteralPath 'docs/LEGAL.md','docs/RELEASE_NOTES.md' -Destination dist/YapLoq -Force
+      - name: Prepare verified in-app update package (does not publish a release)
+        shell: powershell
+        run: |
+          $version = python -c "from voice_studio_speaker_bridge import __version__; print(__version__)"
+          python tools/package_update.py --source dist/YapLoq --output dist-updates/YapLoq-Windows-x64-update.zip --version $version --channel stable
       - uses: actions/upload-artifact@v4
         with:
           name: YapLoq-0.5.0-preview-Windows
           path: dist/YapLoq/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: YapLoq-stable-update-package
+          path: dist-updates/YapLoq-Windows-x64-update.zip

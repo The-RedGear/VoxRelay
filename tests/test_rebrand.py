@@ -65,18 +65,17 @@ def test_action_display_names_change_without_replacing_installed_ids():
 
 
 def test_updater_does_not_advertise_old_product_as_new_release():
-    with patch('voice_studio_speaker_bridge.maintenance.urlopen') as request:
+    with patch('voice_studio_speaker_bridge.updates.urlopen') as request:
         request.return_value.__enter__.return_value.read.return_value = json.dumps(
-            {'tag_name': 'v99.0.0', 'assets': [{'name': 'VoxRelay-Windows.zip'}]}).encode()
+            [{'tag_name': 'v99.0.0', 'assets': [{'name': 'VoxRelay-Windows.zip'}]}]).encode()
         result = Maintenance.check_updates()
-    assert result['checked'] is False
-    assert 'available' not in result
+    assert not result['compatible']
 
 
 def test_updater_accepts_current_product_assets():
-    with patch('voice_studio_speaker_bridge.maintenance.urlopen') as request:
+    with patch('voice_studio_speaker_bridge.updates.urlopen') as request:
         request.return_value.__enter__.return_value.read.return_value = json.dumps(
-            {'tag_name': 'v99.0.0', 'assets': [{'name': 'YapLoq-Windows.zip'}]}).encode()
+            [{'tag_name': 'v99.0.0', 'assets': [{'name': 'YapLoq-Windows.zip'}]}]).encode()
         result = Maintenance.check_updates()
     assert result['available'] is True
     assert result['message'].startswith('YapLoq ')

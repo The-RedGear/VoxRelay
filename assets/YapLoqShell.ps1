@@ -1452,7 +1452,7 @@ function Install-YapLoqShell {
         }
     })
     $NowPlayingStopClearButton.ToolTip = 'Stop playback and clear waiting speech (Ctrl+Shift+S)'
-    foreach ($name in @('HttpBox','WsBox','PersistQueueCheck','CheckUpdatesOnStartupCheck','CheckUpdatesButton')) {
+    foreach ($name in @('HttpBox','WsBox','PersistQueueCheck')) {
         $control = $window.FindName($name)
         if ($control) { $control.IsEnabled = $false; $control.ToolTip = 'Preview keeps desktop ports isolated; recovery and automatic updates are disabled.' }
     }

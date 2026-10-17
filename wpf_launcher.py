@@ -47,6 +47,7 @@ def _verify_package(output: Path) -> int:
 
         root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
         resources = ["YapLoq.ps1", "YapLoq.xaml", "ImportPreview.xaml",
+                     "assets/Updates.ps1", "assets/Updates.xaml", "assets/ApplyUpdate.ps1",
                      "assets/RuleEditors.ps1", "assets/ProfanityPanel.xaml",
                      "assets/ProfanityDialog.xaml", "assets/profanity-defaults.json",
                      "assets/YapLoq-logo.png", "assets/YapLoq.ico", "assets/YapLoq-tray.ico",
@@ -188,6 +189,9 @@ def main() -> int:
     environment["YAPLOQ_DATA_DIR"] = str(data_root)
     environment["VSB_EXTERNAL_BACKEND"] = "1"
     environment["YAPLOQ_PARENT_PID"] = str(os.getpid())
+    environment["YAPLOQ_UPDATE_TOKEN"] = uuid.uuid4().hex
+    if frozen:
+        environment["YAPLOQ_UPDATE_EXE"] = str(Path(sys.executable).resolve())
     token = str(uuid.uuid4()) if is_preview() else ""
     environment["YAPLOQ_LAUNCH_ID"] = token
 

@@ -311,7 +311,7 @@ function Set-PreviewSettings($value) {
     @{
         http_address='127.0.0.1';ws_address='127.0.0.1'
         http_port=17582;ws_port=17581
-        persist_queue=$false;check_updates_on_startup=$false
+        persist_queue=$false
     }.GetEnumerator() | ForEach-Object { $value | Add-Member -NotePropertyName $_.Key -NotePropertyValue $_.Value -Force }
 }
 
@@ -4263,22 +4263,8 @@ $MigrateSpeakerBotButton.Add_Click({
         }catch{$BottomStatus.Text=$_.Exception.Message}
     }
 })
-function Start-UpdateCheck([bool]$showResult) {
-    if($script:updateTask -and -not$script:updateTask.IsCompleted){return}
-    $script:updateShowResult=$showResult;$CheckUpdatesButton.IsEnabled=$false
-    $script:updateClient=[Net.WebClient]::new()
-    $script:updateTask=$script:updateClient.DownloadStringTaskAsync([Uri]((Get-BridgeBaseUri)+'/api/updates'))
-    $script:updateTimer=[Windows.Threading.DispatcherTimer]::new();$script:updateTimer.Interval=[TimeSpan]::FromMilliseconds(150)
-    $script:updateTimer.Add_Tick({
-        if(-not$script:updateTask.IsCompleted){return}
-        $script:updateTimer.Stop()
-        try{$result=($script:updateTask.GetAwaiter().GetResult() | ConvertFrom-Json).result;if($script:updateShowResult -or $result.available){$BottomStatus.Text=$result.message}}
-        catch{if($script:updateShowResult){$BottomStatus.Text='Update check unavailable. Try again later.'}}
-        finally{$CheckUpdatesButton.IsEnabled=$true;$script:updateClient.Dispose()}
-    })
-    $script:updateTimer.Start()
-}
-$CheckUpdatesButton.Add_Click({Start-UpdateCheck $true})
+. (Join-Path $resourceRoot 'assets\Updates.ps1')
+Install-YapLoqUpdates
 $ResetSettingsButton.Add_Click({
     $dialog=Load-Xaml (Join-Path $resourceRoot 'ImportPreview.xaml');$dialog.Owner=$window;$dialog.Resources.MergedDictionaries.Add($window.Resources);Apply-AppFont $dialog
     $dialog.FindName('PreviewTitle').Text='Reset settings'
@@ -4398,6 +4384,15 @@ try { Refresh-Grid } catch { $BottomStatus.Text = 'Could not load settings: ' + 
 Start-Backend
 
 $window.Add_ContentRendered({
+    if($env:YAPLOQ_UPDATE_HEALTH){
+        try{
+            $healthRoot=[IO.Path]::GetFullPath((Join-Path $configDir 'updates'))+'\'
+            $healthPath=[IO.Path]::GetFullPath($env:YAPLOQ_UPDATE_HEALTH)
+            if($healthPath.StartsWith($healthRoot,[StringComparison]::OrdinalIgnoreCase)){
+                [IO.File]::WriteAllText($healthPath,'{"desktopReady":true}')
+            }
+        }catch{}
+    }
     $window.ShowInTaskbar = $true
     if ($window.WindowState -eq 'Minimized') { $window.WindowState = 'Normal' }
     $window.Activate()
@@ -4416,7 +4411,7 @@ $window.Add_ContentRendered({
         $getStarted = $window.FindName('GetStartedExpander')
         if ($getStarted) { $getStarted.IsExpanded = -not [bool]$initial.setup_completed }
         if ($script:isPreview) { Set-Page 'playground' } elseif ($initial.setup_completed) { Set-Page 'voices' } else { Set-Page 'settings' }
-        if ($initial.check_updates_on_startup) { Start-UpdateCheck $false }
+        Start-UpdateCheck $false
     }) | Out-Null
 })
 $window.Add_StateChanged({

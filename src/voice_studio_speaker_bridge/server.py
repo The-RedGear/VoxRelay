@@ -5,6 +5,7 @@ from datetime import datetime
 import json
 import logging
 import os
+import hmac
 import socketserver
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Lock, Thread
@@ -24,6 +25,7 @@ from . import __version__
 from .obs import ObsClient
 from .secrets import unprotect_windows_secret
 from .channel import is_preview
+from .updates import UpdateManager, installed_version
 
 
 @dataclass
@@ -44,6 +46,7 @@ class BridgeServers:
         self.settings = settings
         self.protocol = protocol
         self.events = events
+        self.updates = UpdateManager(settings)
         self.events.subscribe(self.broadcast_event)
         self.connections: dict[int, Connection] = {}
         self.lock = Lock()
@@ -105,20 +108,14 @@ class BridgeServers:
                 if path == "/api/identity":
                     self._reply(200, {"channel": "yaploq-preview" if is_preview() else "yaploq",
                                       "launchId": os.environ.get("YAPLOQ_LAUNCH_ID", ""),
+                                      "version": installed_version(),
                                       "ready": bridge.http_server is not None and bridge.ws_server is not None})
                     return
                 if path == "/api/events":
                     self._reply(200, {"ok": True, "events": bridge.events.recent()})
                     return
                 if path == "/api/updates":
-                    if is_preview():
-                        self._reply(200, {"ok": True, "result": {"checked": False, "message": "Preview updates are provided separately."}})
-                        return
-                    try:
-                        result = Maintenance.check_updates()
-                    except Exception:
-                        result = {"checked": False, "message": "Update check unavailable. Try again later."}
-                    self._reply(200, {"ok": True, "result": result})
+                    self._reply(200, {"ok": True, "result": bridge.updates.status()})
                     return
                 if path == "/api/backups":
                     self._reply(200, {"ok": True, "backups": Maintenance(bridge.settings).backups()})
@@ -159,6 +156,33 @@ class BridgeServers:
                 })
 
             def do_POST(self) -> None:
+                if self.path.startswith('/api/updates/'):
+                    expected = os.environ.get('YAPLOQ_UPDATE_TOKEN', '')
+                    supplied = self.headers.get('X-YapLoq-Update-Token', '')
+                    if (not expected or not hmac.compare_digest(expected, supplied)
+                            or self.client_address[0] not in {'127.0.0.1', '::1'}):
+                        self._reply(403, {'ok': False, 'error': 'Update commands must come from the YapLoq desktop.'})
+                        return
+                    try:
+                        length = int(self.headers.get('Content-Length', '0'))
+                        if length < 0 or length > 4096:
+                            raise ValueError('Invalid update request')
+                        data = json.loads(self.rfile.read(length) or b'{}')
+                        command = self.path.rsplit('/', 1)[-1]
+                        if command == 'check':
+                            result = bridge.updates.check()
+                        elif command == 'download':
+                            result = bridge.updates.download()
+                        elif command == 'cancel':
+                            result = bridge.updates.cancel_download()
+                        elif command == 'apply':
+                            result = bridge.updates.prepare_apply(bridge.protocol.engine, int(data.get('desktopPid', 0)))
+                        else:
+                            raise ValueError('Unknown update command')
+                        self._reply(200, {'ok': True, 'result': result})
+                    except Exception as exc:
+                        self._reply(400, {'ok': False, 'error': str(exc)})
+                    return
                 routes = {"/speak": "Speak", "/stop": "Stop", "/clear": "Clear",
                           "/pause": "Pause", "/resume": "Resume", "/skip": "Stop", "/api/playback/seek": "Seek",
                           "/pause-after-current": "PauseAfterCurrent", "/clear-all": "ClearAll",

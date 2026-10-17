@@ -208,7 +208,7 @@ class IntegrationTests(unittest.TestCase):
 
     def test_private_release_unavailable_is_not_reported_as_up_to_date(self):
         from urllib.error import HTTPError
-        with patch("voice_studio_speaker_bridge.maintenance.urlopen", side_effect=HTTPError("https://example.com", 404, "missing", {}, None)):
+        with patch("voice_studio_speaker_bridge.updates.urlopen", side_effect=HTTPError("https://example.com", 404, "missing", {}, None)):
             result = Maintenance.check_updates()
         self.assertFalse(result["checked"])
         self.assertNotIn("available", result)

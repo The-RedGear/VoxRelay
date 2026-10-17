@@ -24,7 +24,10 @@ class MediaClockTests(unittest.TestCase):
         engine.audio = AudioPlayer()
         engine.audio.arm_progress(2 * SAMPLE_RATE * 30)
         engine.audio.playing = True
-        settings = SimpleNamespace(http_address='127.0.0.1', http_port=0)
+        import tempfile
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        settings = SimpleNamespace(http_address='127.0.0.1', http_port=0, path=Path(temp.name)/'settings.json')
         servers = BridgeServers(settings, SpeakerBotProtocol(settings, engine), EventBus())
         thread = Thread(target=servers._run_http, daemon=True)
         thread.start()

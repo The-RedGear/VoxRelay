@@ -41,7 +41,16 @@ jobs:
           if (-not $process.WaitForExit(60000)) { throw 'Package check timed out' }
           $result = Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
           if ($process.ExitCode -ne 0 -or -not $result.ok -or -not $result.frozen) { throw 'Package check failed' }
+      - name: Prepare preview update package (does not publish a release)
+        shell: powershell
+        run: |
+          $version = python -c "from voice_studio_speaker_bridge import __version__; import os; print(__version__ + '-preview.' + os.environ['GITHUB_RUN_NUMBER'])"
+          python tools/package_update.py --source dist-preview/YapLoq-preview --output dist-updates/YapLoq-preview-Windows-x64-update.zip --version $version --channel preview
       - uses: actions/upload-artifact@v4
         with:
           name: YapLoq-preview-Windows-${{ github.sha }}
           path: dist-preview/YapLoq-preview/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: YapLoq-preview-update-package-${{ github.sha }}
+          path: dist-updates/YapLoq-preview-Windows-x64-update.zip
