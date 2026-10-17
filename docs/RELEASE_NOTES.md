@@ -1,74 +1,35 @@
-# YapLoq 0.5.0 preview — release notes
+# YapLoq 0.5.0 — Initial release
 
-**Base version:** `0.5.0`
-**Status:** redesign-branch preview; no YapLoq release tag has been published.
+Voice automation for streamers, with a Windows desktop app and Streamer.Bot integration.
 
-## Highlights
+## What's included
 
-- New YapLoq microphone branding, Poppins typography and cleaner, rounded UI
-- Click-to-seek media bar with smoother progress and selected-History playback
-- Replay existing recordings without duplicate cache files; one History/cache limit
-- Collapsible profanity rules with whole-word variants, replacements and hidden words
-- Easier setup guides and sliders paired with exact limit/cooldown values
+- Dashboard for speaking with your selected voice and replaying recent speech.
+- Eleven speech services, including Windows voices, VoiceStudio, Amazon Polly, ElevenLabs, Azure and Google Cloud TTS.
+- Voice aliases with custom Icônes icons, colors, favorites, playlists and routing.
+- Unified queue and history with generation/playback statuses, manual ordering, recording replay, save audio and right-click actions.
+- Streamer.Bot action exports, UDP speech requests and optional playback actions.
+- Pronunciation and message filters, profanity rules, queue limits and cooldowns.
+- Separate stream/preview audio outputs and optional OBS ducking.
+- Encrypted service credentials, masked by default with show/hide controls.
+- GitHub release checks, patch notes and verified in-app update downloads with backup and restart installation.
 
-- Cloud TTS engines: ElevenLabs, Azure Speech, Google Cloud TTS, IBM Watson, UberDuck, TTS.Monster, Acapela, CereProc (plus VoiceStudio, Windows SAPI, Amazon Polly)
-- Per-provider Services pages with Windows DPAPI-encrypted secrets
-- Streamer.bot speak payload hardened for display vs login (`%displayName%` / `%userName%`)
-- Voices **ON** checkboxes + Speak `random` for the global enabled pool
-- **Rules → Voice playlists** — named pools via `playlist:Name` (also in Streamer.bot export)
-- Playground script box, scrollbar thumbs, VoiceStudio and Streamer.bot page UI polish
+## Download and start
 
-## Download
+1. Download **YapLoq-Windows-x64-update.zip** from this release.
+2. Extract the entire ZIP to a writable folder. Keep `_internal` beside `YapLoq.exe`.
+3. Run **YapLoq.exe**. Python is not required.
+4. Open **Services**, connect a service, then create and test an alias in **Voices**.
+5. Open **Streamer.Bot** for the connection and action export instructions.
 
-1. Download a successful YapLoq preview build from the branch's Actions workflow.
-2. Extract the folder. Keep `_internal` beside `YapLoq-preview.exe`.
-3. Run `YapLoq-preview.exe` — Python is not required.
+The same ZIP is the portable first-time download and the package used by the in-app updater.
 
-Also included in the zip: `LICENSE`, `THIRD_PARTY_NOTICES.md`, `LEGAL.md`, `CHANGELOG.md`, and the `docs/` folder.
+## Notes
 
-This build passes the automated test suite, desktop layout/branding checks, and
-a frozen-runtime check for bundled resources and audio decoding. Provider billing,
-live integrations and your audio hardware should still be tested before a stream.
+- Windows 10/11, 64-bit. This build is unsigned; Windows SmartScreen may show a warning.
+- Cloud speech usage is billed by each provider. Use voices you own or have permission to use.
+- Settings, history and audio remain local. Windows-encrypted credentials must be entered again on another computer or Windows account.
+- The separate development preview retains its own data folder and update channel. This release does not automatically migrate preview settings.
+- Provider availability, audio hardware and OBS behavior depend on your setup. See the roadmap for ongoing validation and planned improvements.
 
-## Important before you stream
-
-- **Provider billing:** cloud TTS usage is billed by each vendor under their own Terms of Service. YapLoq does not sell voice minutes.
-- **Authorized voices only:** only use voices and cloned models you own or are licensed to use.
-- **Unsigned binary:** Windows SmartScreen may warn on first run. Code signing is planned; see `ROADMAP.md`.
-- **Secrets stay local:** API keys are encrypted with Windows DPAPI for the current Windows user. Moving `data/` to another PC or account requires re-entering keys.
-- **Not affiliated** with Streamer.bot, Speaker.bot, Amazon, Microsoft, Google, ElevenLabs, IBM, or other named providers.
-
-## Streamer.bot quick start
-
-Recommended UDP speak payload:
-
-```text
-VSPEAK
-YourAlias
-%message%
-%displayName%
-%userName%
-```
-
-Do **not** put Streamer.bot’s `%user%` object on identity lines — in current builds it often expands to JSON (`badges` / `login`) and breaks voice rules and Helix lookups. Prefer `%displayName%` + `%userName%`.
-
-For random selection, use `random` (Voices marked **ON**) or `playlist:YourPlaylist` from **Rules → Voice playlists**.
-
-Export a starter `.sb` from **Services → Streamer.bot → Export actions**, import it in Streamer.bot, then attach your own triggers.
-
-## Still preview / verify yourself
-
-Live checks still open before calling this a final release (see `ROADMAP.md`):
-
-- Import `.sb` actions in your Streamer.bot version and test Speak + queue controls
-- OBS duck/restore during disconnects
-- Audio device unplug during playback
-- DPI / tray / Narrator on physical hardware
-
-## Privacy
-
-Settings, logs, generated audio, and history live in the local `data` folder and are not part of the Git repository. Export diagnostics strips messages, keys, usernames, and local paths.
-
-## License
-
-MIT — see `LICENSE`, `THIRD_PARTY_NOTICES.md`, and `docs/LEGAL.md`.
+YapLoq is distributed under the MIT License. See LICENSE, THIRD_PARTY_NOTICES.md and docs/LEGAL.md.

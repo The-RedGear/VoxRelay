@@ -1433,13 +1433,13 @@ function Update-BridgeStatus([bool]$online) {
 }
 
 function Set-Page([string]$page) {
-    if ($script:isPreview -and $page -eq 'history') {
+    if ($script:yaploqNav -and $page -eq 'history') {
         if($script:activePage -eq 'queue'){Show-YapLoqQueueHistory;return}
         $script:queueFocusHistory=$true;$page='queue'
     }
-    if ($script:isPreview -and $page -eq 'voiceRules') { $page = 'routing' }
+    if ($script:yaploqNav -and $page -eq 'voiceRules') { $page = 'routing' }
     if ($script:activePage -eq $page) { return }
-    if ($script:isPreview -and $script:changingPage) { Request-YapLoqPage $page; return }
+    if ($script:yaploqNav -and $script:changingPage) { Request-YapLoqPage $page; return }
     $previousPage = $script:activePage
     $script:changingPage = $true
     try {
@@ -1472,7 +1472,7 @@ function Set-Page([string]$page) {
     if ($page -in @('queue','history')) { $script:playerStateNext = 0; $script:playerHistoryNext = 0 }
     Animate-PageHeading
     Animate-In $pages[$page]
-    if($script:isPreview -and $page -eq 'queue' -and $script:unifiedQueueGrid){
+    if($script:yaploqNav -and $page -eq 'queue' -and $script:unifiedQueueGrid){
         if($script:queueFocusHistory){Show-YapLoqQueueHistory}
         $script:queueFocusHistory=$false
     }
@@ -4376,10 +4376,8 @@ if ($BottomStatusDot) { $BottomStatusDot.Fill = $SideStatus.Foreground }
 . (Join-Path $resourceRoot 'assets\RuleEditors.ps1')
 Install-NumericEditors
 Install-ProfanityEditor
-if ($script:isPreview) {
-    . (Join-Path $resourceRoot 'assets\YapLoqShell.ps1')
-    Install-YapLoqShell
-}
+. (Join-Path $resourceRoot 'assets\YapLoqShell.ps1')
+Install-YapLoqShell
 try { Refresh-Grid } catch { $BottomStatus.Text = 'Could not load settings: ' + $_.Exception.Message }
 Start-Backend
 
@@ -4410,7 +4408,7 @@ $window.Add_ContentRendered({
         $initial = Read-Settings
         $getStarted = $window.FindName('GetStartedExpander')
         if ($getStarted) { $getStarted.IsExpanded = -not [bool]$initial.setup_completed }
-        if ($script:isPreview) { Set-Page 'playground' } elseif ($initial.setup_completed) { Set-Page 'voices' } else { Set-Page 'settings' }
+        Set-Page 'playground'
         Start-UpdateCheck $false
     }) | Out-Null
 })

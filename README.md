@@ -25,7 +25,7 @@ Streamer.bot lifecycle actions in one application.
 - Optional OBS audio ducking, normalization, fades and output tests
 - Live event inspector and private diagnostic exports
 
-**YapLoq is under development on `redesign/yaploq`** (unsigned Windows preview). See
+**YapLoq 0.5.0 is the initial public release for Windows.** See
 [release notes](docs/RELEASE_NOTES.md), [the user guide](docs/USER_GUIDE.md),
 [Streamer.bot recipes](docs/STREAMERBOT.md), [provider adapters](docs/PROVIDERS.md),
 [legal notes](docs/LEGAL.md), and the [remaining release roadmap](ROADMAP.md).
@@ -34,11 +34,13 @@ Cloud TTS usage is billed by each provider. Only use voices you are authorized t
 
 ## Download
 
-[Builds for the YapLoq redesign branch](https://github.com/The-RedGear/VoxRelay/actions/workflows/yaploq-preview.yml)
+[Download YapLoq for Windows](https://github.com/The-RedGear/YapLoq/releases/latest)
 
-Download a successful run's YapLoq preview artifact, extract the complete folder,
-and run `YapLoq-preview.exe`; Python is not required. Keep `_internal` beside it.
-This preview uses isolated data, ports and app identity; see [preview setup](docs/YAPLOQ_PREVIEW.md).
+Download `YapLoq-Windows-x64-update.zip`, extract the complete folder,
+and run `YapLoq.exe`; Python is not required. Keep `_internal` beside it.
+This portable ZIP supports both first-time installation and in-app updates.
+The Windows application is unsigned; Windows may display a SmartScreen prompt.
+Use the download icon beside the app version to check future releases and read patch notes.
 
 ## Provider setup
 

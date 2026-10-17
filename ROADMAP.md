@@ -1,9 +1,9 @@
 # YapLoq release roadmap
 
-Implemented items have automated coverage or runtime verification. The 0.5 build
-remains a preview until the live checks at the end are complete.
+YapLoq 0.5.0 is the initial public release. This roadmap tracks follow-up work
+and broader hardware and integration validation.
 
-## Next priorities — essential before release
+## Next priorities
 
 1. [ ] Reliable high-volume Streamer.Bot input: configurable queue capacity,
    visible rejection reasons, and end-to-end burst tests comparing sent,

@@ -1,26 +1,15 @@
-YAPLOQ PREVIEW QUICK START
-=========================
+YAPLOQ QUICK START
+=================
 
-1. Double-click YapLoq-preview.exe.
-2. Open Services and select Windows voices to get started without an account,
-   or select a provider and follow its connection instructions.
-3. Open Voices and create a friendly alias for a voice.
-4. Use Test voice to confirm the voice and audio output.
-5. Open Integrations for Streamer.bot instructions and payloads.
+1. Extract the entire download and run YapLoq.exe.
+2. Open Services and connect Windows voices or a speech provider.
+3. Open Voices, create an alias and use Test voice.
+4. Speak from Dashboard. Queue contains waiting and recent speech.
+5. Open Streamer.Bot for connection and action export instructions.
 
-PREVIEW DATA
-------------
-Settings, history, logs and generated audio are kept in data-preview beside
-this preview. Back up that folder to preserve your preview setup.
-Production settings are not imported automatically.
+Keep the _internal folder beside YapLoq.exe.
+Settings, logs and audio are stored in the local data folder.
+Use the download icon beside the app version for update checks and patch notes.
+Service credentials are encrypted for your Windows user on this computer.
 
-Preview networking uses separate ports. UDP, startup actions and automatic
-updates are disabled for this preview to protect your existing setup.
-
-TROUBLESHOOTING
----------------
-Keep the entire folder together, including the _internal folder.
-If a provider cannot connect, select it in Services and use its connection check.
-Logs are stored in data-preview\bridge.log.
-
-License: MIT - see LICENSE and docs\LEGAL.md
+License: MIT. See LICENSE and docs/LEGAL.md.

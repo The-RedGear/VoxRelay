@@ -1,6 +1,15 @@
 # Changelog
 
-## 0.5.0 preview
+## 0.5.0 — Initial YapLoq release
+
+- Six-page desktop interface: Dashboard, Voices, Queue, Services, Streamer.Bot and Settings.
+- Custom voice icons from Icônes, alias colors, favorites, playlists and routing.
+- Unified queue and history with stable order, recording replay and context actions.
+- Dashboard recent speech stays visible through playback completion.
+- Masked service credentials with show/hide controls.
+- In-app GitHub release checks, patch notes, verified update downloads and restart installation.
+
+### Earlier development work
 
 - Applies the supplied YapLoq microphone and wordmark to the title bar,
   sidebar, About panel, Windows executable/window icons, tray and README banner.

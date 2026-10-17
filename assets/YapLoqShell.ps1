@@ -1276,7 +1276,7 @@ function Install-YapLoqShell {
     $GetStartedExpander = $window.FindName('GetStartedExpander')
     Install-YapLoqStyles
     [xml]$script:shellMarkup = Get-Content -LiteralPath (Join-Path $resourceRoot 'YapLoq.xaml') -Raw
-    $window.Title = 'YapLoq Preview'
+    $window.Title = $script:appLabel
     Initialize-AppBranding
     foreach ($name in @('TitleBrandLogo','SidebarBrandLogo','AboutBrandLogo')) {
         $image = $window.FindName($name)
