@@ -22,25 +22,202 @@ Apply-AppFont $window
 Install-NumericEditors
 Install-ProfanityEditor
 Refresh-Grid
+Install-ServiceGuides
 $script:isPreview=$true
 . (Join-Path $resourceRoot 'assets/YapLoqShell.ps1')
+$window.FindName('SaveElevenLabsButton').Add_Click({Save-ElevenLabsSettings})
+$window.FindName('ClearElevenLabsButton').Add_Click({Clear-ElevenLabsSecrets})
 Install-YapLoqShell
+if($script:credentialFields.Count -ne 13){throw 'Expected all service credentials and OBS password to have masking controls'}
+if(@($window.FindName('SaveElevenLabsButton').Resources['YapLoqCredentialNames']) -notcontains 'ElevenLabsApiKeyBox' -or @($window.FindName('ClearPollyCredentialsButton').Resources['YapLoqCredentialNames']).Count -ne 3){throw 'Credential save/clear buttons lack masking refresh handlers'}
+$credentialSettings=Read-Settings
+foreach($entry in $script:credentialFields.Values){
+    $fake='fixture-'+$entry.Original.Name
+    Set-JsonProperty $credentialSettings $entry.Key $(if($entry.Encrypted){Protect-YapLoqSecret $fake}else{$fake})
+}
+Write-Settings $credentialSettings;Sync-YapLoqCredentialFields
+foreach($entry in $script:credentialFields.Values){
+    if($entry.Mask.Password -ne ('fixture-'+$entry.Original.Name) -or $entry.Plain.Visibility -ne 'Collapsed' -or $entry.Toggle.Content -ne 'Show'){throw 'Saved credential must load masked, not empty or revealed'}
+    $entry.Toggle.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+    if($entry.Plain.Text -ne $entry.Mask.Password -or $entry.Plain.Visibility -ne 'Visible'){throw 'Show credential toggle did not reveal its value'}
+    $entry.Toggle.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+    if($entry.Plain.Visibility -ne 'Collapsed' -or ($entry.Encrypted -and $entry.Plain.Text)){throw 'Hide credential toggle retained exposed plaintext'}
+}
+$eleven=$script:credentialFields['ElevenLabsApiKeyBox'];$eleven.Mask.Password='replacement-fixture'
+$window.FindName('SaveElevenLabsButton').RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+if((Unprotect-YapLoqSecret (Read-Settings).elevenlabs_api_key_encrypted) -ne 'replacement-fixture' -or $eleven.Mask.Password -ne 'replacement-fixture'){throw 'Saving credentials stored a mask or failed to restore masked display'}
+$eleven.Toggle.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent));$eleven.Plain.Text='edited-revealed-fixture';Hide-YapLoqCredential $eleven
+if($eleven.Mask.Password -ne 'edited-revealed-fixture'){throw 'Editing revealed text did not update the real credential'}
+Sync-YapLoqCredentialFields @('ElevenLabsApiKeyBox') -PreserveEdits
+if($eleven.Mask.Password -ne 'edited-revealed-fixture'){throw 'Failed-save synchronization discarded an unsaved credential'}
+$window.FindName('ClearElevenLabsButton').RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+if($eleven.Mask.Password -or (Read-Settings).elevenlabs_api_key_encrypted){throw 'Clear secrets did not clear the masked field'}
+$credentialSettings=Read-Settings;Set-JsonProperty $credentialSettings 'azure_subscription_key_encrypted' 'unreadable-fixture';Write-Settings $credentialSettings
+Sync-YapLoqCredentialFields @('AzureKeyBox')
+$azure=$script:credentialFields['AzureKeyBox']
+if($azure.Mask.Password -or $azure.Hint.Visibility -ne 'Visible' -or $azure.Toggle.IsEnabled){throw 'Unreadable credential must show a safe mask, not become an editable fake password'}
+Save-AzureSettings
+if((Read-Settings).azure_subscription_key_encrypted -ne 'unreadable-fixture'){throw 'Saving an unreadable credential replaced it with placeholder characters'}
+if(($script:ownerSections.Queue | ForEach-Object {$_[1]}) -join ',' -ne 'queue,rules'){throw 'History still has a separate tab'}
+if($script:unifiedQueueGrid.Parent.Parent -ne $QueuePage -or $script:unifiedQueueGrid.Columns.Count -ne 6){throw 'Queue needs one full-height table with shared columns'}
+if($script:unifiedQueueGrid.Items.Count -ne 0){throw 'Empty Queue should not contain section bars'}
+if($PauseAfterQueueButton.Parent -ne $NowPlayingSkipButton.Parent){throw 'Pause after current must live in the media bar'}
+foreach($table in @($QueueGrid,$HistoryGrid,$PlaylistGrid,$PronunciationGrid,$VoiceRulesGrid,$RoutingGrid,$script:profanityGrid,$EventTimelineGrid)){
+    if(-not $table.ContextMenu -or $table.ContextMenu.Items.Count -lt 3){throw ('Missing useful context menu: '+$table.Name)}
+}
+$QueueGrid.SelectedItem=$null
+$QueueGrid.ContextMenu.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.ContextMenu]::OpenedEvent))
+if($QueueGrid.ContextMenu.Items[0].IsEnabled){throw 'Queue item commands enabled without a selected row'}
+$menuProbe=New-QueueSpeechRow ([pscustomobject]@{id='menu-probe';alias='EventVoice';text='test';status='Waiting'})
+$QueueGrid.ItemsSource=@($menuProbe);Update-YapLoqUnifiedQueue;$script:unifiedQueueGrid.SelectedItem=$menuProbe
+$QueueUpButton.Add_Click({$script:contextAction='queue-up'})
+$QueueGrid.ContextMenu.Items[1].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent))
+if($script:contextAction -ne 'queue-up'){throw 'Queue context action did not delegate to the existing command'}
+$colorVoice=[pscustomobject]@{Name='Mint voice';Provider='windows';VoiceId='test';Model='sapi';Speed=1;Volume=1;Color='#87C9AF';IconId='mdi:cat'}
+Save-Alias $null $colorVoice
+$PlayVoiceList.SelectedItem='Mint voice'
+Update-YapLoqDashboardAppearance
+if($script:dashboardEditor.BorderBrush.Color.ToString() -ne '#FF87C9AF' -or $script:dashboardVoicePicker.SelectedValue -ne 'Mint voice'){throw 'Composer tint or icon picker selection desynchronized'}
+if($PlayButton.Background.GradientStops[1].Color.ToString() -ne '#FF87C9AF'){throw 'Speak button retained the global purple accent'}
+if($PlaygroundText.CaretBrush.Color.ToString() -ne '#FF87C9AF'){throw 'Composer caret retained the global purple accent'}
+if(([Windows.Markup.XamlWriter]::Save($script:dashboardVoicePicker.Style)) -match '(?i)B6A3FF'){throw 'Voice picker retained purple interaction states'}
+if(([Windows.Markup.XamlWriter]::Save($script:dashboardVoicePicker.ItemContainerStyle)) -match '(?i)B6A3FF'){throw 'Dropdown items retained purple selection'}
+if($window.FindResource('Accent').Color.ToString() -ne '#FFB6A3FF' -or $SaveVoicesButton.Background.GradientStops[1].Color.ToString() -ne '#FFB6A3FF'){throw 'Dashboard tint leaked into shared app controls'}
+$AliasSearchBox.Text='no match';Filter-VoiceAliases
+if($script:dashboardVoicePicker.Items.Count -ne 2){throw 'Voice search filtered the Dashboard picker'}
+$AliasSearchBox.Text='';Filter-VoiceAliases
 if (($script:yaploqNav.Keys | Sort-Object) -join ',' -ne 'Dashboard,Integrations,Queue,Services,Settings,Voices') { throw 'Expected exactly six navigation entries' }
 if ($VoicesNav.Parent) { throw 'Legacy navigation is still in the visible shell' }
 if ($PlaylistGrid.Parent.Parent.Parent.Parent -eq $RulesPage.Content) { throw 'Playlist editor still belongs to message rules' }
 if (-not $script:yaploqPages.playlists.Content.Children.Count) { throw 'Playlist editor was lost' }
-if ($window.FindName('AutoVoiceRulesExpander').Parent.Parent -ne $RulesPage.Content) { throw 'Voice rules are not in the shared rules workspace' }
+foreach($name in @('AutoVoiceRulesExpander','RoutingExpander')){
+    if($window.FindName($name).Parent.Parent -ne $script:yaploqPages.routing.Content){throw 'Voice selection and routing must live under Voices > Routing'}
+}
+if($script:routeOwners.routing -ne 'Voices' -or -not @($script:ownerSections.Voices | Where-Object {$_[1] -eq 'routing'}).Count){throw 'Routing tab missing from Voices'}
+if($window.FindName('RoutingExpander').Header.Children[0].Tag -ne 'mdi:call-split'){throw 'Routing icon was not replaced'}
+foreach($name in @('MessageModerationExpander','LimitsViewersExpander')){
+    if($window.FindName($name).Parent.Parent -ne $RulesPage.Content){throw 'Filters and queue limits must remain in Queue rules'}
+}
 if ($PlayStopButton.Visibility -ne 'Collapsed') { throw 'Dashboard duplicates player stop' }
-if ($PlayVoiceList.Items.Count -ne 1) { throw 'Dashboard lost voice selection' }
-if ($HttpBox.IsEnabled -or $EnableUdpCheck.IsEnabled) { throw 'Preview connection boundaries are editable' }
+$setupRows=@($script:streamerQuickHelp.Child.Children | Where-Object {$_ -is [Windows.Controls.Grid]})
+if($setupRows.Count -ne 3){throw 'Streamer.Bot help should contain three integration steps'}
+$setupActions=@($setupRows | ForEach-Object {$_.Children[1]})
+if(($setupActions.Tag -join ',') -ne 'connection,export,queue'){throw 'Streamer.Bot help points to unrelated onboarding pages'}
+$setupCopy=($setupRows | ForEach-Object {$_.Children[0].Children[1].Text}) -join ' '
+if($setupCopy -notlike '*Import String*' -or $setupCopy -notlike '*Test Trigger*' -or $setupCopy -notlike '*UDP*'){throw 'Streamer.Bot connection, import, or verification step missing'}
+foreach($action in $setupActions){if(-not $action.Content.Children[0].Data){throw 'Streamer.Bot help action lacks an icon'}}
+if ($PlayVoiceList.Items.Count -ne 2) { throw 'Dashboard lost voice selection' }
+if ($HttpBox.IsEnabled -or -not $EnableUdpCheck.IsEnabled) { throw 'Preview must isolate desktop ports without blocking speech inputs' }
+$orderProbe=@(
+    [pscustomobject]@{Id='old-playing';Timestamp='2026-10-17T10:00:00Z';Status='Playing'},
+    [pscustomobject]@{Id='new-queued';Timestamp='2026-10-17T10:00:02Z';Status='Queued'},
+    [pscustomobject]@{Id='middle-finished';Timestamp='2026-10-17T10:00:01Z';Status='Finished'}
+)
+if((@(Sort-YapLoqSpeechRows $orderProbe).Id -join ',') -ne 'new-queued,middle-finished,old-playing'){throw 'Playing speech was promoted above newer admissions'}
+$orderProbe[0].Status='Finished'
+if((@(Sort-YapLoqSpeechRows $orderProbe).Id -join ',') -ne 'new-queued,middle-finished,old-playing'){throw 'Playback status changed chronological order'}
 if ($window.FindName('SidebarBrandLogo').Visibility -ne 'Collapsed') { throw 'Sidebar logo is still visible' }
 if ($BridgeStatusButton.Parent -ne $MinimizeButton.Parent -or $BridgeStatusButton.Parent.Children.IndexOf($BridgeStatusButton) -ne ($BridgeStatusButton.Parent.Children.IndexOf($MinimizeButton)-1)) { throw 'Status is not immediately before Minimize' }
 $sample=[pscustomobject]@{queue=@([pscustomobject]@{id='one';alias='Windows';text='Test message'})}
 Update-YapLoqDashboard $sample
-if ($script:dashboardUpcoming.Children.Count -ne 1 -or $script:dashboardUpcoming.Children[0].Text -notlike '*Test message') { throw 'Dashboard queue preview lost canonical state' }
+if ($script:dashboardUpcoming.Children.Count -ne 1 -or $script:dashboardUpcoming.Children[0].Tag.Text -ne 'Test message') { throw 'Dashboard queue preview lost canonical state' }
+$previewRow=$script:dashboardUpcoming.Children[0]
+Update-YapLoqDashboard $sample
+if(-not [object]::ReferenceEquals($previewRow,$script:dashboardUpcoming.Children[0]) -or $script:dashboardUpcoming.HasAnimatedProperties){throw 'Unchanged Dashboard queue preview was rebuilt or animated again'}
 Update-YapLoqDashboard ([pscustomobject]@{queue=@()})
-if ($script:dashboardUpcoming.Children[0].Text -ne 'Queue empty') { throw 'Queue empty state missing' }
-function Invoke-BridgePost([string]$path,$body=@{}) { $script:recordedRequest=$path }
+if ($script:dashboardUpcoming.Children[0].Text -ne 'No speech yet') { throw 'Compact empty queue hint missing' }
+$script:recentHistoryItems=@([pscustomobject]@{Id='replayed';Alias='EventVoice';Text='Replay me';HasAudio=$true})
+Update-YapLoqDashboard ([pscustomobject]@{queue=@()})
+if ($script:dashboardUpcoming.Children[0].Tag.Id -ne 'replayed' -or $script:dashboardActivityLink.Tag -ne 'queue') { throw 'Compact preview lost recent speech or the unified Queue link' }
+$recentPreview=$script:dashboardUpcoming.Children[0]
+Update-YapLoqDashboard ([pscustomobject]@{queue=@()})
+if(-not [object]::ReferenceEquals($recentPreview,$script:dashboardUpcoming.Children[0])){throw 'Unchanged recent preview rebuilt its rows'}
+$active=[pscustomobject]@{current=[pscustomobject]@{id='active';alias='Mint voice';text='Speaking now';status='Playing'};queue=@();paused=$false}
+Update-YapLoqDashboard $active
+if($script:dashboardUpcoming.Children[0].Tag.Status -ne 'Playing' -or $script:dashboardUpcoming.Children[1].Tag.Id -ne 'replayed'){throw 'Dashboard preview must put active speech before recent history'}
+foreach($name in @('AudioSettingsExpander','LocalApiSettingsExpander','LimitsSettingsExpander','WindowSettingsExpander','DataSupportSettingsExpander')) {
+    if($window.FindName($name).Header.Children[0] -isnot [Windows.Shapes.Path]){throw ('Settings section lacks icon: '+$name)}
+}
+$PlayVoiceList.SelectedIndex=0
+Update-YapLoqDashboardAppearance
+if($script:dashboardVoicePicker.SelectedValue -ne $PlayVoiceList.SelectedItem -or -not $script:dashboardVoicePicker.ItemTemplate){throw 'Dashboard icon picker lost canonical selection'}
+$played=[pscustomobject]@{id='replayed';alias='EventVoice';text='Replay me'}
+Update-NowPlayingBar ([pscustomobject]@{current=$null;lastPlayed=$played;paused=$false;queueLength=0}) ([pscustomobject]@{Id='newer';Alias='Other';Text='Not played'})
+if($NowPlayingTitle.Text -ne 'EventVoice' -or (Get-HistoryPlaybackTarget).id -ne 'replayed'){throw 'Player snapped back from the last replay'}
+function Invoke-BridgePost([string]$path,$body=@{}) { $script:recordedRequest=$path;$script:recordedBody=$body }
+$script:recentHistoryItems=@(1..9|ForEach-Object{[pscustomobject]@{Id=('preview-'+$_);Alias='Mint voice';Text=('Recent speech '+$_);Status='Finished';HasAudio=$true}})
+Update-YapLoqDashboard ([pscustomobject]@{queue=@()})
+if($script:dashboardUpcoming.Children.Count -ne 6){throw 'Dashboard should show six preview rows when history is available'}
+$previewHistory=$script:dashboardUpcoming.Children[0]
+if($previewHistory.ContextMenu.Items.Count -ne 6){throw 'Dashboard history row lacks useful context actions'}
+$previewReplay=@($previewHistory.Children|Where-Object{$_ -is [Windows.Controls.Button]})[0]
+if(-not $previewReplay){throw 'Dashboard history row lacks a replay icon button'}
+if($previewReplay.Content.Fill.Color.ToString() -ne '#FFB6A3FF'){throw 'Replay icon must use default purple, not the alias accent'}
+$previewReplay.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+if($script:recordedRequest -ne '/api/history/replay' -or $script:recordedBody.speechId -ne 'preview-1'){throw 'Dashboard replay did not use its own recording ID'}
+$previewHistory.ContextMenu.Items[1].RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent))
+if($script:recordedRequest -ne '/api/history/save' -or $script:recordedBody.speechId -ne 'preview-1'){throw 'Dashboard context save did not use its own recording ID'}
+Update-YapLoqDashboard ([pscustomobject]@{queue=@()})
+if(-not[object]::ReferenceEquals($previewHistory,$script:dashboardUpcoming.Children[0])){throw 'Expanded history preview rebuilt unchanged rows'}
+$script:recentHistoryItems[3]|Add-Member NoteProperty AudioPath 'preview-four.wav' -Force
+$previewOrder=($script:dashboardUpcoming.Children.Tag.Id) -join ','
+foreach($status in @('Queued','Playing','Paused')){
+    Update-YapLoqDashboard ([pscustomobject]@{current=[pscustomobject]@{id='dashboard-replay';alias='Mint voice';text='Recent speech 4';status=$status;source='History recording';audioPath='preview-four.wav'};queue=@()})
+    if(($script:dashboardUpcoming.Children.Tag.Id -join ',') -ne $previewOrder -or $script:dashboardUpcoming.Children[3].Tag.Status -ne $status){throw 'Dashboard replay moved or duplicated the original recording instead of updating its status'}
+}
+Update-YapLoqDashboard ([pscustomobject]@{queue=@()})
+if($script:dashboardUpcoming.Children[3].Tag.Status -ne 'Finished'){throw 'Dashboard replay did not return to Finished'}
+$PauseAfterQueueButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+if($script:recordedRequest -ne '/pause-after-current'){throw 'Media-bar pause-after-current is not wired to the backend'}
+$script:lastPlaybackState=[pscustomobject]@{pauseAfterCurrent=$true}
+$PauseAfterQueueButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+if($script:recordedRequest -ne '/resume'){throw 'Media-bar pause-after-current cannot be turned off'}
+$historyProbe=New-QueueSpeechRow ([pscustomobject]@{id='history-probe';alias='Mint voice';text='past';status='Finished'})
+$historyProbe|Add-Member NoteProperty HasAudio $true
+$HistoryGrid.ItemsSource=@($historyProbe);Update-YapLoqUnifiedQueue;$script:unifiedQueueGrid.SelectedItem=@($script:unifiedQueueGrid.Items|Where-Object{$_.Id -eq $historyProbe.Id})[0]
+if($HistoryGrid.SelectedItem.Id -ne 'history-probe' -or $QueueGrid.SelectedItem -or $ReplayHistoryButton.Visibility -ne 'Visible' -or $RemoveQueueButton.Visibility -ne 'Collapsed'){throw 'History selection exposes queue controls or lost its audio commands'}
+# Reproduce a refresh that replaces canonical row objects without changing values.
+$freshHistory=$historyProbe|Select-Object *
+$HistoryGrid.ItemsSource=@($freshHistory);Update-YapLoqUnifiedQueue
+if(-not[object]::ReferenceEquals($HistoryGrid.SelectedItem,$freshHistory)){throw 'History selection was not resolved by ID after refresh'}
+$ReplayHistoryButton.Add_Click({Replay-SelectedHistory})
+$ReplayHistoryButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+if($script:recordedRequest -ne '/api/history/replay' -or $script:recordedBody.speechId -ne 'history-probe'){throw 'Replay selected did not request the visible recording after refresh'}
+$script:lastPlaybackState=[pscustomobject]@{current=$null};$script:lastHistorySpeechId='history-probe'
+$script:mediaSaveAudioButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+if($script:recordedRequest -ne '/api/history/save' -or $script:recordedBody.speechId -ne 'history-probe'){throw 'Media-bar save did not save the displayed recording'}
+$transport=$NowPlayingSkipButton.Parent
+if($transport.Children.IndexOf($script:mediaSaveAudioButton) -ne 0 -or $transport.Children.IndexOf($PauseAfterQueueButton) -ne 4 -or $transport.Children.IndexOf($NowPlayingPlayPauseButton) -ne 2){throw 'Media controls are not symmetric around Play'}
+if($PauseAfterQueueButton.BorderThickness.Left -ne 0 -or $script:mediaSaveAudioButton.BorderThickness.Left -ne 0){throw 'Auxiliary transport controls still have boxes'}
+if($PauseAfterQueueButton.Content.Tag -ne 'mdi:stop' -or $PauseAfterQueueButton.Content.Width -ne 12 -or $script:mediaSaveAudioButton.Content.Width -ne 12 -or $PauseAfterQueueButton.Content.Height -ne $script:mediaSaveAudioButton.Content.Height){throw 'Auxiliary transport icons must be 12px with a stop glyph for pause-after-current'}
+$script:unifiedQueueGrid.ContextMenu.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.ContextMenu]::OpenedEvent))
+foreach($item in $script:unifiedQueueGrid.ContextMenu.Items|Where-Object{$_.Tag.Command -in @('QueueUpButton','QueueDownButton')}){
+    if($item.Visibility -ne 'Visible' -or $item.IsEnabled){throw 'History must show disabled move commands, not hide them or reorder past speech'}
+}
+$script:unifiedQueueGrid.SelectedItem=$menuProbe
+if($QueueGrid.SelectedItem.Id -ne 'menu-probe' -or $HistoryGrid.SelectedItem -or $ReplayHistoryButton.Visibility -ne 'Collapsed' -or $RemoveQueueButton.Visibility -ne 'Visible'){throw 'Live selection exposes replay controls or lost its queue commands'}
+$QueueGrid.ItemsSource=@();Update-YapLoqUnifiedQueue
+$stableCollection=$script:unifiedQueueGrid.ItemsSource
+if(-not @($stableCollection|Where-Object{$_.Id -eq 'menu-probe' -and $_.Status -eq 'Finished'}).Count){throw 'Live/history handoff removed the finishing row'}
+Update-YapLoqUnifiedQueue
+if(-not [object]::ReferenceEquals($stableCollection,$script:unifiedQueueGrid.ItemsSource)){throw 'Queue poll replaced the table collection'}
+$handoffProbe=@($stableCollection|Where-Object{$_.Id -eq 'menu-probe'})[0]
+if(-not $handoffProbe){throw 'Repeated polls lost a row before history caught up'}
+$HistoryGrid.ItemsSource=@($freshHistory,($handoffProbe|Select-Object * -ExcludeProperty PendingHistory))
+Update-YapLoqUnifiedQueue
+$HistoryGrid.ItemsSource=@($freshHistory);Update-YapLoqUnifiedQueue
+if($script:unifiedQueueGrid.Items.Count -ne 1 -or $script:unifiedQueueGrid.Items[0].RowKind -ne 'History'){throw 'Empty queue reserved space or hid history'}
+$freshHistory.AudioPath='cache-replay.wav';$freshHistory.Source='Test'
+$newer=New-QueueSpeechRow ([pscustomobject]@{id='newer-recording';alias='Mint voice';text='Newer';status='Finished'})
+$HistoryGrid.ItemsSource=@($newer,$freshHistory)
+foreach($status in @('Queued','Playing','Paused')){
+    $replayJob=New-QueueSpeechRow ([pscustomobject]@{id='replay-job';alias='Mint voice';text='past';status=$status;source='History recording';audioPath='cache-replay.wav'})
+    $QueueGrid.ItemsSource=@($replayJob);Update-YapLoqUnifiedQueue
+    if($script:unifiedQueueGrid.Items.Count -ne 2 -or $script:unifiedQueueGrid.Items[1].Id -ne 'history-probe' -or $script:unifiedQueueGrid.Items[1].Status -ne $status -or $script:unifiedQueueGrid.Items[1].Source -ne 'Test'){throw 'Replay must update the original recording in place without duplicating or moving it'}
+    if($freshHistory.Status -ne 'Finished'){throw 'Replay projection modified stored history status'}
+}
+$QueueGrid.ItemsSource=@();Update-YapLoqUnifiedQueue
+if($script:unifiedQueueGrid.Items[1].Status -ne 'Finished'){throw 'Replay row did not return to Finished'}
 Open-YapLoqRoute 'emergency-stop'
 if ($script:recordedRequest -ne '/clear-all') { throw 'Emergency stop is not wired to the real queue endpoint' }
 $script:yaploqNav.Voices.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
@@ -49,6 +226,25 @@ if ($script:activePage -ne 'voices') { throw 'Sidebar click is not wired to navi
 $window.WindowStartupLocation='Manual';$window.Left=-20000;$window.Top=-20000
 $window.ShowInTaskbar=$false;$window.ShowActivated=$false
 $window.Show()
+Set-Page 'acapela';$window.UpdateLayout()
+$acapela=$script:credentialFields['AcapelaPasswordBox'];$acapela.Toggle.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+if($acapela.Plain.Visibility -ne 'Visible'){throw 'Show credential toggle did not reveal on a visible service page'}
+Set-Page 'queue';$window.UpdateLayout()
+if($acapela.Plain.Visibility -ne 'Collapsed' -or $acapela.Plain.Text){throw 'Leaving the service page must hide revealed credentials'}
+Set-Page 'queue'
+$generating=New-QueueSpeechRow ([pscustomobject]@{id='generating';alias='Mint voice';text='test';status='Generating'})
+$QueueGrid.ItemsSource=@($generating);Update-YapLoqUnifiedQueue
+$window.UpdateLayout();$window.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ContextIdle)
+$cell=$script:unifiedQueueGrid.Columns[0].GetCellContent($generating);$cell.ApplyTemplate()|Out-Null
+$spinner=$cell.ContentTemplate.FindName('GeneratingIcon',$cell)
+if($spinner.Visibility -ne 'Visible' -or -not $spinner.Child.RenderTransform.HasAnimatedProperties -or $spinner.Child.Children[0].Stroke.Color.ToString() -ne '#FF87C9AF'){throw 'Generating row needs an animated alias-colored loading icon'}
+$queued=New-QueueSpeechRow ([pscustomobject]@{id='queued';alias='Mint voice';text='test';status='Queued'})
+$QueueGrid.ItemsSource=@($queued);Update-YapLoqUnifiedQueue
+$window.UpdateLayout();$window.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ContextIdle)
+$cell=$script:unifiedQueueGrid.Columns[0].GetCellContent($queued);$cell.ApplyTemplate()|Out-Null
+if($cell.ContentTemplate.FindName('GeneratingIcon',$cell).Visibility -ne 'Collapsed' -or $cell.ContentTemplate.FindName('AliasIcon',$cell).Visibility -ne 'Visible'){throw 'Queue row did not restore its alias icon after generation'}
+Set-Page 'history'
+if($script:activePage -ne 'queue' -or -not $script:unifiedQueueGrid.IsVisible){throw 'History shortcut must open the shared Queue view'}
 Install-UiErrorHandling
 [void]$window.Dispatcher.BeginInvoke([action]{ throw [InvalidOperationException]::new('Injected UI callback failure') })
 $window.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ContextIdle)

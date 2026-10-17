@@ -49,6 +49,15 @@ class RecordingTests(unittest.TestCase):
         self.engine._generate.assert_not_called()
         self.assertEqual(list(path.parent.iterdir()), [path])
         self.assertEqual(len(self.engine.history), 1)
+        # A replay must remain the player target even when a newer generation exists.
+        self.engine.history.insert(0, dict(id='newer', text='New generation', alias='Other'))
+        self.engine.audio.elapsed_seconds = 0
+        self.engine.audio.seek_revision = 0
+        state = self.engine.state()
+        self.assertIsNone(state['current'])
+        self.assertEqual(state['lastPlayed']['id'], 'old')
+        self.assertEqual(state['lastPlayed']['alias'], 'EventVoice')
+        self.assertEqual(state['lastPlayed']['text'], 'Original message')
 
     def test_history_only_includes_existing_saved_or_cached_files(self):
         path = self.recording()

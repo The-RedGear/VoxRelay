@@ -3,6 +3,22 @@
 Implemented items have automated coverage or runtime verification. The 0.5 build
 remains a preview until the live checks at the end are complete.
 
+## Next priorities — essential before release
+
+1. [ ] Reliable high-volume Streamer.Bot input: configurable queue capacity,
+   visible rejection reasons, and end-to-end burst tests comparing sent,
+   accepted and completed requests. Do not silently discard overflow.
+2. [ ] Connection diagnostics: listener health, port conflicts, received-request
+   counts and a clear setup test. Preview must support real integrations.
+3. [ ] Alias-safe automation: flag missing/renamed aliases and provide a repair
+   path for existing Streamer.Bot actions and routing rules.
+4. [ ] Queue stability: finish live checks for fixed row order, manual moves,
+   replay, selection and scroll retention under sustained traffic.
+5. [ ] Release blockers: fix the UI callback crash-logging regression test, then
+   verify packaged restart, audio-device recovery and OBS restoration live.
+
+Defer additional providers and cosmetic expansion until these are verified.
+
 ## Reliability
 - [x] Responsive skip/clear through generation, delay and playback
 - [x] Pause active audio and pause after current
@@ -21,7 +37,11 @@ remains a preview until the live checks at the end are complete.
 - [x] Settings backup, restore and reset
 - [x] Speaker.bot alias migration preview (supported Polly aliases)
 - [x] Voice search, engine filters, favorites and test playback
+- [x] Context actions for item lists, Dashboard voices, service settings and Streamer.Bot exports
+- [x] Alias icons, colors and selection highlights in Queue and History
+- [x] Single ordered, full-height Queue list with contextual actions and alias-colored generation indicators
 - [x] Provider/integration connection controls and local output test tone
+- [x] Saved credentials displayed masked by default, with Show/Hide controls and automatic re-masking
 - [x] Streamer.bot command templates and setup guide
 - [x] Export/import aliases, dictionaries and routing presets
 - [ ] Signed Windows distribution (requires a signing identity)

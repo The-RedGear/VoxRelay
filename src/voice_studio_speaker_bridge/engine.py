@@ -36,6 +36,7 @@ class SpeechEngine:
         self._paused = Event()
         self._enabled = True
         self._current: SpeechJob | None = None
+        self._last_played: dict | None = None
         self._lock = RLock()
         self._admission_lock = RLock()
         self._pause_after_current = False
@@ -500,6 +501,7 @@ class SpeechEngine:
                 remaining = duration_sec
                 elapsed = 0.0
         return {"enabled": self._enabled, "paused": self._paused.is_set(), "current": current,
+                "lastPlayed": self._last_played,
                 "queue": queued, "queueLength": len(queued), "audioWarning": self.audio.warning,
                 "pauseAfterCurrent": self._pause_after_current,
                 "estimatedWaitSeconds": round(estimate, 1),
@@ -800,6 +802,16 @@ class SpeechEngine:
                 if job.pcm:
                     self.audio.arm_progress(job.pcm)
                 job.status = "Playing"
+                # Remember the recording, including replays, independently of history order.
+                last_played = self._job_dict(job)
+                if job.replay_recording:
+                    with self._history_lock:
+                        original = next((item for item in self.history if job.audio_path and
+                                         job.audio_path in (item.get("audioPath"), item.get("savedPath"))), None)
+                    if original:
+                        last_played["id"] = original["id"]
+                with self._lock:
+                    self._last_played = last_played
                 # Only explicit preview sources use the preview device.
                 # Matching bare "test" incorrectly sent pronunciation / voice
                 # checks to headphones while stream speech used another device.

@@ -22,11 +22,9 @@ def preview_data_dir() -> Path:
 def apply_preview_limits(settings) -> None:
     if not is_preview():
         return
-    settings.http_address = settings.ws_address = settings.udp_address = "127.0.0.1"
-    settings.http_port, settings.ws_port, settings.udp_port = 17582, 17581, 16670
-    # Preview cannot send production lifecycle actions or recover live speech.
-    settings.enable_udp = False
-    settings.streamerbot_actions_enabled = False
-    settings.obs_ducking_enabled = False
+    settings.http_address = settings.ws_address = "127.0.0.1"
+    settings.http_port, settings.ws_port = 17582, 17581
+    # Keep desktop endpoints isolated, but honor integration settings so preview
+    # can receive real speech and exercise Streamer.Bot/OBS connections.
     settings.persist_queue = False
     settings.check_updates_on_startup = False

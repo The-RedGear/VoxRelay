@@ -530,7 +530,7 @@
          <ControlTemplate TargetType="ToggleButton">
           <Border x:Name="Shell" Background="{Binding Background,RelativeSource={RelativeSource AncestorType=ComboBox}}" BorderBrush="{Binding BorderBrush,RelativeSource={RelativeSource AncestorType=ComboBox}}" BorderThickness="1" CornerRadius="8">
            <Grid>
-            <ContentPresenter Content="{Binding SelectionBoxItem,RelativeSource={RelativeSource AncestorType=ComboBox}}" TextElement.Foreground="#F6F3FA" Margin="12,0,38,0" VerticalAlignment="Center" />
+            <ContentPresenter Content="{Binding SelectionBoxItem,RelativeSource={RelativeSource AncestorType=ComboBox}}" ContentTemplate="{Binding SelectionBoxItemTemplate,RelativeSource={RelativeSource AncestorType=ComboBox}}" TextElement.Foreground="#F6F3FA" Margin="12,0,38,0" VerticalAlignment="Center" />
             <Path Data="M3,6 L8,11 L13,6" Stroke="#B6A3FF" StrokeThickness="1.7" StrokeStartLineCap="Round" StrokeEndLineCap="Round" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,13,0" />
            </Grid>
           </Border>
@@ -691,9 +691,30 @@
     </Trigger>
    </Style.Triggers>
   </Style>
+  <DataTemplate x:Key="SpeechAliasCell">
+   <Grid Margin="12,0" VerticalAlignment="Center"><Grid.ColumnDefinitions><ColumnDefinition Width="37"/><ColumnDefinition/></Grid.ColumnDefinitions>
+    <Border Background="{Binding AccentBackground}" CornerRadius="6" Width="28" Height="28" Margin="0,0,9,0"><Grid>
+     <Path x:Name="AliasIcon" Data="{Binding IconGeometry}" Fill="{Binding IconBrush}" Stretch="Uniform" Width="18" Height="18"/>
+     <Viewbox x:Name="GeneratingIcon" Visibility="Collapsed" Width="20" Height="20"><Canvas Width="24" Height="24"><Canvas.RenderTransform><RotateTransform x:Name="GenerationRotation" CenterX="12" CenterY="12"/></Canvas.RenderTransform><Path Fill="Transparent" Stroke="{Binding Accent}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M12 3c4.97 0 9 4.03 9 9"/></Canvas></Viewbox>
+    </Grid></Border>
+    <TextBlock Grid.Column="1" Text="{Binding Alias}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding Alias}"/>
+   </Grid>
+   <DataTemplate.Triggers><DataTrigger Binding="{Binding Status}" Value="Generating">
+    <Setter TargetName="AliasIcon" Property="Visibility" Value="Collapsed"/><Setter TargetName="GeneratingIcon" Property="Visibility" Value="Visible"/>
+    <DataTrigger.EnterActions><BeginStoryboard x:Name="GenerationSpin"><Storyboard><DoubleAnimation Storyboard.TargetName="GenerationRotation" Storyboard.TargetProperty="Angle" From="0" To="360" Duration="0:0:1" RepeatBehavior="Forever"/></Storyboard></BeginStoryboard></DataTrigger.EnterActions>
+    <DataTrigger.ExitActions><RemoveStoryboard BeginStoryboardName="GenerationSpin"/></DataTrigger.ExitActions>
+   </DataTrigger></DataTemplate.Triggers>
+  </DataTemplate>
+  <Style x:Key="SpeechGridRow" TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="DataGridRow"><Grid Background="Transparent"><Border x:Name="RowShell" CornerRadius="7" Margin="4,2" Background="{TemplateBinding Background}" BorderBrush="Transparent" BorderThickness="1"/><DataGridCellsPresenter x:Name="PART_CellsPresenter" SnapsToDevicePixels="True"/></Grid><ControlTemplate.Triggers><Trigger Property="IsSelected" Value="True"><Setter TargetName="RowShell" Property="BorderBrush" Value="{Binding Accent}"/></Trigger><Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="RowShell" Property="BorderBrush" Value="{Binding Accent}"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+   <Style.Triggers><Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="{Binding AccentBackground}"/><Setter Property="BorderBrush" Value="{Binding Accent}"/></Trigger></Style.Triggers>
+  </Style>
   <Style x:Key="GridText" TargetType="TextBlock">
    <Setter Property="VerticalAlignment" Value="Center" />
    <Setter Property="Margin" Value="16,0" />
+  </Style>
+  <Style x:Key="SpeechGridText" TargetType="TextBlock" BasedOn="{StaticResource GridText}">
+   <Setter Property="Margin" Value="12,0"/><Setter Property="TextTrimming" Value="CharacterEllipsis"/><Setter Property="ToolTip" Value="{Binding Text,RelativeSource={RelativeSource Self}}"/>
   </Style>
   <Style TargetType="ListBoxItem">
    <Setter Property="Foreground" Value="#F6F3FA" />
@@ -1092,12 +1113,14 @@
         <TextBlock Name="QueueSummaryText" Grid.Column="1" Foreground="{StaticResource Muted}" VerticalAlignment="Bottom" Margin="8,0,0,12" />
        </Grid>
        <Border Name="QueueGridHost" Grid.Row="1" CornerRadius="11" BorderBrush="#50485C" BorderThickness="1" Background="#15131D" ClipToBounds="True">
-        <DataGrid Name="QueueGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" BorderThickness="0">
+        <DataGrid Name="QueueGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" BorderThickness="0" RowStyle="{StaticResource SpeechGridRow}">
          <DataGrid.Columns>
-          <DataGridTextColumn Header="STATUS" Binding="{Binding Status}" Width="110" ElementStyle="{StaticResource GridText}" />
-          <DataGridTextColumn Header="ALIAS" Binding="{Binding Alias}" Width="140" ElementStyle="{StaticResource GridText}" />
-          <DataGridTextColumn Header="VIEWER" Binding="{Binding User}" Width="130" ElementStyle="{StaticResource GridText}" />
-          <DataGridTextColumn Header="MESSAGE" Binding="{Binding Text}" Width="*" ElementStyle="{StaticResource GridText}" />
+          <DataGridTemplateColumn Header="VOICE" CellTemplate="{StaticResource SpeechAliasCell}" SortMemberPath="Alias" Width="1.25*" MinWidth="130"/>
+          <DataGridTextColumn Header="DATE / TIME" Binding="{Binding Time}" Width="125" ElementStyle="{StaticResource SpeechGridText}" />
+          <DataGridTextColumn Header="STATUS" Binding="{Binding Status}" Width="95" ElementStyle="{StaticResource SpeechGridText}" />
+          <DataGridTextColumn Header="MESSAGE" Binding="{Binding Text}" Width="2*" ElementStyle="{StaticResource SpeechGridText}" />
+          <DataGridTextColumn Header="SOURCE" Binding="{Binding Source}" Width="105" ElementStyle="{StaticResource SpeechGridText}" />
+          <DataGridTextColumn Header="AUDIO" Binding="{Binding AudioLabel}" Width="75" ElementStyle="{StaticResource SpeechGridText}" />
          </DataGrid.Columns>
         </DataGrid>
        </Border>
@@ -1114,14 +1137,14 @@
         <Button Name="ClearHistoryButton" Margin="0" ><StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"><Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" Data="M5 19q-.825 0-1.412-.587T3 17V8q-.425 0-.712-.288T2 7t.288-.712T3 6h3v-.5q0-.425.288-.712T7 4.5h2q.425 0 .713.288T10 5.5V6h3q.425 0 .713.288T14 7t-.288.713T13 8v9q0 .825-.587 1.413T11 19zm11-1q-.425 0-.712-.288T15 17t.288-.712T16 16h2q.425 0 .713.288T19 17t-.288.713T18 18zm0-4q-.425 0-.712-.288T15 13t.288-.712T16 12h4q.425 0 .713.288T21 13t-.288.713T20 14zm0-4q-.425 0-.712-.288T15 9t.288-.712T16 8h5q.425 0 .713.288T22 9t-.288.713T21 10zM5 8v9h6V8z" /></Viewbox><TextBlock Text="Clear history" VerticalAlignment="Center" /></StackPanel></Button>
        </StackPanel>
        <Border Name="HistoryGridHost" Grid.Row="1" CornerRadius="11" BorderBrush="#50485C" BorderThickness="1" Background="#15131D" ClipToBounds="True">
-        <DataGrid Name="HistoryGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" BorderThickness="0">
+        <DataGrid Name="HistoryGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" BorderThickness="0" RowStyle="{StaticResource SpeechGridRow}">
          <DataGrid.Columns>
-          <DataGridTextColumn Header="TIME" Binding="{Binding Time}" Width="145" ElementStyle="{StaticResource GridText}" />
-          <DataGridTextColumn Header="STATUS" Binding="{Binding Status}" Width="90" ElementStyle="{StaticResource GridText}" />
-          <DataGridTextColumn Header="AUDIO" Binding="{Binding AudioLabel}" Width="90" ElementStyle="{StaticResource GridText}" />
-          <DataGridTextColumn Header="ALIAS" Binding="{Binding Alias}" Width="125" ElementStyle="{StaticResource GridText}" />
-          <DataGridTextColumn Header="SOURCE" Binding="{Binding Source}" Width="120" ElementStyle="{StaticResource GridText}" />
-          <DataGridTextColumn Header="MESSAGE" Binding="{Binding Text}" Width="*" ElementStyle="{StaticResource GridText}" />
+          <DataGridTemplateColumn Header="VOICE" CellTemplate="{StaticResource SpeechAliasCell}" SortMemberPath="Alias" Width="1.25*" MinWidth="130"/>
+          <DataGridTextColumn Header="DATE / TIME" Binding="{Binding Time}" Width="125" ElementStyle="{StaticResource SpeechGridText}" />
+          <DataGridTextColumn Header="STATUS" Binding="{Binding Status}" Width="95" ElementStyle="{StaticResource SpeechGridText}" />
+          <DataGridTextColumn Header="MESSAGE" Binding="{Binding Text}" Width="2*" ElementStyle="{StaticResource SpeechGridText}" />
+          <DataGridTextColumn Header="SOURCE" Binding="{Binding Source}" Width="105" ElementStyle="{StaticResource SpeechGridText}" />
+          <DataGridTextColumn Header="AUDIO" Binding="{Binding AudioLabel}" Width="75" ElementStyle="{StaticResource SpeechGridText}" />
          </DataGrid.Columns>
         </DataGrid>
        </Border>

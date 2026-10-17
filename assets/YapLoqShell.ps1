@@ -31,6 +31,98 @@ function Register-YapLoqControlMotion($root) {
     }
 }
 
+function Hide-YapLoqCredential($entry) {
+    $entry.Syncing=$true
+    try{
+        $entry.Plain.Visibility='Collapsed';$entry.Mask.Visibility='Visible';$entry.Toggle.Content='Show'
+        if($entry.Original -is [Windows.Controls.PasswordBox]){$entry.Plain.Text=''}
+    }finally{$entry.Syncing=$false}
+}
+
+function Sync-YapLoqCredentialFields($names=@(),[switch]$PreserveEdits) {
+    if(-not $script:credentialFields){return}
+    $settings=Read-Settings
+    foreach($entry in $script:credentialFields.Values){
+        if($names.Count -and $entry.Original.Name -notin $names){continue}
+        $stored=[string]$settings.($entry.Key);$value='';$unavailable=$false
+        try{$value=if($entry.Encrypted){Unprotect-YapLoqSecret $stored}else{$stored}}catch{$unavailable=[bool]$stored}
+        if($PreserveEdits -and $entry.Mask.Password -and $entry.Mask.Password -ne $value){Hide-YapLoqCredential $entry;$value=$null;continue}
+        $entry.Syncing=$true
+        try{
+            $entry.Mask.Password=$value
+            if($entry.Original -is [Windows.Controls.TextBox]){$entry.Original.Text=$value}
+            $entry.Unavailable=$unavailable
+            $entry.Hint.Visibility=if($unavailable){'Visible'}else{'Collapsed'}
+            $entry.Toggle.IsEnabled=(-not $unavailable -and [bool]$value)
+            $entry.Mask.ToolTip=if($unavailable){'Saved credential cannot be read on this Windows account. Enter a replacement or use Clear secrets.'}else{'Saved values are masked. Use Show to reveal.'}
+        }finally{$entry.Syncing=$false;$value=$null}
+        Hide-YapLoqCredential $entry
+    }
+}
+
+function Install-YapLoqCredentialFields {
+    $script:credentialFields=@{}
+    foreach($spec in @(
+        @('KeyBox','api_key','VoiceStudio'),
+        @('PollyAccessKeyBox','polly_access_key_encrypted','Polly'),@('PollySecretKeyBox','polly_secret_key_encrypted','Polly'),@('PollySessionTokenBox','polly_session_token_encrypted','Polly'),
+        @('ElevenLabsApiKeyBox','elevenlabs_api_key_encrypted','ElevenLabs'),@('AzureKeyBox','azure_subscription_key_encrypted','Azure'),
+        @('GoogleApiKeyBox','google_api_key_encrypted','Google'),@('WatsonApiKeyBox','watson_api_key_encrypted','Watson'),@('UberDuckApiKeyBox','uberduck_api_key_encrypted','UberDuck'),
+        @('TtsMonsterTokenBox','ttsmonster_api_token_encrypted','TtsMonster'),@('AcapelaPasswordBox','acapela_password_encrypted','Acapela'),@('CereProcPasswordBox','cereproc_password_encrypted','CereProc'),@('ObsPasswordBox','obs_password_encrypted','Obs')
+    )){
+        $original=$window.FindName($spec[0]);if(-not $original -or $original.Parent -isnot [Windows.Controls.Panel]){continue}
+        $parent=$original.Parent;$index=$parent.Children.IndexOf($original)
+        $wrapper=[Windows.Controls.Grid]::new();$wrapper.Margin=$original.Margin
+        foreach($property in @('Row','Column','RowSpan','ColumnSpan')){
+            $getter='Get'+$property;$setter='Set'+$property
+            [Windows.Controls.Grid]::$setter($wrapper,[Windows.Controls.Grid]::$getter($original))
+        }
+        [void]$parent.Children.Remove($original);$original.Margin=0
+        [Windows.Controls.Grid]::SetRow($original,0);[Windows.Controls.Grid]::SetColumn($original,0);[Windows.Controls.Grid]::SetRowSpan($original,1);[Windows.Controls.Grid]::SetColumnSpan($original,1)
+        $wrapper.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new());$auto=[Windows.Controls.ColumnDefinition]::new();$auto.Width='Auto';$wrapper.ColumnDefinitions.Add($auto)
+        $mask=if($original -is [Windows.Controls.PasswordBox]){$original}else{[Windows.Controls.PasswordBox]::new()}
+        $plain=if($original -is [Windows.Controls.TextBox]){$original}else{[Windows.Controls.TextBox]::new()}
+        $mask.PasswordChar=[char]0x25CF;$plain.Visibility='Collapsed';$plain.Margin=0;$plain.IsUndoEnabled=$false
+        [void]$wrapper.Children.Add($mask);[void]$wrapper.Children.Add($plain)
+        $toggle=[Windows.Controls.Button]::new();$toggle.Content='Show';$toggle.MinWidth=62;$toggle.Margin='8,0,0,0';$toggle.Padding='10,0';$toggle.ToolTip='Show or hide this credential';[Windows.Automation.AutomationProperties]::SetName($toggle,'Show or hide '+$spec[0])
+        [Windows.Controls.Grid]::SetColumn($toggle,1);[void]$wrapper.Children.Add($toggle)
+        $hint=[Windows.Controls.TextBlock]::new();$hint.Text=[string][char]0x25CF*8;$hint.Margin='12,0';$hint.VerticalAlignment='Center';$hint.IsHitTestVisible=$false;$hint.Visibility='Collapsed';[void]$wrapper.Children.Add($hint)
+        $entry=[pscustomobject]@{Original=$original;Mask=$mask;Plain=$plain;Toggle=$toggle;Hint=$hint;Key=$spec[1];Encrypted=($spec[0] -ne 'KeyBox');Provider=$spec[2];Syncing=$false;Unavailable=$false}
+        $script:credentialFields[$spec[0]]=$entry
+        foreach($control in @($mask,$plain,$toggle,$wrapper)){$control.Resources['YapLoqCredential']=$entry}
+        $mask.Add_PasswordChanged({param($sender,$e)
+            $entry=$sender.Resources['YapLoqCredential'];if($entry.Syncing){return}
+            $entry.Syncing=$true
+            try{
+                if($entry.Original -is [Windows.Controls.TextBox] -or $entry.Plain.Visibility -eq 'Visible'){$entry.Plain.Text=$sender.Password}
+                $entry.Hint.Visibility='Collapsed';$entry.Toggle.IsEnabled=[bool]$sender.Password;$entry.Unavailable=$false
+            }finally{$entry.Syncing=$false}
+        })
+        $plain.Add_TextChanged({param($sender,$e)
+            $entry=$sender.Resources['YapLoqCredential'];if($entry.Syncing){return}
+            $entry.Syncing=$true
+            try{$entry.Mask.Password=$sender.Text;$entry.Hint.Visibility='Collapsed';$entry.Toggle.IsEnabled=[bool]$sender.Text;$entry.Unavailable=$false}finally{$entry.Syncing=$false}
+        })
+        $toggle.Add_Click({param($sender,$e)
+            $entry=$sender.Resources['YapLoqCredential']
+            if($entry.Plain.Visibility -eq 'Visible'){Hide-YapLoqCredential $entry}else{
+                $entry.Syncing=$true
+                try{$entry.Plain.Text=$entry.Mask.Password;$entry.Mask.Visibility='Collapsed';$entry.Plain.Visibility='Visible';$sender.Content='Hide'}finally{$entry.Syncing=$false}
+            }
+        })
+        $wrapper.Add_IsVisibleChanged({param($sender,$e)if(-not $sender.IsVisible){Hide-YapLoqCredential $sender.Resources['YapLoqCredential']}})
+        $parent.Children.Insert($index,$wrapper)
+    }
+    # Run after the existing save/clear handlers, reloading only the affected service.
+    foreach($provider in @($script:credentialFields.Values.Provider|Sort-Object -Unique)){
+        $names=@($script:credentialFields.Values|Where-Object{$_.Provider -eq $provider}|ForEach-Object{$_.Original.Name})
+        $buttonNames=@("Save${provider}Button","Test${provider}Button","Clear${provider}Button")
+        if($provider -eq 'Polly'){$buttonNames+= 'ClearPollyCredentialsButton'}
+        if($provider -eq 'Obs'){$buttonNames+= 'SaveButton'}
+        foreach($buttonName in $buttonNames){$button=$window.FindName($buttonName);if($button){$button.Resources['YapLoqCredentialNames']=$names;$button.Add_Click({param($sender,$e)Sync-YapLoqCredentialFields $sender.Resources['YapLoqCredentialNames'] -PreserveEdits})}}
+    }
+    Sync-YapLoqCredentialFields
+}
+
 function Install-YapLoqStyles {
     foreach ($spec in @(@('YapLoqNavButton','NavButton'),@('YapLoqSelectedNavButton','SelectedNavButton'))) {
         $style = [Windows.Markup.XamlReader]::Parse(@'
@@ -81,6 +173,10 @@ function New-YapLoqButton([string]$label, [string]$route, [string]$iconSource = 
     if ($label -eq 'Rules' -and $panel.Children.Count) {
         # Material Design Icons: tune.
         $panel.Children[0].Data = [Windows.Media.Geometry]::Parse('M3,17V19H9V17H3M3,5V7H13V5H3M13,21V19H21V17H13V15H11V21H13M7,9V11H3V13H7V15H9V9H7M21,13V11H11V13H21M15,9H17V7H21V5H17V3H15V9Z')
+    }
+    if ($label -eq 'Routing' -and $panel.Children.Count) {
+        $panel.Children[0].Data=(Resolve-VoiceIcon 'mdi:call-split').Geometry
+        $panel.Children[0].Tag='mdi:call-split'
     }
     [void]$panel.Children.Add($text); $button.Content = $panel
     $button.Add_Click({ param($sender,$e) if(-not $sender.Resources.Contains('SectionShortcut')){Open-YapLoqRoute ([string]$sender.Tag)} })
@@ -182,7 +278,8 @@ function Update-YapLoqNavigation([string]$page) {
     $PageTitle.Text = if ($owner -eq 'Integrations') { 'Streamer.Bot' } else { $owner }
     $PageSubtitle.Text = switch ($page) {
         'playground' {'Your voice. Your stream.'}
-        'rules' {'All your rules in one place: voice selection, routing and message filters'}
+        'rules' {'Message filters and queue limits'}
+        'routing' {'Voice selection and routing priority'}
         'playlists' {'Reusable voice pools'}
         'services' {'Select a service to get started'}
         'activity' {'Events, logs and action diagnostics'}
@@ -195,22 +292,164 @@ function Update-YapLoqNavigation([string]$page) {
     $SavePageButton.Visibility = 'Collapsed'
 }
 
+function Get-YapLoqDashboardControls($root) {
+    if ($root -is [Windows.Controls.Control] -and $root.Style) {
+        [pscustomobject]@{ Control=$root; Style=$root.Style }
+    }
+    if ($root -is [Windows.DependencyObject]) {
+        foreach ($child in [Windows.LogicalTreeHelper]::GetChildren($root)) {
+            if ($child -is [Windows.DependencyObject]) { Get-YapLoqDashboardControls $child }
+        }
+    }
+}
+
+function Get-YapLoqDashboardAccentStyle($style, [string]$accent) {
+    # Clone sealed styles; never mutate the shared purple resources or per-voice icons.
+    if (-not $script:dashboardAccentStyles) { $script:dashboardAccentStyles=@{} }
+    $key=$accent+'|'+$style.GetHashCode()
+    if (-not $script:dashboardAccentStyles.ContainsKey($key)) {
+        $color=[Windows.Media.ColorConverter]::ConvertFromString($accent)
+        $light='#{0:X2}{1:X2}{2:X2}' -f [int]($color.R+(255-$color.R)*0.28),[int]($color.G+(255-$color.G)*0.28),[int]($color.B+(255-$color.B)*0.28)
+        $dark='#{0:X2}{1:X2}{2:X2}' -f [int]($color.R*0.86),[int]($color.G*0.86),[int]($color.B*0.86)
+        $resourceKey=$null
+        foreach($candidate in $window.Resources.Keys){
+            if([object]::ReferenceEquals($window.Resources[$candidate],$style)){$resourceKey=$candidate;break}
+        }
+        if (-not $script:dashboardAccentDictionaries) { $script:dashboardAccentDictionaries=@{} }
+        # Parse original markup rather than serializing live templates: TemplateBinding
+        # values such as an empty TextBox watermark must not become UnsetValue.
+        $useResources=$null -ne $resourceKey -and $resourceKey -notlike 'YapLoq*'
+        if($useResources -and $script:dashboardAccentDictionaries.ContainsKey($accent)){
+            $script:dashboardAccentStyles[$key]=$script:dashboardAccentDictionaries[$accent][$resourceKey]
+            return $script:dashboardAccentStyles[$key]
+        }
+        $markup=if($useResources){
+            '<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">'+$script:shellMarkup.DocumentElement.SelectSingleNode('*[local-name()="Window.Resources"]').InnerXml+'</ResourceDictionary>'
+        }else{[Windows.Markup.XamlWriter]::Save($style)}
+        foreach ($pair in @(@('B6A3FF',$accent.Substring(1)),@('C9BCFF',$light.Substring(1)),@('C9BBFF',$light.Substring(1)),@('A690FF',$dark.Substring(1)),@('9580ED',$dark.Substring(1)))) {
+            $markup=[regex]::Replace($markup,'(?i)(#[0-9a-f]{2}|#)'+$pair[0]+'\b',('${1}'+$pair[1]))
+        }
+        if($useResources){
+            [xml]$scopedMarkup=$markup
+            # Keep each alias icon readable against its own selected-row tint.
+            foreach($setter in $scopedMarkup.SelectNodes('//*[local-name()="Style"][@TargetType="ComboBoxItem"]//*[local-name()="Trigger"][@Property="IsSelected"]/*[local-name()="Setter"]')){
+                if($setter.GetAttribute('Property') -eq 'Background'){$setter.SetAttribute('Value','#33'+$accent.Substring(1))}
+                if($setter.GetAttribute('Property') -eq 'Foreground'){$setter.SetAttribute('Value','#F6F3FA')}
+            }
+            $markup=$scopedMarkup.OuterXml
+        }
+        $parsed=[Windows.Markup.XamlReader]::Parse($markup)
+        if($useResources){
+            $script:dashboardAccentDictionaries[$accent]=$parsed
+            $script:dashboardAccentStyles[$key]=$parsed[$resourceKey]
+        }else{$script:dashboardAccentStyles[$key]=$parsed}
+    }
+    return $script:dashboardAccentStyles[$key]
+}
+
+function Update-YapLoqDashboardAppearance {
+    if (-not $script:dashboardEditor) { return }
+    $voice = @($PlayVoiceList.Tag | Where-Object { $_.Name -eq [string]$PlayVoiceList.SelectedItem })[0]
+    $accent = Get-VoiceAccent ([string]$voice.Accent)
+    $brush = [Windows.Media.BrushConverter]::new().ConvertFromString($accent)
+    $script:dashboardEditor.BorderBrush = $brush
+    $script:dashboardEditor.Background = [Windows.Media.LinearGradientBrush]::new(
+        [Windows.Media.ColorConverter]::ConvertFromString('#33'+$accent.Substring(1)),
+        [Windows.Media.ColorConverter]::ConvertFromString('#111A1722'),90)
+    $script:dashboardTitle.Foreground = $brush
+    $PlaygroundText.BorderBrush = $brush
+    if ($script:dashboardStyledAccent -ne $accent -and $script:dashboardControlStyles) {
+        foreach ($entry in $script:dashboardControlStyles) {
+            $style=$entry.Style
+            if ($entry.Control -eq $script:dashboardHelpButton) {
+                $style=if($script:dashboardHelpHighlighted){$window.FindResource('PrimaryButton')}else{$window.FindResource([Windows.Controls.Button])}
+            }
+            try { $entry.Control.Style=Get-YapLoqDashboardAccentStyle $style $accent }
+            catch { throw ('Dashboard style failed for '+$entry.Control.GetType().Name+' '+$entry.Control.Name+': '+$_) }
+        }
+        $script:dashboardHelpDefaultStyle=Get-YapLoqDashboardAccentStyle ($window.FindResource([Windows.Controls.Button])) $accent
+        foreach ($picker in @($script:dashboardControlStyles.Control | Where-Object { $_ -is [Windows.Controls.ComboBox] })) {
+            $picker.ItemContainerStyle=Get-YapLoqDashboardAccentStyle ($window.FindResource([Windows.Controls.ComboBoxItem])) $accent
+            $picker.Resources[[Windows.Controls.Primitives.ScrollBar]]=Get-YapLoqDashboardAccentStyle ($window.FindResource([Windows.Controls.Primitives.ScrollBar])) $accent
+        }
+        $script:dashboardStyledAccent=$accent
+    }
+}
+
+function Invoke-YapLoqPreviewAction([string]$action,$recording) {
+    try{
+        switch($action){
+            'replay'{if($recording.HasAudio){Invoke-BridgePost '/api/history/replay' @{speechId=[string]$recording.Id}|Out-Null;$BottomStatus.Text='Recording queued';Refresh-ServiceState}}
+            'save'{Save-SpeechRecording ([string]$recording.Id)}
+            'show'{Show-HistoryAudioLocation $recording}
+            'copy'{if($recording.Text){[Windows.Clipboard]::SetText([string]$recording.Text)}}
+            'edit'{$alias=@($PlayVoiceList.Tag|Where-Object{$_.Name -eq $recording.Alias})[0];if($alias){$value=Show-AliasDialog $alias;if($value){Save-Alias $alias.Name $value}}}
+            'queue'{Request-YapLoqPage 'queue'}
+            'remove'{Invoke-BridgePost '/api/queue/remove' @{speechId=[string]$recording.Id}|Out-Null;Refresh-ServiceState}
+            'up'{Invoke-BridgePost '/api/queue/move' @{speechId=[string]$recording.Id;direction='up'}|Out-Null;Refresh-ServiceState}
+            'down'{Invoke-BridgePost '/api/queue/move' @{speechId=[string]$recording.Id;direction='down'}|Out-Null;Refresh-ServiceState}
+        }
+    }catch{$BottomStatus.Text=$_.Exception.Message}
+}
+
+function Sort-YapLoqSpeechRows($rows) {
+    # Admission time alone determines position; playback state never promotes a row.
+    $index=0
+    $entries=@(foreach($row in $rows){
+        $ticks=try { if($row.Timestamp){([datetimeoffset]$row.Timestamp).UtcDateTime.Ticks}else{0L} } catch {0L}
+        [pscustomobject]@{Row=$row;Ticks=$ticks;Index=$index};$index++
+    })
+    $entries | Sort-Object @{Expression='Ticks';Descending=$true},Index | ForEach-Object{$_.Row}
+}
+
 function Update-YapLoqDashboard($state) {
+    Update-YapLoqDashboardAppearance
     if (-not $script:dashboardUpcoming) { return }
+    $live=@()
+    if($state.current -and $state.current.status -notin @('Finished','Error','Cancelled','Skipped','Removed')){$live+=New-QueueSpeechRow $state.current ([bool]$state.paused)}
+    foreach($item in @($state.queue|Where-Object{$_})){$live+=New-QueueSpeechRow $item}
+    $replayStatuses=@{}
+    $historyLookup=@($HistoryGrid.ItemsSource|Where-Object{$_})+@($script:recentHistoryItems|Where-Object{$_})
+    foreach($job in @($live|Where-Object{$_.Source -eq 'History recording'})){
+        $original=if($job.AudioPath){@($historyLookup|Where-Object{$_.AudioPath -eq $job.AudioPath -or $_.SavedPath -eq $job.AudioPath})[0]}else{$null}
+        if($original -and -not $replayStatuses.ContainsKey([string]$original.Id)){$replayStatuses[[string]$original.Id]=$job.Status}
+    }
+    # Replays belong to their existing history slot, never the new-speech prefix.
+    $live=@($live|Where-Object{$_.Source -ne 'History recording'})
+    $items=@($live)
+    foreach($item in $items){$item|Add-Member NoteProperty PreviewKind 'Live' -Force}
+    $liveIds=@($live.Id)
+    $recent=@($script:recentHistoryItems|Where-Object{$_ -and $_.Id -notin $liveIds})
+    foreach($recording in $recent){$display=$recording|Select-Object *;if($replayStatuses.ContainsKey([string]$recording.Id)){$display.Status=$replayStatuses[[string]$recording.Id]};Add-SpeechRowAppearance $display;$display|Add-Member NoteProperty PreviewKind 'History' -Force;$items+= $display}
+    $items=@(Sort-YapLoqSpeechRows $items | Select-Object -First 6)
+    # Compare displayed fields only. Do not serialize brush objects or rebuild/restart
+    # entry animations on every playback poll (elapsed time is not preview content).
+    $signature=([string]$live.Count)+'|'+(@($items|ForEach-Object{'{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}' -f $_.Id,$_.Status,$_.Text,$_.Accent,$_.IconGeometry,$_.HasAudio,$_.SavedPath,$_.PreviewKind}) -join ';')
+    if($signature -eq $script:dashboardQueueSignature){return}
+    $script:dashboardQueueSignature=$signature
     $script:dashboardUpcoming.Children.Clear()
-    $items = @($state.queue | Where-Object { $_ } | Select-Object -First 3)
+    $script:dashboardQueueHeading.Text=if($recent.Count){'Queue & recent speech'}else{'Queue ('+$live.Count+')'}
     if (-not $items.Count) {
-        $empty = [Windows.Controls.TextBlock]::new(); $empty.Text = 'Queue empty'; $empty.Foreground = $window.FindResource('Muted')
+        $empty = [Windows.Controls.TextBlock]::new(); $empty.Text = 'No speech yet';$empty.Height=30;$empty.VerticalAlignment='Center';$empty.Foreground = $window.FindResource('Muted')
         [void]$script:dashboardUpcoming.Children.Add($empty)
     }
     foreach ($item in $items) {
-        $row = [Windows.Controls.TextBlock]::new(); $row.TextTrimming = 'CharacterEllipsis'; $row.Margin = '0,0,0,10'
-        $row.Text = ([string]$item.alias + '  -  ' + (Get-DisplayText ([string]$item.text)))
+        $row=[Windows.Controls.Grid]::new();$row.Height=34;$row.Tag=$item;$row.DataContext=$item;$row.ToolTip=$item.Text
+        foreach($width in @('170','*','85','30')){$column=[Windows.Controls.ColumnDefinition]::new();$column.Width=$width;$row.ColumnDefinitions.Add($column)}
+        $voice=[Windows.Controls.ContentPresenter]::new();$voice.Content=$item;$voice.ContentTemplate=$window.FindResource('SpeechAliasCell');[void]$row.Children.Add($voice)
+        $message=[Windows.Controls.TextBlock]::new();$message.Text=$item.Text;$message.TextTrimming='CharacterEllipsis';$message.VerticalAlignment='Center';$message.Margin='8,0';[Windows.Controls.Grid]::SetColumn($message,1);[void]$row.Children.Add($message)
+        $status=[Windows.Controls.TextBlock]::new();$status.Text=$item.Status;$status.Foreground=$window.FindResource('Muted');$status.VerticalAlignment='Center';$status.HorizontalAlignment='Right';[Windows.Controls.Grid]::SetColumn($status,2);[void]$row.Children.Add($status)
+        if($item.PreviewKind -eq 'History'){
+            $replay=[Windows.Controls.Button]::new();$replay.Style=$window.FindResource('PlayerTransportButton');$replay.Margin=0;$replay.ToolTip='Replay '+$item.Alias;$replay.Tag=$item;$replay.IsEnabled=$item.HasAudio -and $item.Status -notin @('Queued','Playing','Paused','Generating','Waiting for action');[Windows.Automation.AutomationProperties]::SetName($replay,'Replay '+$item.Alias)
+            $icon=[Windows.Shapes.Path]::new();$icon.Data=(Resolve-VoiceIcon 'mdi:replay').Geometry;$icon.Width=14;$icon.Height=14;$icon.Stretch='Uniform';$icon.Fill=$window.FindResource('Accent');$replay.Content=$icon
+            $replay.Add_Click({param($sender,$e)Invoke-YapLoqPreviewAction 'replay' $sender.Tag;$e.Handled=$true});[Windows.Controls.Grid]::SetColumn($replay,3);[void]$row.Children.Add($replay)
+        }
+        $menu=[Windows.Controls.ContextMenu]::new();$menu.Tag=$item
+        $actions=if($item.PreviewKind -eq 'History'){@(@('Replay','replay'),@('Save audio','save'),@('Show audio file','show'),@('Copy message','copy'),@('Edit voice','edit'),@('Open Queue','queue'))}else{@(@('Move up','up'),@('Move down','down'),@('Remove','remove'),@('Copy message','copy'),@('Edit voice','edit'),@('Open Queue','queue'))}
+        foreach($action in $actions){$option=[Windows.Controls.MenuItem]::new();$option.Header=$action[0];$option.Tag=[pscustomobject]@{Action=$action[1];Recording=$item};$option.Add_Click({param($sender,$e)Invoke-YapLoqPreviewAction $sender.Tag.Action $sender.Tag.Recording});[void]$menu.Items.Add($option)}
+        $menu.Add_Opened({param($sender,$e)foreach($option in $sender.Items){$recording=$option.Tag.Recording;$option.IsEnabled=if($option.Tag.Action -in @('replay','save','show')){[bool]$recording.HasAudio}elseif($option.Tag.Action -in @('up','down','remove')){$recording.Id -ne $script:lastPlaybackState.current.id}elseif($option.Tag.Action -eq 'edit'){@($PlayVoiceList.Tag|Where-Object{$_.Name -eq $recording.Alias}).Count -gt 0}else{$true}}})
+        $row.ContextMenu=$menu
         [void]$script:dashboardUpcoming.Children.Add($row)
-    }
-    if ($script:dashboardQueueSignature -ne ($items | ConvertTo-Json -Compress -Depth 4)) {
-        Animate-In $script:dashboardUpcoming
-        $script:dashboardQueueSignature = $items | ConvertTo-Json -Compress -Depth 4
     }
 }
 
@@ -247,10 +486,14 @@ function Install-YapLoqDashboard {
     $CharacterCount.Parent.Margin = '0,8,0,0'
     $selector = [Windows.Controls.ComboBox]::new(); $selector.MinWidth = 180; $selector.HorizontalAlignment = 'Left'
     [Windows.Automation.AutomationProperties]::SetName($selector,'Voice for test speech')
-    $itemsBinding = [Windows.Data.Binding]::new('Items'); $itemsBinding.Source = $PlayVoiceList
+    $itemsBinding = [Windows.Data.Binding]::new('Tag'); $itemsBinding.Source = $PlayVoiceList
     [void]$selector.SetBinding([Windows.Controls.ItemsControl]::ItemsSourceProperty,$itemsBinding)
     $selectionBinding = [Windows.Data.Binding]::new('SelectedItem'); $selectionBinding.Source = $PlayVoiceList; $selectionBinding.Mode = 'TwoWay'
-    [void]$selector.SetBinding([Windows.Controls.Primitives.Selector]::SelectedItemProperty,$selectionBinding)
+    $selector.SelectedValuePath = 'Name'
+    [void]$selector.SetBinding([Windows.Controls.Primitives.Selector]::SelectedValueProperty,$selectionBinding)
+    $selector.ItemTemplate = [Windows.Markup.XamlReader]::Parse('<DataTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"><StackPanel Orientation="Horizontal"><Path Data="{Binding IconGeometry}" Fill="{Binding IconBrush}" Width="18" Height="18" Stretch="Uniform" Margin="0,0,10,0"/><TextBlock Text="{Binding Name}" VerticalAlignment="Center"/></StackPanel></DataTemplate>')
+    $script:dashboardVoicePicker = $selector
+    $selector.Add_SelectionChanged({Update-YapLoqDashboardAppearance})
     $grid.Children[0].Visibility = 'Collapsed'
     [void]$grid.Children.Add($selector)
     [void]$grid.Children.Remove($selector)
@@ -278,6 +521,7 @@ function Install-YapLoqDashboard {
     $intro = [Windows.Controls.StackPanel]::new()
     $title = [Windows.Controls.TextBlock]::new(); $title.Text = 'Turn text into speech.'; $title.FontSize = 22; $title.FontWeight = 'SemiBold'
     $title.Foreground = [Windows.Media.BrushConverter]::new().ConvertFromString('#D9CCFF')
+    $script:dashboardEditor=$editor; $script:dashboardTitle=$title
     [void]$intro.Children.Add($title)
     $hint = [Windows.Controls.TextBlock]::new(); $hint.Text = 'Choose a voice. Write a message. Press Speak.'; $hint.TextWrapping = 'Wrap'; $hint.Margin = '0,4,12,0'
     $hint.Foreground = [Windows.Media.BrushConverter]::new().ConvertFromString('#D1C8DF'); [void]$intro.Children.Add($hint)
@@ -342,10 +586,12 @@ function Install-YapLoqDashboard {
     $helpSeen = $false
     try { $helpSeen = [bool](Get-Content -LiteralPath (Join-Path $configDir 'ui-state.json') -Raw -ErrorAction Stop | ConvertFrom-Json).dashboardHelpSeen } catch {}
     if (-not $helpSeen) { $script:dashboardHelpButton.Style = $window.FindResource('PrimaryButton'); $script:dashboardHelpButton.ToolTip = 'New here? Open quick start help' }
+    $script:dashboardHelpHighlighted = -not $helpSeen
     $script:dashboardHelpButton.Add_Click({
         $script:dashboardHelp.Visibility = if ($script:dashboardHelp.Visibility -eq 'Visible') {'Collapsed'}else{'Visible'}
         if ($script:dashboardHelp.Visibility -eq 'Visible') { Animate-In $script:dashboardHelp }
         $script:dashboardHelpButton.Style = $script:dashboardHelpDefaultStyle
+        $script:dashboardHelpHighlighted=$false
         $path = Join-Path $configDir 'ui-state.json'
         try { $state=if(Test-Path -LiteralPath $path){Get-Content -LiteralPath $path -Raw|ConvertFrom-Json}else{[pscustomobject]@{}};$state|Add-Member -NotePropertyName dashboardHelpSeen -NotePropertyValue $true -Force;[IO.File]::WriteAllText($path,($state|ConvertTo-Json),[Text.UTF8Encoding]::new($false)) } catch {}
     })
@@ -354,11 +600,15 @@ function Install-YapLoqDashboard {
     $next.Background = [Windows.Media.BrushConverter]::new().ConvertFromString('#1E1A27'); $next.CornerRadius = 10
     [Windows.Controls.Grid]::SetRow($next,1)
     $panel = [Windows.Controls.StackPanel]::new(); $next.Child = $panel
-    $open = New-YapLoqButton 'Upcoming - Open queue' 'queue' 'QueueNav'; $open.HorizontalAlignment = 'Left'; $open.Margin = '0,0,0,6'; $open.Padding = '8,6'
+    $header=[Windows.Controls.Grid]::new();$header.Margin='0,0,0,4';$header.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new());$auto=[Windows.Controls.ColumnDefinition]::new();$auto.Width='Auto';$header.ColumnDefinitions.Add($auto)
+    $script:dashboardQueueHeading=[Windows.Controls.TextBlock]::new();$script:dashboardQueueHeading.Text='Queue';$script:dashboardQueueHeading.FontWeight='SemiBold';$script:dashboardQueueHeading.VerticalAlignment='Center';[void]$header.Children.Add($script:dashboardQueueHeading)
+    $open = New-YapLoqButton 'Open Queue' 'queue' 'QueueNav'; $open.HorizontalAlignment = 'Right'; $open.Margin = 0; $open.Padding = '8,4'
     $open.MinHeight = 28
-    [void]$panel.Children.Add($open)
+    $script:dashboardActivityLink=$open
+    [Windows.Controls.Grid]::SetColumn($open,1);[void]$header.Children.Add($open);[void]$panel.Children.Add($header)
     $script:dashboardUpcoming = [Windows.Controls.StackPanel]::new(); [void]$panel.Children.Add($script:dashboardUpcoming)
     [void]$PlaygroundPage.Children.Add($next)
+    $script:dashboardControlStyles=@(Get-YapLoqDashboardControls $editor)
     Update-YapLoqDashboard $null
     # Advanced speech options can grow without hiding the always-visible player.
     [void]$script:shellContent.Children.Remove($PlaygroundPage)
@@ -434,6 +684,248 @@ function Install-YapLoqQueue {
         }
         if ($node) { $node.IsSelected = $true }
     })
+}
+
+function Install-YapLoqCombinedQueue {
+    # Keep the original grids as command/selection adapters, with one visible table.
+    $QueuePage.Children.Clear();$QueuePage.RowDefinitions.Clear()
+    foreach($height in @('Auto','*')){$row=[Windows.Controls.RowDefinition]::new();$row.Height=$height;$QueuePage.RowDefinitions.Add($row)}
+    $toolbar=[Windows.Controls.Grid]::new();$toolbar.Margin='0,0,0,8';$toolbar.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new());$auto=[Windows.Controls.ColumnDefinition]::new();$auto.Width='Auto';$toolbar.ColumnDefinitions.Add($auto)
+    $script:queueSelectionActions=[Windows.Controls.WrapPanel]::new()
+    $script:queueSelectionHint=[Windows.Controls.TextBlock]::new();$script:queueSelectionHint.Text='Select a message for actions';$script:queueSelectionHint.Foreground=$window.FindResource('Muted');$script:queueSelectionHint.VerticalAlignment='Center';$script:queueSelectionHint.Margin='0,8,0,8';[void]$script:queueSelectionActions.Children.Add($script:queueSelectionHint)
+    foreach($name in @('RemoveQueueButton','QueueUpButton','QueueDownButton','ReplayHistoryButton','SaveHistoryAudioButton','ShowHistoryAudioButton')){
+        $button=$window.FindName($name);if($button.Parent -is [Windows.Controls.Panel]){[void]$button.Parent.Children.Remove($button)}
+        $button.MinHeight=32;$button.Height=32;$button.Padding='10,0';$button.Margin='0,0,6,0';$button.Visibility='Collapsed';[void]$script:queueSelectionActions.Children.Add($button)
+    }
+    [void]$toolbar.Children.Add($script:queueSelectionActions)
+    $more=[Windows.Controls.Button]::new();$more.Content='More';$more.MinHeight=32;$more.Height=32;$more.Margin=0;$more.ToolTip='Queue and history options'
+    $more.ContextMenu=[Windows.Controls.ContextMenu]::new()
+    foreach($spec in @(@('Clear waiting queue','ClearQueueButton'),@('Clear recent history','ClearHistoryButton'))){
+        $item=[Windows.Controls.MenuItem]::new();$item.Header=$spec[0];$item.Tag=$spec[1]
+        $item.Add_Click({param($sender,$e)$button=$window.FindName([string]$sender.Tag);if($button.IsEnabled){$button.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))}});[void]$more.ContextMenu.Items.Add($item)
+    }
+    $more.ContextMenu.Add_Opened({param($sender,$e)foreach($item in $sender.Items){$item.IsEnabled=if($item.Tag -eq 'ClearQueueButton'){@($QueueGrid.ItemsSource|Where-Object{$_.Id -ne $script:lastPlaybackState.current.id}).Count -gt 0}else{$HistoryGrid.Items.Count -gt 0}}})
+    $more.Add_Click({param($sender,$e)$sender.ContextMenu.PlacementTarget=$sender;$sender.ContextMenu.Placement='Bottom';$sender.ContextMenu.IsOpen=$true})
+    [Windows.Controls.Grid]::SetColumn($more,1);[void]$toolbar.Children.Add($more);[void]$QueuePage.Children.Add($toolbar)
+    $script:unifiedQueueGrid=[Windows.Controls.DataGrid]::new();$table=$script:unifiedQueueGrid
+    $table.AutoGenerateColumns=$false;$table.IsReadOnly=$true;$table.SelectionMode='Single';$table.CanUserSortColumns=$false;$table.CanUserAddRows=$false;$table.BorderThickness=0
+    # Sorting is intentionally disabled so live jobs cannot mix with history.
+    foreach($column in @($QueueGrid.Columns)){[void]$QueueGrid.Columns.Remove($column);$table.Columns.Add($column)}
+    $table.RowStyle=$window.FindResource('SpeechGridRow')
+    $table.Add_SelectionChanged({Sync-YapLoqQueueSelection $true})
+    $table.Add_ContextMenuOpening({param($sender,$e)if(-not $sender.SelectedItem -or $sender.SelectedItem.IsDivider){$e.Handled=$true}})
+    $table.Add_MouseDoubleClick({$row=$script:unifiedQueueGrid.SelectedItem;if($row -and $row.RowKind -eq 'History' -and $row.HasAudio){$ReplayHistoryButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))}})
+    $border=[Windows.Controls.Border]::new();$border.CornerRadius=10;$border.BorderThickness=1;$border.BorderBrush=[Windows.Media.BrushConverter]::new().ConvertFromString('#50485C');$border.Child=$table
+    [Windows.Controls.Grid]::SetRow($border,1);[void]$QueuePage.Children.Add($border)
+    $pause=$PauseAfterQueueButton;if($pause.Parent -is [Windows.Controls.Panel]){[void]$pause.Parent.Children.Remove($pause)}
+    $pause.Style=$window.FindResource('PlayerTransportButton');$pause.Width=28;$pause.Height=28;$pause.MinHeight=28;$pause.Padding=0;$pause.Margin='2,0';$pause.VerticalAlignment='Center';$pause.ToolTip='Pause after current message';[Windows.Automation.AutomationProperties]::SetName($pause,'Pause after current message')
+    $pauseIcon=[Windows.Shapes.Path]::new();$pauseIcon.Data=(Resolve-VoiceIcon 'mdi:stop').Geometry;$pauseIcon.Tag='mdi:stop';$pauseIcon.Width=12;$pauseIcon.Height=12;$pauseIcon.Stretch='Uniform'
+    $pauseFill=[Windows.Data.Binding]::new('Foreground');$pauseFill.RelativeSource=[Windows.Data.RelativeSource]::new([Windows.Data.RelativeSourceMode]::FindAncestor,[Windows.Controls.Button],1);[void]$pauseIcon.SetBinding([Windows.Shapes.Shape]::FillProperty,$pauseFill);$pause.Content=$pauseIcon
+    [void]$NowPlayingSkipButton.Parent.Children.Add($pause)
+    $script:mediaSaveAudioButton=[Windows.Controls.Button]::new();$save=$script:mediaSaveAudioButton;$save.Style=$window.FindResource('PlayerTransportButton');$save.VerticalAlignment='Center';$save.ToolTip='Save the audio shown in the player';[Windows.Automation.AutomationProperties]::SetName($save,'Save player audio')
+    $saveIcon=[Windows.Shapes.Path]::new();$saveIcon.Data=[Windows.Media.Geometry]::Parse($script:shellMarkup.SelectSingleNode("//*[@Name='SaveHistoryAudioButton']//*[local-name()='Path'][@Data]").GetAttribute('Data'));$saveIcon.Width=12;$saveIcon.Height=12;$saveIcon.Stretch='Uniform'
+    $fill=[Windows.Data.Binding]::new('Foreground');$fill.RelativeSource=[Windows.Data.RelativeSource]::new([Windows.Data.RelativeSourceMode]::FindAncestor,[Windows.Controls.Button],1);[void]$saveIcon.SetBinding([Windows.Shapes.Shape]::FillProperty,$fill);$save.Content=$saveIcon
+    $save.Add_Click({$recording=Get-MediaRecordingTarget;if($recording){Save-SpeechRecording ([string]$recording.Id)}})
+    $NowPlayingSkipButton.Parent.Children.Insert(0,$save)
+    $pause.Add_Click({try{Invoke-BridgePost $(if($script:lastPlaybackState.pauseAfterCurrent){'/resume'}else{'/pause-after-current'})|Out-Null;Refresh-ServiceState}catch{$BottomStatus.Text=$_.Exception.Message}})
+    Update-YapLoqUnifiedQueue
+}
+
+function Sync-YapLoqQueueSelection([bool]$UserSelection=$false) {
+    if($script:syncingUnifiedQueue){return}
+    $row=$script:unifiedQueueGrid.SelectedItem
+    if($UserSelection){$script:unifiedSelectionId=[string]$row.Id}
+    $QueueGrid.SelectedItem=if($row.RowKind -eq 'Live'){@($QueueGrid.ItemsSource|Where-Object{$_.Id -eq $row.Id})[0]}else{$null}
+    $HistoryGrid.SelectedItem=if($row.RowKind -eq 'History'){@($HistoryGrid.ItemsSource|Where-Object{$_.Id -eq $row.Id})[0]}else{$null}
+    Sync-HistoryAudioButton
+    $isCurrent=$row.RowKind -eq 'Live' -and $row.Id -eq $script:lastPlaybackState.current.id
+    $script:queueSelectionHint.Visibility=if($row -and -not $row.IsDivider -and -not $isCurrent){'Collapsed'}else{'Visible'}
+    $script:queueSelectionHint.Text=if($isCurrent){'Current speech - playback controls below'}elseif($QueueGrid.Items.Count){[string]$QueueGrid.Items.Count+' live - '+[string]$HistoryGrid.Items.Count+' recent'}else{'Nothing queued - '+[string]$HistoryGrid.Items.Count+' recent'}
+    foreach($button in $script:queueSelectionActions.Children|Where-Object{$_ -is [Windows.Controls.Button]}){
+        $isLive=$button.Name -in @('RemoveQueueButton','QueueUpButton','QueueDownButton')
+        $button.Visibility=if(($isLive -and $row.RowKind -eq 'Live' -and -not $isCurrent) -or (-not $isLive -and $row.RowKind -eq 'History')){'Visible'}else{'Collapsed'}
+        $button.IsEnabled=if($isLive){$row.Id -and $row.Id -ne $script:lastPlaybackState.current.id}elseif($button -eq $ShowHistoryAudioButton){$button.IsEnabled}elseif($button -eq $ReplayHistoryButton){$row.HasAudio -and $row.Status -notin @('Queued','Playing','Paused','Generating','Waiting for action')}else{[bool]$row.HasAudio}
+    }
+}
+
+function Show-YapLoqQueueHistory {
+    if($script:unifiedQueueGrid -and $script:queueHistoryTarget){$script:unifiedQueueGrid.ScrollIntoView($script:queueHistoryTarget)}
+}
+
+function Update-YapLoqUnifiedQueue {
+    if(-not $script:unifiedQueueGrid){return}
+    $table=$script:unifiedQueueGrid
+    if($table.ContextMenu -and $table.ContextMenu.IsOpen){return}
+    $queued=@($QueueGrid.ItemsSource|Where-Object{$_});$liveIds=@($queued.Id)
+    $history=@($HistoryGrid.ItemsSource|Where-Object{$_ -and $_.Id -notin $liveIds})
+    $visibleLive=[Collections.Generic.List[object]]::new();$replayStatuses=@{}
+    foreach($job in $queued){
+        $original=if($job.Source -eq 'History recording' -and $job.AudioPath){@($history|Where-Object{$_.AudioPath -eq $job.AudioPath -or $_.SavedPath -eq $job.AudioPath})[0]}else{$null}
+        if($original){
+            # The first matching job is the active replay; retain the recording's
+            # original position, timestamp and source instead of showing a duplicate.
+            if(-not $replayStatuses.ContainsKey([string]$original.Id)){$replayStatuses[[string]$original.Id]=$job.Status}
+        }else{$visibleLive.Add($job)}
+    }
+    $live=@($visibleLive|ForEach-Object{$_})
+    $past=@(foreach($recording in $history){
+        $display=$recording|Select-Object *
+        if($replayStatuses.ContainsKey([string]$recording.Id)){$display.Status=$replayStatuses[[string]$recording.Id]}
+        $display
+    })
+    foreach($row in $live){$row|Add-Member NoteProperty RowKind 'Live' -Force}
+    foreach($row in $past){$row|Add-Member NoteProperty RowKind 'History' -Force}
+    $incoming=@($live+$past)
+    # A job can leave the live snapshot one poll before history catches up.
+    # Retain that row through the handoff instead of removing/reinserting it.
+    $incomingIds=@($incoming.Id)
+    foreach($old in @($table.ItemsSource)){
+        if(($old.RowKind -eq 'Live' -or $old.PendingHistory) -and $old.Id -notin $incomingIds){
+            $handoff=$old|Select-Object *;$handoff.Status='Finished';$handoff.RowKind='History'
+            $handoff|Add-Member NoteProperty PendingHistory $true -Force
+            $incoming+=$handoff
+        }
+    }
+    $available=@{};foreach($row in $incoming){$available[[string]$row.Id]=$row}
+    $previous=@($script:queueDisplayOrder|Where-Object{$available.ContainsKey([string]$_)})
+    $newRows=@(Sort-YapLoqSpeechRows @($incoming|Where-Object{$_.Id -notin $previous}))
+    $script:queueDisplayOrder=@(@($newRows|ForEach-Object{$_.Id})+$previous|Where-Object{$_})
+    $ordered=@(foreach($id in $script:queueDisplayOrder){$available[[string]$id]})
+    $signature=(@($ordered|ForEach-Object{'{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}' -f $_.Id,$_.Status,$_.Accent,$_.IconGeometry,$_.AudioLabel,$_.Text,$_.SavedPath,$_.HasAudio,$_.RowKind,$_.PendingHistory}) -join ';')+'|live='+$live.Count
+    if($signature -ne $script:unifiedQueueSignature){
+        $selectedId=if($table.SelectedItem.Id){[string]$table.SelectedItem.Id}else{$script:unifiedSelectionId}
+        $items=$table.ItemsSource
+        if($items -isnot [Collections.ObjectModel.ObservableCollection[object]]){$items=[Collections.ObjectModel.ObservableCollection[object]]::new();$table.ItemsSource=$items}
+        $scroll=if($table.Template){$table.Template.FindName('DG_ScrollViewer',$table)}else{$null};$offset=if($scroll){$scroll.VerticalOffset}else{0}
+        $script:queueHistoryTarget=@($past)[0]
+        $script:syncingUnifiedQueue=$true
+        try{
+            for($index=$items.Count-1;$index -ge 0;$index--){if($items[$index].Id -notin @($ordered.Id)){$items.RemoveAt($index)}}
+            for($index=0;$index -lt $ordered.Count;$index++){
+                $row=$ordered[$index];$row|Add-Member NoteProperty IsDivider $false -Force
+                if($index -ge $items.Count){$items.Add($row)}
+                elseif($items[$index].Id -ne $row.Id){
+                    $found=-1;for($scan=$index+1;$scan -lt $items.Count;$scan++){if($items[$scan].Id -eq $row.Id){$found=$scan;break}}
+                    if($found -ge 0){$items.Move($found,$index)}else{$items.Insert($index,$row)}
+                }
+                $old=$items[$index]
+                $before=(@('Status','Text','Alias','Accent','IconGeometry','AudioLabel','SavedPath','HasAudio','RowKind','PendingHistory')|ForEach-Object{[string]$old.$_}) -join '|'
+                $after=(@('Status','Text','Alias','Accent','IconGeometry','AudioLabel','SavedPath','HasAudio','RowKind','PendingHistory')|ForEach-Object{[string]$row.$_}) -join '|'
+                if($before -ne $after){$items[$index]=$row}
+            }
+            if($selectedId){$table.SelectedItem=@($items|Where-Object{$_.Id -eq $selectedId})[0]}
+            if($scroll){$scroll.ScrollToVerticalOffset($offset)}
+        }finally{$script:syncingUnifiedQueue=$false}
+        $script:unifiedQueueSignature=$signature
+    }
+    Sync-YapLoqQueueSelection
+    $PauseAfterQueueButton.Foreground=if($script:lastPlaybackState.pauseAfterCurrent){$window.FindResource('Accent')}else{$window.Foreground}
+    $PauseAfterQueueButton.ToolTip=if($script:lastPlaybackState.pauseAfterCurrent){'Pause after current message is on'}else{'Pause after current message'}
+    if($script:mediaSaveAudioButton){$script:mediaSaveAudioButton.IsEnabled=$null -ne (Get-MediaRecordingTarget)}
+}
+
+function Move-YapLoqDisplayedSpeech($id,$direction){
+    $order=@($script:queueDisplayOrder);$index=[array]::IndexOf($order,[string]$id)
+    $target=if($direction -eq 'up'){$index-1}else{$index+1}
+    if($index -ge 0 -and $target -ge 0 -and $target -lt $order.Count){
+        $swap=$order[$target];$order[$target]=$order[$index];$order[$index]=$swap
+        $script:queueDisplayOrder=$order;$script:unifiedQueueSignature=$null
+    }
+}
+
+function Install-YapLoqItemMenu($control, $actions, [bool]$PageActions=$false) {
+    if(-not $control){return}
+    $menu=[Windows.Controls.ContextMenu]::new();$menu.Tag=$control
+    foreach($action in $actions){
+        $item=[Windows.Controls.MenuItem]::new();$item.Header=$action[0]
+        $item.Tag=[pscustomobject]@{Control=$control;Command=$action[1];RequiresRow=($action[2] -ne 'global')}
+        $item.Add_Click({param($sender,$e)
+            $command=$sender.Tag;$control=$command.Control;$row=$control.SelectedItem
+            if($command.RequiresRow -and -not $row){return}
+            try{
+                if($command.Command -like 'copy:*'){
+                    $property=$command.Command.Substring(5);$text=[string]$row.$property
+                    if($text){[Windows.Clipboard]::SetText($text)}
+                }elseif($command.Command -in @('edit-alias','test-alias','favorite-alias')){
+                    $name=if($row.Alias){$row.Alias}else{$row.Name}
+                    $alias=@($PlayVoiceList.Tag|Where-Object{$_.Name -eq $name})[0]
+                    if($alias){
+                        switch($command.Command){
+                            'edit-alias'{$value=Show-AliasDialog $alias;if($value){Save-Alias $alias.Name $value}}
+                            'test-alias'{$text=Show-TestDialog $alias.Name;if($text){Speak-Text $alias.Name $text 'Test'}}
+                            'favorite-alias'{Set-VoiceFavorite $alias.Name (-not $alias.Favorite)}
+                        }
+                    }
+                }else{
+                    $button=if($command.Command -is [Windows.Controls.Button]){$command.Command}else{$window.FindName([string]$command.Command)}
+                    if($button -and $button.IsEnabled){$button.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))}
+                }
+            }catch{$BottomStatus.Text=$_.Exception.Message}
+        })
+        [void]$menu.Items.Add($item)
+    }
+    $menu.Add_Opened({param($sender,$e)
+        foreach($item in $sender.Items){
+            $command=$item.Tag;$control=$command.Control;$row=$control.SelectedItem
+            $enabled=(-not $command.RequiresRow -or $null -ne $row)
+            if($command.Command -in @('edit-alias','test-alias','favorite-alias')){
+                $name=if($row.Alias){$row.Alias}else{$row.Name}
+                $alias=@($PlayVoiceList.Tag|Where-Object{$_.Name -eq $name})[0];$enabled=$enabled -and $null -ne $alias
+                if($command.Command -eq 'favorite-alias'){$item.Header=if($alias.Favorite){'Unfavorite voice'}else{'Favorite voice'}}
+            }
+            if($command.Command -notlike 'copy:*' -and $command.Command -notin @('edit-alias','test-alias','favorite-alias')){
+                $button=if($command.Command -is [Windows.Controls.Button]){$command.Command}else{$window.FindName([string]$command.Command)}
+                $enabled=$enabled -and $button -and $button.IsEnabled
+                if($control -eq $QueueGrid -and $command.Command -in @('RemoveQueueButton','QueueUpButton','QueueDownButton')){
+                    $enabled=$enabled -and $row.Id -ne $script:lastPlaybackState.current.id
+                }
+            }
+            if($control -eq $script:unifiedQueueGrid){
+                $historyCommand=$command.Command -in @('ReplayHistoryButton','SaveHistoryAudioButton','ShowHistoryAudioButton')
+                $liveCommand=$command.Command -in @('RemoveQueueButton','QueueUpButton','QueueDownButton')
+                $moveCommand=$command.Command -in @('QueueUpButton','QueueDownButton')
+                $item.Visibility=if(($historyCommand -and $row.RowKind -ne 'History') -or ($liveCommand -and -not $moveCommand -and $row.RowKind -ne 'Live')){'Collapsed'}else{'Visible'}
+                if($liveCommand){$enabled=$enabled -and $row.RowKind -eq 'Live' -and $row.Id -ne $script:lastPlaybackState.current.id}
+                if($historyCommand){$enabled=$enabled -and $row.HasAudio}
+                $enabled=$enabled -and -not $row.IsDivider
+            }
+            $item.IsEnabled=[bool]$enabled
+        }
+    })
+    $control.ContextMenu=$menu
+    if($PageActions){return}
+    $control.Add_PreviewMouseRightButtonDown({param($sender,$e)
+        $node=$e.OriginalSource
+        $containerType=if($sender -is [Windows.Controls.DataGrid]){[Windows.Controls.DataGridRow]}elseif($sender -is [Windows.Controls.ComboBox]){[Windows.Controls.ComboBoxItem]}else{[Windows.Controls.ListBoxItem]}
+        while($node -and -not $containerType.IsInstanceOfType($node)){
+            if($node -is [Windows.Media.Visual]){$node=[Windows.Media.VisualTreeHelper]::GetParent($node)}else{$node=$null}
+        }
+        if($node){$node.IsSelected=$true}
+        elseif($sender -isnot [Windows.Controls.ComboBox]){$sender.SelectedItem=$null}
+    })
+}
+
+function Install-YapLoqPageContextMenus {
+    Install-YapLoqItemMenu $script:unifiedQueueGrid @(@('Replay','ReplayHistoryButton'),@('Save audio','SaveHistoryAudioButton'),@('Show audio file','ShowHistoryAudioButton'),@('Remove','RemoveQueueButton'),@('Move up','QueueUpButton'),@('Move down','QueueDownButton'),@('Copy message','copy:Text'),@('Edit voice','edit-alias'))
+    Install-YapLoqItemMenu $QueueGrid @(@('Remove','RemoveQueueButton'),@('Move up','QueueUpButton'),@('Move down','QueueDownButton'),@('Copy message','copy:Text'),@('Edit voice','edit-alias'),@('Pause after current','PauseAfterQueueButton','global'))
+    Install-YapLoqItemMenu $HistoryGrid @(@('Replay','ReplayHistoryButton'),@('Save audio','SaveHistoryAudioButton'),@('Show audio file','ShowHistoryAudioButton'),@('Copy message','copy:Text'),@('Edit voice','edit-alias'))
+    Install-YapLoqItemMenu $PlaylistGrid @(@('Add playlist','AddPlaylistButton','global'),@('Edit playlist','EditPlaylistButton'),@('Test playlist','TestPlaylistButton'),@('Remove playlist','RemovePlaylistButton'),@('Copy name','copy:Name'))
+    Install-YapLoqItemMenu $PronunciationGrid @(@('Add pronunciation','AddPronunciationButton','global'),@('Edit pronunciation','EditPronunciationButton'),@('Remove pronunciation','RemovePronunciationButton'),@('Move up','PronunciationUpButton'),@('Move down','PronunciationDownButton'),@('Copy written text','copy:DisplayWritten'),@('Copy spoken text','copy:Spoken'))
+    Install-YapLoqItemMenu $VoiceRulesGrid @(@('Add rule','AddVoiceRuleButton','global'),@('Update from editor','UpdateVoiceRuleButton'),@('Test voice','TestVoiceRuleButton'),@('Remove rule','RemoveVoiceRuleButton'),@('Copy match','copy:value'))
+    Install-YapLoqItemMenu $RoutingGrid @(@('Add route','AddRouteButton','global'),@('Update from editor','UpdateRouteButton'),@('Remove route','RemoveRouteButton'),@('Move up','RouteUpButton'),@('Move down','RouteDownButton'),@('Copy match','copy:value'))
+    if($script:profanityGrid){
+        $panel=$script:profanityGrid.Parent
+        while($panel -and -not $panel.FindName('SaveProfanity')){$panel=$panel.Parent}
+        if($panel){Install-YapLoqItemMenu $script:profanityGrid @(@('Add censor rule',$panel.FindName('Add'),'global'),@('Edit censor rule',$panel.FindName('Edit')),@('Remove censor rule',$panel.FindName('Remove')))}
+    }
+    Install-YapLoqItemMenu $EventTimelineGrid @(@('Copy event','copy:Event'),@('Copy speech ID','copy:Id'),@('Copy alias','copy:Alias'))
+    Install-YapLoqItemMenu $ActivityList @(@('Copy log entry','copy:PSObject'))
+    Install-YapLoqItemMenu $script:dashboardVoicePicker @(@('Edit voice','edit-alias'),@('Test voice','test-alias'),@('Favorite voice','favorite-alias'),@('Add voice','AddButton','global'))
+    Install-YapLoqItemMenu ($window.FindName('StreamerExportCard')) @(@('Export actions','ExportStreamerBotButton','global'),@('Copy speech payload','CopyPayloadButton','global')) $true
+    foreach($spec in @(@('VoiceStudioPage','VoiceStudio'),@('PollyPage','Polly'),@('ElevenLabsPage','ElevenLabs'),@('AzurePage','Azure'),@('GooglePage','Google'),@('WatsonPage','Watson'),@('UberDuckPage','UberDuck'),@('TtsMonsterPage','TtsMonster'),@('AcapelaPage','Acapela'),@('CereProcPage','CereProc'))){
+        $page=$window.FindName($spec[0]);$save=$window.FindName('Save'+$spec[1]+'Button');$test=$window.FindName('Test'+$spec[1]+'Button')
+        if($page -and $save -and $test){Install-YapLoqItemMenu $page @(@('Save service settings',$save,'global'),@('Test and load voices',$test,'global')) $true}
+    }
 }
 
 function Install-YapLoqServices {
@@ -593,22 +1085,22 @@ function Install-YapLoqStreamerExpanders {
             $script:streamerQuickHelp=[Windows.Controls.Border]::new();$script:streamerQuickHelp.Visibility='Collapsed';$script:streamerQuickHelp.Margin='0,12,0,0';$script:streamerQuickHelp.Padding=14;$script:streamerQuickHelp.CornerRadius=10;$script:streamerQuickHelp.BorderThickness=1
             $script:streamerQuickHelp.Background=[Windows.Media.BrushConverter]::new().ConvertFromString('#282035');$script:streamerQuickHelp.BorderBrush=[Windows.Media.BrushConverter]::new().ConvertFromString('#66548F')
             $steps=[Windows.Controls.StackPanel]::new();$script:streamerQuickHelp.Child=$steps
-            $title=[Windows.Controls.TextBlock]::new();$title.Text='Quick start';$title.FontSize=16;$title.FontWeight='SemiBold';[void]$steps.Children.Add($title)
-            $intro=[Windows.Controls.TextBlock]::new();$intro.Text='Connect speech in three steps. Playback actions are optional.';$intro.TextWrapping='Wrap';$intro.Foreground=$window.FindResource('Muted');$intro.Margin='0,6,0,12';[void]$steps.Children.Add($intro)
+            $title=[Windows.Controls.TextBlock]::new();$title.Text='Streamer.Bot setup';$title.FontSize=16;$title.FontWeight='SemiBold';[void]$steps.Children.Add($title)
+            $intro=[Windows.Controls.TextBlock]::new();$intro.Text='Send messages from Streamer.Bot to YapLoq.';$intro.TextWrapping='Wrap';$intro.Foreground=$window.FindResource('Muted');$intro.Margin='0,6,0,12';[void]$steps.Children.Add($intro)
             foreach($step in @(
-                @('1. Test your voice','Create an alias and make sure you can hear it.','Open Voices','voices','VoicesNav'),
-                @('2. Allow incoming speech','Enable the listener and save. Restart YapLoq if you change its port.','Open Connection','connection','StreamerBotNav'),
-                @('3. Export and import actions','Export your chosen voice. In Streamer.Bot, import the copied code and add a chat or reward trigger.','Open Action export','export','VoicesNav'),
-                @('Optional. React to playback','Run Streamer.Bot actions when speech starts or finishes.','Open Playback actions','playback','PlaygroundNav')
+                @('1. Enable the listener','In Connection, enable incoming UDP speech and save. Restart YapLoq after changing listener settings.','Open Connection','connection','mdi:lan-connect'),
+                @('2. Import the speech actions','Choose a voice in Action export and export. In Streamer.Bot, click Import, paste the copied code into Import String, then import.','Open Action export','export','mdi:package-variant-closed'),
+                @('3. Test from Streamer.Bot','On YapLoq - Speak, add a Core > Test trigger with a message argument, then run Test Trigger. Check YapLoq Queue for the message.','Open Queue','queue','mdi:playlist-play')
             )) {
                 $row=[Windows.Controls.Grid]::new();$row.Margin='0,0,0,10';$row.ColumnDefinitions.Add([Windows.Controls.ColumnDefinition]::new());$column=[Windows.Controls.ColumnDefinition]::new();$column.Width='Auto';$row.ColumnDefinitions.Add($column)
                 $copy=[Windows.Controls.StackPanel]::new();$copy.Margin='0,0,12,0'
                 $label=[Windows.Controls.TextBlock]::new();$label.Text=$step[0];$label.FontWeight='SemiBold';[void]$copy.Children.Add($label)
                 $body=[Windows.Controls.TextBlock]::new();$body.Text=$step[1];$body.TextWrapping='Wrap';$body.Foreground=$window.FindResource('Muted');$body.Margin='0,3,0,0';[void]$copy.Children.Add($body);[void]$row.Children.Add($copy)
-                $button=New-YapLoqButton $step[2] 'streamerbot' $step[4];$button.Padding='10,7';$button.Margin=0;$button.VerticalAlignment='Center';$button.Tag=$step[3]
+                $button=New-YapLoqButton $step[2] 'streamerbot' 'QueueNav';$button.Padding='10,7';$button.Margin=0;$button.VerticalAlignment='Center';$button.Tag=$step[3]
+                $button.Content.Children[0].Data=(Resolve-VoiceIcon $step[4]).Geometry
                 $button.Resources['SectionShortcut']=$true
                 $button.Add_Click({param($sender,$e)
-                    if($sender.Tag -eq 'voices'){Request-YapLoqPage 'voices';return}
+                    if($sender.Tag -eq 'queue'){Request-YapLoqPage 'queue';return}
                     $target=switch($sender.Tag){'connection'{$UdpBox};'export'{$ExportVoiceAliasBox};'playback'{$EnableStreamerBotActionsCheck}}
                     $ancestor=$target
                     while($ancestor){if($ancestor -is [Windows.Controls.Expander]){$ancestor.IsExpanded=$true};$ancestor=$ancestor.Parent}
@@ -813,12 +1305,12 @@ function Install-YapLoqShell {
     $script:ownerLastPage = @{Dashboard='playground';Voices='voices';Queue='queue';Services='services';Integrations='streamerbot';Settings='settings'}
     $script:ownerSections = @{
         Dashboard=@()
-        Voices=@(@('Voices','voices','VoicesNav'),@('Playlists','playlists','RulesNav'),@('Pronunciation','pronunciation','PronunciationNav'),@('Censor','censor','RulesNav'))
-        Queue=@(@('Queue','queue','QueueNav'),@('History','history','HistoryNav'),@('Rules','rules','RulesNav'))
+        Voices=@(@('Voices','voices','VoicesNav'),@('Playlists','playlists','RulesNav'),@('Routing','routing','RulesNav'),@('Pronunciation','pronunciation','PronunciationNav'),@('Censor','censor','RulesNav'))
+        Queue=@(@('Queue','queue','QueueNav'),@('Rules','rules','RulesNav'))
         Integrations=@()
         Settings=@(@('Settings','settings','SettingsNav'),@('Diagnostics','activity','ActivityNav'))
     }
-    $script:routeOwners = @{playground='Dashboard';voices='Voices';playlists='Voices';voiceRules='Queue';pronunciation='Voices';queue='Queue';history='Queue';rules='Queue';services='Services';streamerbot='Integrations';settings='Settings';activity='Settings'}
+    $script:routeOwners = @{playground='Dashboard';voices='Voices';playlists='Voices';routing='Voices';voiceRules='Voices';pronunciation='Voices';queue='Queue';history='Queue';rules='Queue';services='Services';streamerbot='Integrations';settings='Settings';activity='Settings'}
     foreach ($entry in $script:providerRoutes) { $script:routeOwners[$entry[1]] = 'Services' }
     $script:routeOwners['censor'] = 'Voices'
     $script:shellContent = $VoicesPage.Parent
@@ -859,17 +1351,18 @@ function Install-YapLoqShell {
         if ($censorCard.Child -is [Windows.Controls.Expander]) { $censorCard.Child.IsExpanded = $true; $censorCard.Child.Header = 'Censor text' }
     }
     $playlists = New-YapLoqPage 'playlists'; Move-YapLoqRuleCard $PlaylistGrid $playlists
-    # One canonical rules workspace. Preserve handlers, values and current precedence.
+    $routing = New-YapLoqPage 'routing'
+    # Preserve the original editors, handlers, values and precedence when regrouping.
     foreach($ruleHeader in @(
         @('AutoVoiceRulesExpander','Voice selection','mdi:account-voice','M9 5a4 4 0 0 1 4 4a4 4 0 0 1-4 4a4 4 0 0 1-4-4a4 4 0 0 1 4-4m0 10c2.67 0 8 1.34 8 4v2H1v-2c0-2.66 5.33-4 8-4m7.76-9.64c2.02 2.2 2.02 5.25 0 7.27l-1.68-1.69c.84-1.18.84-2.71 0-3.89zM20.07 2c3.93 4.05 3.9 10.11 0 14l-1.63-1.63c2.77-3.18 2.77-7.72 0-10.74z'),
-        @('RoutingExpander','Routing','mdi:routes','M11 10H5L3 8l2-2h6V3l1-1l1 1v1h6l2 2l-2 2h-6v2h6l2 2l-2 2h-6v6a2 2 0 0 1 2 2H9a2 2 0 0 1 2-2z'),
+        @('RoutingExpander','Routing','mdi:call-split',''),
         @('MessageModerationExpander','Filters','mdi:filter-variant','M6 13h12v-2H6M3 6v2h18V6M10 18h4v-2h-4z'),
         @('LimitsViewersExpander','Limits','mdi:timer-sand','M6 2h12v6l-4 4l4 4v6H6v-6l4-4l-4-4zm10 14.5l-4-4l-4 4V20h8zm-4-5l4-4V4H8v3.5zM10 6h4v.75l-2 2l-2-2z')
     )) {
         $expander=$window.FindName($ruleHeader[0])
         $header=[Windows.Controls.StackPanel]::new();$header.Orientation='Horizontal'
         # Official MDI paths from the Icônes/Iconify collection; no reused navigation symbols.
-        $icon=[Windows.Shapes.Path]::new();$icon.Data=[Windows.Media.Geometry]::Parse($ruleHeader[3]);$icon.Tag=$ruleHeader[2];$icon.Width=16;$icon.Height=16;$icon.Stretch='Uniform';$icon.VerticalAlignment='Center';$icon.Margin='0,0,10,0';$icon.Fill=[Windows.Media.BrushConverter]::new().ConvertFromString('#B6A3FF')
+        $icon=[Windows.Shapes.Path]::new();$icon.Data=if($ruleHeader[2] -eq 'mdi:call-split'){(Resolve-VoiceIcon $ruleHeader[2]).Geometry}else{[Windows.Media.Geometry]::Parse($ruleHeader[3])};$icon.Tag=$ruleHeader[2];$icon.Width=16;$icon.Height=16;$icon.Stretch='Uniform';$icon.VerticalAlignment='Center';$icon.Margin='0,0,10,0';$icon.Fill=[Windows.Media.BrushConverter]::new().ConvertFromString('#B6A3FF')
         $label=[Windows.Controls.TextBlock]::new();$label.Text=$ruleHeader[1];$label.VerticalAlignment='Center';$label.FontWeight='SemiBold'
         [void]$header.Children.Add($icon);[void]$header.Children.Add($label);$expander.Header=$header
         [Windows.Automation.AutomationProperties]::SetName($expander,$ruleHeader[1])
@@ -878,12 +1371,12 @@ function Install-YapLoqShell {
     $voiceCard = $window.FindName('AutoVoiceRulesExpander').Parent
     $routingCard = $window.FindName('RoutingExpander').Parent
     [void]$rulePanel.Children.Remove($voiceCard); [void]$rulePanel.Children.Remove($routingCard)
-    $rulePanel.Children.Insert(0,$voiceCard); $rulePanel.Children.Insert(1,$routingCard)
-    foreach ($ruleCard in $rulePanel.Children) {
+    [void]$routing.Children.Add($routingCard); [void]$routing.Children.Add($voiceCard)
+    foreach ($ruleCard in @($rulePanel.Children)+@($routing.Children)) {
         if ($ruleCard -is [Windows.Controls.Border]) { $ruleCard.Margin = '0,0,0,14' }
     }
-    foreach ($panel in @($playlists)) {
-        $save = [Windows.Controls.Button]::new(); $save.Content = 'Save rules'; $save.HorizontalAlignment = 'Left'
+    foreach ($panel in @($playlists,$routing)) {
+        $save = [Windows.Controls.Button]::new(); $save.Content = if($panel -eq $routing){'Save routing'}else{'Save rules'}; $save.HorizontalAlignment = 'Left'
         $save.Style = $window.FindResource('PrimaryButton'); $save.Add_Click({Save-Rules})
         [void]$panel.Children.Add($save)
     }
@@ -898,6 +1391,7 @@ function Install-YapLoqShell {
     Install-YapLoqChrome
     Install-YapLoqDashboard
     Install-YapLoqQueue
+    Install-YapLoqCombinedQueue
     # Favorite membership belongs to Add/Edit Voice; the list only filters it.
     $window.FindName('ToggleFavoriteButton').Visibility = 'Collapsed'
     $favoritesFilter = $window.FindName('FavoritesOnlyCheck')
@@ -916,8 +1410,18 @@ function Install-YapLoqShell {
     $favoritesFilter.ToolTip='Show favorite voices only'
     [Windows.Automation.AutomationProperties]::SetName($favoritesFilter,'Show favorite voices only')
     Install-YapLoqVoiceContextMenu
+    Install-YapLoqPageContextMenus
     Install-YapLoqStreamerExpanders
+    foreach ($spec in @(@('AudioSettingsExpander','mdi:speaker'),@('LocalApiSettingsExpander','mdi:api'),@('LimitsSettingsExpander','mdi:speedometer'),@('WindowSettingsExpander','mdi:window-maximize'),@('DataSupportSettingsExpander','mdi:database-cog'))) {
+        $section=$window.FindName($spec[0]); if(-not $section){continue}
+        $header=[Windows.Controls.StackPanel]::new(); $header.Orientation='Horizontal'
+        $resolved=Resolve-VoiceIcon $spec[1]
+        $icon=[Windows.Shapes.Path]::new();$icon.Data=$resolved.Geometry;$icon.Fill=$window.FindResource('Accent');$icon.Width=16;$icon.Height=16;$icon.Stretch='Uniform';$icon.Margin='0,0,10,0';$icon.Tag=$spec[1]
+        $label=[Windows.Controls.TextBlock]::new();$label.Text=[string]$section.Header;$label.VerticalAlignment='Center'
+        [void]$header.Children.Add($icon);[void]$header.Children.Add($label);$section.Header=$header
+    }
     Install-YapLoqServiceEnablePreview
+    Install-YapLoqCredentialFields
     $aboutMark = $window.FindName('AboutBrandLogo')
     if ($aboutMark -and $aboutMark.Parent) { $aboutMark.Parent.Visibility = 'Collapsed' }
     Set-YapLoqAccordionWidths $window
@@ -948,9 +1452,9 @@ function Install-YapLoqShell {
         }
     })
     $NowPlayingStopClearButton.ToolTip = 'Stop playback and clear waiting speech (Ctrl+Shift+S)'
-    foreach ($name in @('HttpBox','WsBox','UdpBox','EnableUdpCheck','EnableStreamerBotActionsCheck','ObsDuckingCheck','PersistQueueCheck','CheckUpdatesOnStartupCheck','CheckUpdatesButton')) {
+    foreach ($name in @('HttpBox','WsBox','PersistQueueCheck','CheckUpdatesOnStartupCheck','CheckUpdatesButton')) {
         $control = $window.FindName($name)
-        if ($control) { $control.IsEnabled = $false; $control.ToolTip = 'Isolated preview: production connections, recovery and updates are disabled.' }
+        if ($control) { $control.IsEnabled = $false; $control.ToolTip = 'Preview keeps desktop ports isolated; recovery and automatic updates are disabled.' }
     }
     $PageHeadingHost.Margin = '0'; $PageHeadingHost.Parent.Margin = '0,0,0,12'
     Set-Page 'playground'

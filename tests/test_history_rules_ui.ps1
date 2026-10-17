@@ -34,7 +34,9 @@ $HistoryLimitBox.Text='2000'
 if($script:numericEditors[$HistoryLimitBox].Slider.Value -ne 2000){throw 'Exact larger entry was clamped'}
 $HistoryPage.Visibility='Visible';$HistoryGrid.ItemsSource=@([pscustomobject]@{Id='selected';HasAudio=$true;Text='Selected recording';Alias='Test'})
 $HistoryGrid.SelectedIndex=0
-if((Get-HistoryPlaybackTarget).Id -ne 'selected'){throw 'Selected history target failed'}
+if((Get-SelectedHistoryRecording).Id -ne 'selected'){throw 'Selected history target failed'}
+$script:lastPlayedRecording=[pscustomobject]@{Id='last-played';HasAudio=$true}
+if((Get-HistoryPlaybackTarget).Id -ne 'last-played'){throw 'Media target must remain the last played sound'}
 foreach($n in $xml.SelectNodes('//*[@Name]')){if($n.GetAttribute('Name') -match 'Page$'){$element=$window.FindName($n.GetAttribute('Name'));if($element){$element.Visibility='Collapsed'}}}
 $RulesPage.Visibility='Visible';$PageTitle.Text='Rules';$PageSubtitle.Text='Control what is spoken.'
 $window.WindowStartupLocation='Manual';$window.Left=-20000;$window.Top=-20000;$window.ShowInTaskbar=$false;$window.ShowActivated=$false
@@ -60,7 +62,7 @@ function Refresh-ServiceState{}
 foreach($node in $ast.EndBlock.Statements){if($node.Extent.Text -match '^if \(\$NowPlayingPlayPauseButton\)'){Invoke-Expression $node.Extent.Text}}
 $NowPlayingPlayPauseButton.Tag='idle';$script:lastHistorySpeechId='not-selected'
 $NowPlayingPlayPauseButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
-if($script:postBody.speechId -ne 'selected'){throw 'Media play ignored the selected recording'}
+if($script:postBody.speechId -ne 'last-played'){throw 'Media play ignored the last played recording'}
 $RulesPage.Visibility='Visible';$HistoryPage.Visibility='Collapsed';$window.UpdateLayout()
 $window.Dispatcher.BeginInvoke([action]{
     $dialog=$window.OwnedWindows[0]

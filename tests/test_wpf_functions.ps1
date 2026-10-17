@@ -26,6 +26,22 @@ if($AliasGrid.Items.Count -ne 1){throw 'Default alias did not load'}
 $value=[pscustomobject]@{Name='Test voice';Provider='polly';VoiceId='Brian';Model='neural';Speed=1;Volume=1;Group='Test';Language='en-GB';Instruct='';OutputDevice='Test output'}
 Save-Alias $null $value
 $saved=Read-Settings
+Set-JsonProperty $saved.aliases.'Test voice' 'color' '#87C9AF'
+Set-JsonProperty $saved.aliases.'Test voice' 'icon_id' 'mdi:cat'
+Write-Settings $saved;Refresh-Grid -VoicesOnly
+$speechRow=New-QueueSpeechRow ([pscustomobject]@{id='colored';alias='Test voice';text='hello';status='Waiting';source='Streamer.Bot';timestamp='2026-10-17T12:00:00Z'})
+if($speechRow.Accent -ne '#87C9AF' -or -not $speechRow.IconGeometry -or $speechRow.Source -ne 'Streamer.Bot' -or -not $speechRow.Time){throw 'Queue row lost alias appearance or metadata'}
+if($speechRow.Status -ne 'Queued'){throw 'Waiting job must display Queued'}
+foreach($status in @('Generating','Playing','Finished','Error','Skipped')){
+    $probe=New-QueueSpeechRow ([pscustomobject]@{id='status';alias='Test voice';text='test';status=$status})
+    if($probe.Status -ne $status){throw ('Speech status was lost: '+$status)}
+}
+$probe=New-QueueSpeechRow ([pscustomobject]@{id='paused';alias='Test voice';text='test';status='Playing'}) $true
+if($probe.Status -ne 'Paused'){throw 'Paused audio is labeled Playing'}
+foreach($table in @($QueueGrid,$HistoryGrid)){
+    if(($table.Columns.Header -join ',') -ne 'VOICE,DATE / TIME,STATUS,MESSAGE,SOURCE,AUDIO'){throw 'Speech table columns are not in the requested order'}
+    if(-not $table.RowStyle -or $table.Columns[0] -isnot [Windows.Controls.DataGridTemplateColumn]){throw 'Speech table has no alias icon or selection styling'}
+}
 if($saved.aliases.'Test voice'.output_device -ne 'Test output'){throw 'Per-alias output did not save'}
 if(-not(Test-Path -LiteralPath ($configPath+'.bak'))){throw 'Settings backup missing'}
 $AliasSearchBox.Text='Test voice';Filter-VoiceAliases
@@ -52,6 +68,9 @@ if(-not[object]::ReferenceEquals($originalSource,$HistoryGrid.ItemsSource) -or $
 $script:testHistory=@([pscustomobject]@{id='new';timestamp='2026-10-15T12:01:00Z';status='Finished';alias='Test voice';source='Test';user='';text='new';audioPath=$recordingPath})+$script:testHistory
 Refresh-ServiceState -Snapshot (Invoke-BridgeGet '/api/state').result
 if($HistoryGrid.SelectedItem.Id -ne 'stable'){throw 'New history entry deselected the existing selection'}
+$replayed=[pscustomobject]@{id='stable';alias='Test voice';text='hello'}
+Update-NowPlayingBar ([pscustomobject]@{current=$null;lastPlayed=$replayed;paused=$false;queueLength=0}) ([pscustomobject]@{Id='new';Alias='Other voice';Text='new generation'})
+if($NowPlayingTitle.Text -ne 'Test voice' -or (Get-HistoryPlaybackTarget).id -ne 'stable' -or $script:lastHistorySpeechId -ne 'stable'){throw 'Last replay did not remain the player target'}
 $PollyRegionBox.ApplyTemplate() | Out-Null
 $editable=$PollyRegionBox.Template.FindName('PART_EditableTextBox',$PollyRegionBox)
 if(-not $editable -or $editable.Visibility -ne 'Visible'){throw 'Editable dropdown has no editor'}

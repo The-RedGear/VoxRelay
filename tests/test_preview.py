@@ -23,19 +23,20 @@ def test_preview_never_imports_legacy_or_production_override(tmp_path, monkeypat
     assert json.loads((legacy / 'settings.json').read_text()) == {'api_key': 'production-secret'}
 
 
-def test_preview_restricts_imported_ports_and_side_effects_on_reload(tmp_path, monkeypatch):
+def test_preview_preserves_integrations_but_isolates_desktop_on_reload(tmp_path, monkeypatch):
     monkeypatch.setenv('YAPLOQ_PREVIEW', '1')
     path = tmp_path / 'settings.json'
     path.write_text(json.dumps(dict(http_port=7582, ws_port=7581, udp_port=6670,
-        http_address='0.0.0.0', enable_udp=True, streamerbot_actions_enabled=True,
+        http_address='0.0.0.0', udp_address='0.0.0.0', enable_udp=True, streamerbot_actions_enabled=True,
         obs_ducking_enabled=True, persist_queue=True, check_updates_on_startup=True)))
     settings = Settings(path)
     for _ in range(2):
         settings.load()
-        assert (settings.http_port, settings.ws_port, settings.udp_port) == (17582, 17581, 16670)
-        assert settings.http_address == settings.ws_address == settings.udp_address == '127.0.0.1'
-        assert not any((settings.enable_udp, settings.streamerbot_actions_enabled,
-            settings.obs_ducking_enabled, settings.persist_queue, settings.check_updates_on_startup))
+        assert (settings.http_port, settings.ws_port, settings.udp_port) == (17582, 17581, 6670)
+        assert settings.http_address == settings.ws_address == '127.0.0.1'
+        assert settings.udp_address == '0.0.0.0'
+        assert all((settings.enable_udp, settings.streamerbot_actions_enabled, settings.obs_ducking_enabled))
+        assert not any((settings.persist_queue, settings.check_updates_on_startup))
 
 
 def test_windows_signals_are_separate(monkeypatch):

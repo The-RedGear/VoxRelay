@@ -309,9 +309,8 @@ function Apply-AppFont($target) {
 function Set-PreviewSettings($value) {
     if (-not $script:isPreview) { return }
     @{
-        http_address='127.0.0.1';ws_address='127.0.0.1';udp_address='127.0.0.1'
-        http_port=17582;ws_port=17581;udp_port=16670;enable_udp=$false
-        streamerbot_actions_enabled=$false;obs_ducking_enabled=$false
+        http_address='127.0.0.1';ws_address='127.0.0.1'
+        http_port=17582;ws_port=17581
         persist_queue=$false;check_updates_on_startup=$false
     }.GetEnumerator() | ForEach-Object { $value | Add-Member -NotePropertyName $_.Key -NotePropertyValue $_.Value -Force }
 }
@@ -376,6 +375,12 @@ function Protect-YapLoqSecret([string]$value) {
     $bytes = [Text.Encoding]::UTF8.GetBytes($value)
     $protected = [Security.Cryptography.ProtectedData]::Protect($bytes, $null, [Security.Cryptography.DataProtectionScope]::CurrentUser)
     return [Convert]::ToBase64String($protected)
+}
+function Unprotect-YapLoqSecret([string]$value) {
+    if(-not $value){return ''}
+    $bytes=$null
+    try{$bytes=[Security.Cryptography.ProtectedData]::Unprotect([Convert]::FromBase64String($value),$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);return [Text.Encoding]::UTF8.GetString($bytes)}
+    finally{if($bytes){[Array]::Clear($bytes,0,$bytes.Length)}}
 }
 function Get-HttpPort {
     if ($script:isPreview) { return 17582 }
@@ -1428,7 +1433,11 @@ function Update-BridgeStatus([bool]$online) {
 }
 
 function Set-Page([string]$page) {
-    if ($script:isPreview -and $page -eq 'voiceRules') { $page = 'rules' }
+    if ($script:isPreview -and $page -eq 'history') {
+        if($script:activePage -eq 'queue'){Show-YapLoqQueueHistory;return}
+        $script:queueFocusHistory=$true;$page='queue'
+    }
+    if ($script:isPreview -and $page -eq 'voiceRules') { $page = 'routing' }
     if ($script:activePage -eq $page) { return }
     if ($script:isPreview -and $script:changingPage) { Request-YapLoqPage $page; return }
     $previousPage = $script:activePage
@@ -1463,6 +1472,10 @@ function Set-Page([string]$page) {
     if ($page -in @('queue','history')) { $script:playerStateNext = 0; $script:playerHistoryNext = 0 }
     Animate-PageHeading
     Animate-In $pages[$page]
+    if($script:isPreview -and $page -eq 'queue' -and $script:unifiedQueueGrid){
+        if($script:queueFocusHistory){Show-YapLoqQueueHistory}
+        $script:queueFocusHistory=$false
+    }
     } catch {
         if (-not $script:isPreview) { throw }
         $script:activePage = $previousPage
@@ -1560,6 +1573,8 @@ function Refresh-Grid([switch]$VoicesOnly) {
         $row | Add-Member -NotePropertyName IconBrush -NotePropertyValue $(if($resolvedIcon.Brush){$resolvedIcon.Brush}else{[Windows.Media.BrushConverter]::new().ConvertFromString($accent)}) -Force
         $row | Add-Member -NotePropertyName AccentBackground -NotePropertyValue ('#33'+$accent.Substring(1)) -Force
     }
+    # Separate collection view: searching Voices must not filter the Dashboard picker.
+    $PlayVoiceList.Tag = @($rows | ForEach-Object { $_ })
     $AliasGrid.ItemsSource = $rows
     $AliasProviderFilter.Items.Clear()
     [void]$AliasProviderFilter.Items.Add('All engines')
@@ -1589,6 +1604,9 @@ function Refresh-Grid([switch]$VoicesOnly) {
     }
     if($ExportVoiceAliasBox.SelectedIndex -lt 0){$ExportVoiceAliasBox.SelectedIndex=0}
     Refresh-PlaylistGrid $settings
+    $script:lastQueueSignature=''
+    $script:lastHistorySignature=''
+    $script:playerHistoryRenderedRevision=-1
     if ($VoicesOnly) { return }
     $routingRows = New-Object System.Collections.ObjectModel.ObservableCollection[object]
     foreach ($rule in @($settings.routing_rules)) { if ($rule) { $routingRows.Add($rule) } }
@@ -1718,6 +1736,7 @@ function Refresh-Grid([switch]$VoicesOnly) {
     $script:minimizeToTray = [bool]$settings.minimize_to_tray
     $MinimizeToTrayCheck.IsChecked = $script:minimizeToTray
     $script:loadingSettings = $false
+    if($script:credentialFields){Sync-YapLoqCredentialFields}
 }
 
 function Refresh-Voices {
@@ -2079,11 +2098,47 @@ function Stop-NowPlayingLoadingSpin {
 }
 
 
+function Add-SpeechRowAppearance($row) {
+    $voice=@($PlayVoiceList.Tag | Where-Object {$_.Name -eq $row.Alias})[0]
+    $accent=Get-VoiceAccent ([string]$voice.Accent)
+    $icon=if($voice){$voice}else{Resolve-VoiceIcon 'mdi:music-note' -Color $accent}
+    $row | Add-Member -NotePropertyName Accent -NotePropertyValue $accent -Force
+    $row | Add-Member -NotePropertyName AccentBackground -NotePropertyValue ('#33'+$accent.Substring(1)) -Force
+    $row | Add-Member -NotePropertyName IconGeometry -NotePropertyValue $(if($voice){$voice.IconGeometry}else{$icon.Geometry}) -Force
+    $row | Add-Member -NotePropertyName IconBrush -NotePropertyValue $(if($voice){$voice.IconBrush}else{[Windows.Media.BrushConverter]::new().ConvertFromString($accent)}) -Force
+}
+
+function New-QueueSpeechRow($item, [bool]$Paused=$false) {
+    $time=''
+    try{if($item.timestamp){$time=([datetime]$item.timestamp).ToLocalTime().ToString('MM/dd HH:mm')}}catch{}
+    $status=if($Paused -and $item.status -eq 'Playing'){'Paused'}elseif($item.status -in @('Waiting','Ready','Queued')){'Queued'}else{[string]$item.status}
+    if($item.source -eq 'History recording' -and $status -eq 'Generating'){$status='Queued'}
+    $row=[pscustomobject]@{Id=$item.id;Timestamp=$item.timestamp;Status=$status;Alias=$item.alias;User=$item.user;Text=(Get-DisplayText $item.text);Time=$time;Source=$item.source;AudioPath=[string]$item.audioPath;AudioLabel=$(if($item.audioPath){'Ready'}else{'Pending'})}
+    Add-SpeechRowAppearance $row
+    return $row
+}
+
 function Update-NowPlayingBar($state, $lastHistory) {
     if (-not $NowPlayingTitle) { return }
     $script:lastPlaybackState = $state
     $selectedRecording = Get-HistoryPlaybackTarget
-    if (-not $state.current -and $selectedRecording) { $lastHistory = $selectedRecording }
+    if ($state.lastPlayed) {
+        $script:lastPlayedRecording = $state.lastPlayed
+    }
+    # Keep the actual playback target, not whichever generation happens to be newest.
+    if (-not $state.lastPlayed -and $state.current.status -eq 'Playing') {
+        $played = $state.current
+        $recording = @($script:recentHistoryItems | Where-Object {
+            $_.Id -eq $played.id -or ($played.audioPath -and ($_.AudioPath -eq $played.audioPath -or $_.SavedPath -eq $played.audioPath))
+        })[0]
+        $script:lastPlayedRecording = [pscustomobject]@{
+            Id=$(if($recording){$recording.Id}else{$played.id}); Alias=$played.alias; Text=$played.text; HasAudio=$true
+        }
+    }
+    if ($script:lastPlayedRecording) {
+        $lastHistory = $script:lastPlayedRecording
+        $script:lastHistorySpeechId = [string]$lastHistory.Id
+    }
     $incomingKey = if ($state.current) { [string]$state.current.id } else { '' }
     if ($script:progressSeeking) {
         if ($incomingKey -eq $script:seekSpeechKey) { return }
@@ -2144,7 +2199,7 @@ function Update-NowPlayingBar($state, $lastHistory) {
         $script:nowPlayingMode = if ($paused) { 'paused' } else { 'idle' }
     }
     $script:nowPlayingSubtitleText = [string]$NowPlayingSubtitle.Text
-    $voiceRow=@($AliasGrid.ItemsSource|Where-Object{$_.Name -eq $NowPlayingTitle.Text})[0]
+    $voiceRow=@($PlayVoiceList.Tag|Where-Object{$_.Name -eq $NowPlayingTitle.Text})[0]
     $voiceAccent=if($voiceRow){Get-VoiceAccent ([string]$voiceRow.Accent)}else{'#B6A3FF'}
     $spinner=$window.FindName('NowPlayingLoadingGlyph')
     if($spinner){$spinner.Stroke=[Windows.Media.BrushConverter]::new().ConvertFromString($voiceAccent)}
@@ -2318,13 +2373,13 @@ function Refresh-ServiceState($Snapshot = $null, [bool]$FromPoll = $false) {
     try {
         $selectedQueueId = if ($QueueGrid -and $QueueGrid.SelectedItem) { [string]$QueueGrid.SelectedItem.Id } else { '' }
         $queueRows = New-Object System.Collections.ObjectModel.ObservableCollection[object]
-        if ($state.current) {
-            $queueRows.Add([pscustomobject]@{ Id=$state.current.id; Status=$state.current.status; Alias=$state.current.alias; User=$state.current.user; Text=(Get-DisplayText $state.current.text) })
+        if ($state.current -and $state.current.status -notin @('Finished','Error','Cancelled','Skipped','Removed')) {
+            $queueRows.Add((New-QueueSpeechRow $state.current ([bool]$state.paused)))
         }
         foreach ($item in @($state.queue)) {
-            $queueRows.Add([pscustomobject]@{ Id=$item.id; Status=$item.status; Alias=$item.alias; User=$item.user; Text=(Get-DisplayText $item.text) })
+            if($item){$queueRows.Add((New-QueueSpeechRow $item))}
         }
-        $queueSignature = ($queueRows | ForEach-Object { '{0}|{1}|{2}' -f $_.Id,$_.Status,$_.Text }) -join ';'
+        $queueSignature = ($queueRows | ForEach-Object { '{0}|{1}|{2}|{3}|{4}|{5}' -f $_.Id,$_.Status,$_.Text,$_.Accent,$_.AudioLabel,$_.IconGeometry }) -join ';'
         if ($queueSignature -ne $script:lastQueueSignature) {
             if ($QueueGrid) {
                 $QueueGrid.ItemsSource = $queueRows
@@ -2334,6 +2389,8 @@ function Refresh-ServiceState($Snapshot = $null, [bool]$FromPoll = $false) {
         }
     } catch {}
 
+    if($script:queueLiveHeading){$script:queueLiveHeading.Text='Live queue ('+$queueRows.Count+')'}
+    if($script:unifiedQueueGrid){Update-YapLoqUnifiedQueue}
     if ($FromPoll -and $script:playerHistoryRenderedRevision -eq $script:playerHistoryRevision) { return }
     try {
         $selectedHistoryId = if ($HistoryGrid -and $HistoryGrid.SelectedItem) { [string]$HistoryGrid.SelectedItem.Id } else { '' }
@@ -2343,25 +2400,27 @@ function Refresh-ServiceState($Snapshot = $null, [bool]$FromPoll = $false) {
         foreach ($item in @($history)) {
             if (-not $item) { continue }
             $time = ''
-            try { $time = ([datetime]$item.timestamp).ToLocalTime().ToString('g') } catch { $time = [string]$item.timestamp }
+            try { $time = ([datetime]$item.timestamp).ToLocalTime().ToString('MM/dd HH:mm') } catch { $time = [string]$item.timestamp }
             $audioPath = [string]$item.audioPath
             $savedPath = [string]$item.savedPath
             $savedExists = $false
             $cacheExists = $false
             try { if ($savedPath) { $savedExists = Test-Path -LiteralPath $savedPath } } catch {}
             try { if ($audioPath) { $cacheExists = Test-Path -LiteralPath $audioPath } } catch {}
-            if (-not ($savedExists -or $cacheExists)) { continue }
-            $audioLabel = if ($savedExists) { 'Saved' } elseif ($cacheExists) { 'Cached' } else { 'Gone' }
+            $audioLabel = if ($savedExists) { 'Saved' } elseif ($cacheExists) { 'Cached' } else { 'Unavailable' }
             $row = [pscustomobject]@{
-                Id=$item.id; Time=$time; Status=$item.status; Alias=$item.alias; Source=$item.source
+                Id=$item.id; Timestamp=$item.timestamp; Time=$time; Status=$item.status; Alias=$item.alias; Source=$item.source
                 User=$item.user; Text=(Get-DisplayText $item.text); AudioPath=$audioPath; SavedPath=$savedPath
-                AudioLabel=$audioLabel; HasAudio=$true; DurationMs=$item.duration
+                AudioLabel=$audioLabel; HasAudio=($savedExists -or $cacheExists); DurationMs=$item.duration
             }
+            Add-SpeechRowAppearance $row
             [void]$historyRows.Add($row)
-            if (-not $lastHistory) { $lastHistory = $row }
+            if (-not $lastHistory -and $row.HasAudio) { $lastHistory = $row }
         }
-        if ($lastHistory) { $script:lastHistorySpeechId = [string]$lastHistory.Id } else { $script:lastHistorySpeechId = '' }
-        try { $script:recentHistoryItems = @($historyRows | Select-Object -First 10) } catch { $script:recentHistoryItems = @() }
+        if ($script:lastPlayedRecording) { $script:lastHistorySpeechId = [string]$script:lastPlayedRecording.Id }
+        elseif ($lastHistory) { $script:lastHistorySpeechId = [string]$lastHistory.Id } else { $script:lastHistorySpeechId = '' }
+        try { $script:recentHistoryItems = @($historyRows | Where-Object {$_.HasAudio} | Select-Object -First 10) } catch { $script:recentHistoryItems = @() }
+        if($script:queueHistoryHeading){$script:queueHistoryHeading.Text='Recent history ('+$historyRows.Count+') - not queued'}
         $historySignature = ($historyRows | ForEach-Object { '{0}|{1}|{2}|{3}' -f $_.Id,$_.Status,$_.AudioLabel,$_.SavedPath }) -join ';'
         if ($historySignature -ne $script:lastHistorySignature) {
             if ($HistoryGrid) {
@@ -2371,6 +2430,7 @@ function Refresh-ServiceState($Snapshot = $null, [bool]$FromPoll = $false) {
             $script:lastHistorySignature = $historySignature
         }
         Sync-HistoryAudioButton
+        if($script:unifiedQueueGrid){Update-YapLoqUnifiedQueue}
         if ($FromPoll) { $script:playerHistoryRenderedRevision = $script:playerHistoryRevision }
         # Refresh bar again with real lastHistory (alias/line for idle state)
         try { Update-NowPlayingBar $state $lastHistory } catch {}
@@ -2378,13 +2438,51 @@ function Refresh-ServiceState($Snapshot = $null, [bool]$FromPoll = $false) {
 }
 
 function Get-HistoryPlaybackTarget {
-    if ($HistoryPage -and $HistoryPage.Visibility -eq 'Visible' -and $HistoryGrid.SelectedItem -and $HistoryGrid.SelectedItem.HasAudio) { return $HistoryGrid.SelectedItem }
+    if ($script:lastPlayedRecording) { return $script:lastPlayedRecording }
     return $null
+}
+
+function Get-SelectedHistoryRecording {
+    if($script:unifiedQueueGrid){
+        $selected=$script:unifiedQueueGrid.SelectedItem
+        if($selected.RowKind -ne 'History'){return $null}
+        return @($HistoryGrid.ItemsSource|Where-Object{$_.Id -eq $selected.Id})[0]
+    }
+    return $HistoryGrid.SelectedItem
+}
+
+function Get-MediaRecordingTarget {
+    if($script:lastPlaybackState.current.status -eq 'Generating'){return $null}
+    if($script:lastPlaybackState.current.source -eq 'History recording'){
+        $path=[string]$script:lastPlaybackState.current.audioPath
+        return @($HistoryGrid.ItemsSource|Where-Object{$path -and ($_.AudioPath -eq $path -or $_.SavedPath -eq $path) -and $_.HasAudio})[0]
+    }
+    $id=if($script:lastPlaybackState.current){
+        $script:lastPlaybackState.current.id
+    }else{$script:lastHistorySpeechId}
+    return @($HistoryGrid.ItemsSource|Where-Object{$_.Id -eq $id -and $_.HasAudio})[0]
+}
+
+function Replay-SelectedHistory {
+    $row=Get-SelectedHistoryRecording
+    if(-not $row -or -not $row.HasAudio){$BottomStatus.Text='Select a history message with available audio';return}
+    try{Invoke-BridgePost '/api/history/replay' @{speechId=[string]$row.Id}|Out-Null;$BottomStatus.Text='Recording queued';Refresh-ServiceState}
+    catch{$BottomStatus.Text=$_.Exception.Message}
+}
+
+function Save-SpeechRecording([string]$speechId) {
+    if(-not $speechId){$BottomStatus.Text='Choose a recording to save';return}
+    try{
+        $result=Invoke-BridgePost '/api/history/save' @{speechId=$speechId}
+        $path=if($result.result.path){[string]$result.result.path}else{[string]$result.path}
+        $BottomStatus.Text=if($path){'Saved audio to '+$path}else{'Audio saved'}
+        $script:lastHistorySignature='';Refresh-ServiceState
+    }catch{$BottomStatus.Text=$_.Exception.Message}
 }
 
 function Sync-HistoryAudioButton {
     if (-not $ShowHistoryAudioButton) { return }
-    $row = $HistoryGrid.SelectedItem
+    $row = Get-SelectedHistoryRecording
     if ($ReplayHistoryButton) { $ReplayHistoryButton.IsEnabled = [bool]($row -and $row.HasAudio) }
     $available = $false
     $tip = 'Select a history row with cached or saved audio'
@@ -2417,8 +2515,8 @@ function Open-InExplorer([string]$target, [switch]$SelectFile) {
     Start-Process -FilePath 'explorer.exe' -ArgumentList ('"{0}"' -f $target)
 }
 
-function Show-HistoryAudioLocation {
-    $row = $HistoryGrid.SelectedItem
+function Show-HistoryAudioLocation($recording=$null) {
+    $row = if($recording){$recording}else{Get-SelectedHistoryRecording}
     if (-not $row) { $BottomStatus.Text = 'Select a history item first'; return }
     $savedPath = [string]$row.SavedPath
     $audioPath = [string]$row.AudioPath
@@ -3169,15 +3267,10 @@ function Show-AliasDialog($existing) {
         $swatch.Add_Click({param($sender,$e)
             $paletteRow.Tag=[string]$sender.Tag
             foreach($choice in $paletteRow.Children){$choice.BorderThickness=if($choice.Tag -eq $paletteRow.Tag){2}else{0};$choice.BorderBrush=[Windows.Media.BrushConverter]::new().ConvertFromString($paletteRow.Tag)}
-            $brush=[Windows.Media.BrushConverter]::new().ConvertFromString($paletteRow.Tag);$iconPreview.Fill=$brush;$iconBadge.BorderBrush=$brush;$iconBadge.Background=[Windows.Media.BrushConverter]::new().ConvertFromString('#33'+$paletteRow.Tag.Substring(1));$nameField.BorderBrush=$brush
+            $brush=[Windows.Media.BrushConverter]::new().ConvertFromString($paletteRow.Tag);$iconPreview.Fill=$brush;$iconBadge.BorderBrush=$brush;$iconBadge.Background=[Windows.Media.BrushConverter]::new().ConvertFromString('#33'+$paletteRow.Tag.Substring(1))
             $coloredIcon=Resolve-VoiceIcon $iconBox.Text -Color ([string]$paletteRow.Tag)
             $iconPreview.Data=$coloredIcon.Geometry
             if($coloredIcon.Brush){$iconPreview.Fill=$coloredIcon.Brush}
-            $profileList=$d.FindName('ProfileBox')
-            $profileStyleMarkup=[Windows.Markup.XamlWriter]::Save($d.FindResource([Windows.Controls.ListBoxItem]))
-            $profileStyleMarkup=$profileStyleMarkup -replace '(?i)#(?:FF)?B6A3FF',([string]$paletteRow.Tag)
-            $profileList.ItemContainerStyle=[Windows.Markup.XamlReader]::Parse($profileStyleMarkup)
-            $saveVoiceButton=$d.FindName('Save');$saveVoiceButton.Background=$brush;$saveVoiceButton.BorderBrush=$brush
         })
         [void]$paletteRow.Children.Add($swatch)
     }
@@ -3607,25 +3700,18 @@ $ResumeQueueButton.Add_Click({ try { Invoke-BridgePost '/resume' | Out-Null; Ref
 $SkipQueueButton.Add_Click({ try { Invoke-BridgePost '/skip' | Out-Null; Refresh-ServiceState } catch {} })
 $ClearQueueButton.Add_Click({ try { Invoke-BridgePost '/clear' | Out-Null; Refresh-ServiceState } catch {} })
 $RemoveQueueButton.Add_Click({ $row = $QueueGrid.SelectedItem; if ($row) { try { Invoke-BridgePost '/api/queue/remove' @{ speechId=$row.Id } | Out-Null; Refresh-ServiceState } catch {} } })
-$QueueUpButton.Add_Click({ $row = $QueueGrid.SelectedItem; if ($row) { try { Invoke-BridgePost '/api/queue/move' @{ speechId=$row.Id; direction='up' } | Out-Null; Refresh-ServiceState } catch {} } })
-$QueueDownButton.Add_Click({ $row = $QueueGrid.SelectedItem; if ($row) { try { Invoke-BridgePost '/api/queue/move' @{ speechId=$row.Id; direction='down' } | Out-Null; Refresh-ServiceState } catch {} } })
-$ReplayHistoryButton.Add_Click({ $row = $HistoryGrid.SelectedItem; if ($row) { try { Invoke-BridgePost '/api/history/replay' @{speechId=$row.Id} | Out-Null; $BottomStatus.Text='Recording queued' } catch { $BottomStatus.Text=$_.Exception.Message } } })
+$QueueUpButton.Add_Click({ $row = $QueueGrid.SelectedItem; if ($row) { try { Invoke-BridgePost '/api/queue/move' @{ speechId=$row.Id; direction='up' } | Out-Null; if(Get-Command Move-YapLoqDisplayedSpeech -ErrorAction SilentlyContinue){Move-YapLoqDisplayedSpeech $row.Id 'up'}; Refresh-ServiceState } catch {} } })
+$QueueDownButton.Add_Click({ $row = $QueueGrid.SelectedItem; if ($row) { try { Invoke-BridgePost '/api/queue/move' @{ speechId=$row.Id; direction='down' } | Out-Null; if(Get-Command Move-YapLoqDisplayedSpeech -ErrorAction SilentlyContinue){Move-YapLoqDisplayedSpeech $row.Id 'down'}; Refresh-ServiceState } catch {} } })
+$ReplayHistoryButton.Add_Click({Replay-SelectedHistory})
 if ($ShowHistoryAudioButton) { $ShowHistoryAudioButton.Add_Click({ Show-HistoryAudioLocation }) }
 $HistoryGrid.Add_SelectionChanged({
     Sync-HistoryAudioButton
     if ($script:lastPlaybackState) { Update-NowPlayingBar $script:lastPlaybackState @($script:recentHistoryItems)[0] }
 })
 $SaveHistoryAudioButton.Add_Click({
-    $row = $HistoryGrid.SelectedItem
+    $row = Get-SelectedHistoryRecording
     if (-not $row) { $BottomStatus.Text = 'Select a history item first'; return }
-    try {
-        $result = Invoke-BridgePost '/api/history/save' @{ speechId = $row.Id }
-        $path = [string]$result.result.path
-        if (-not $path) { $path = [string]$result.path }
-        $BottomStatus.Text = if ($path) { 'Saved audio to ' + $path } else { 'Audio saved' }
-        $script:lastHistorySignature = ''
-        Refresh-ServiceState
-    } catch { $BottomStatus.Text = $_.Exception.Message }
+    Save-SpeechRecording ([string]$row.Id)
 })
 $ClearHistoryButton.Add_Click({ try { Invoke-BridgePost '/api/history/clear' | Out-Null; Refresh-ServiceState } catch {} })
 $SaveRulesButton.Add_Click({ Save-Rules })
