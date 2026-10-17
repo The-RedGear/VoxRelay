@@ -1,12 +1,12 @@
-# YapLoq 0.5 preview
+# YapLoq 0.5.0 user guide
 
-For this redesign preview, run `YapLoq-preview.exe` and use its isolated `data-preview` folder. See `YAPLOQ_PREVIEW.md` for preview limits. Standard builds use `YapLoq.exe`; keep the `_internal` folder beside the executable.
+Run `YapLoq.exe` from the extracted Windows download; keep the `_internal` folder beside the executable.
 YapLoq uses the `data` folder beside the EXE. A second launch restores the
 existing window rather than starting another playback service.
 
 ## First voice
 
-Settings opens on the first launch. Choose **Windows voices** for speech without an
+Dashboard opens on launch. Choose **Windows voices** in Services for speech without an
 account, or configure a provider under **Services**. Select your stream output, use
 its test button, then add an alias in **Voices** and test it.
 
@@ -22,7 +22,7 @@ On the **Voices** tab, the **ON** checkbox includes an alias in Streamer.bot
 Explicit alias names still speak when requested (Playground / Test), even if OFF.
 
 For smaller custom pools (Wallace + Master Chief + Sgt Johnson only), open
-**Rules → Voice playlists**, create a named playlist, check those voices, then use
+**Voices → Playlists**, create a named playlist, check those voices, then use
 `playlist:YourName` in Streamer.bot (or pick **Playlist: YourName** when exporting).
 
 Saved keys are encrypted for the current Windows account (DPAPI). Moving `data` to
