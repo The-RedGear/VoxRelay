@@ -1307,8 +1307,8 @@ function Install-YapLoqShell {
         $aboutLogo.Source = $bitmap
         [Windows.Automation.AutomationProperties]::SetName($aboutLogo,'RedGear logo')
     }
-    $window.FindName('AppVersionLabel').Text = 'Preview'
-    [Windows.Automation.AutomationProperties]::SetName($MinimizeButton,'Minimize YapLoq Preview')
+    $window.FindName('AppVersionLabel').Text = if($script:isPreview){'Preview'}else{'0.5.0'}
+    [Windows.Automation.AutomationProperties]::SetName($MinimizeButton,('Minimize '+$script:appLabel))
     foreach ($name in @('AmbientGlowA','AmbientGlowB')) { $window.FindName($name).Visibility = 'Collapsed' }
     $script:providerRoutes = @(@('Windows voices','windowsService'),@('VoiceStudio','voicestudio'),@('Amazon Polly','polly'),@('ElevenLabs','elevenlabs'),@('Azure','azure'),@('Google','google'),@('Watson','watson'),@('UberDuck','uberduck'),@('TTS.Monster','ttsmonster'),@('Acapela','acapela'),@('CereProc','cereproc'))
     $script:ownerLastPage = @{Dashboard='playground';Voices='voices';Queue='queue';Services='services';Integrations='streamerbot';Settings='settings'}
