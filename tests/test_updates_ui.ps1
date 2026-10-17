@@ -27,6 +27,9 @@ if($d.FindName('UpdateDetails')){throw 'Obsolete details dropdown is still prese
 if($d.FindName('UpdateCheckAgain') -or $d.FindName('UpdateLater')){throw 'Update window has redundant check or close controls'}
 if(-not $d.FindName('UpdateBrandLogo').Source){throw 'Update title bar is missing YapLoq branding'}
 if($d.FindName('UpdateNotes').Text -notlike '*Faster queues*'){throw 'Release notes missing'}
+$savedNotes=$script:updateInfo.notes;$script:updateInfo.notes='';$script:updateInfo.state='current';Update-YapLoqUpdateWindow
+if($d.FindName('UpdateNotesCard').Visibility -ne 'Visible' -or $d.FindName('UpdateNotes').Text -notlike 'Patch notes*'){throw 'Patch-notes panel disappeared without a published release'}
+$script:updateInfo.notes=$savedNotes
 $script:updateInfo.state='downloading';$script:updateInfo|Add-Member NoteProperty progress 45 -Force
 Update-YapLoqUpdateWindow
 if($d.FindName('UpdatePrimary').Content -ne 'Cancel download' -or $d.FindName('UpdateProgress').Value -ne 45){throw 'Download progress state failed'}
@@ -46,8 +49,10 @@ if($OutputDirectory){
     $encoder=[Windows.Media.Imaging.PngBitmapEncoder]::new();$encoder.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($bitmap))
     $stream=[IO.File]::Create((Join-Path $OutputDirectory 'updates-review.png'));try{$encoder.Save($stream)}finally{$stream.Dispose()}
 }
-$d.FindName('UpdateClose').RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
+$closeButton=$d.FindName('UpdateClose');$closedDialog=$d
+Remove-Variable d
+$closeButton.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.Button]::ClickEvent))
 $window.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ContextIdle)
-if($d.IsVisible -or $script:updateDialog){throw 'Title-bar close button did not close the updater'}
+if($closedDialog.IsVisible -or $script:updateDialog){throw 'Title-bar close button did not close the updater'}
 $window.Close()
 Write-Output 'Update window states, app styling, placement, progress and primary actions passed.'

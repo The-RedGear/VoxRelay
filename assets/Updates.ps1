@@ -41,10 +41,10 @@ function Update-YapLoqUpdateWindow{
     $d.FindName('UpdateVersions').Text=$versions
     $d.FindName('UpdateMessage').Text=if($script:updateRequestError){$script:updateRequestError}elseif($script:updateWhenIdle){'Waiting for the current speech and queue to finish. New speech will delay the update.'}else{[string]$info.message}
     $hasNotes=-not [string]::IsNullOrWhiteSpace([string]$info.notes)
-    $d.FindName('UpdateNotesCard').Visibility=if($hasNotes){'Visible'}else{'Collapsed'}
-    if($hasNotes){$d.FindName('UpdateNotes').Text=([string]$info.notes -replace '(?m)^#{1,6}\s+','')}
+    $d.FindName('UpdateNotesCard').Visibility='Visible'
+    $d.FindName('UpdateNotes').Text=if($hasNotes){([string]$info.notes -replace '(?m)^#{1,6}\s+','')}else{'Patch notes will appear here when a release is published.'}
     $d.FindName('UpdateSafetyNote').Visibility=if($info.available -or $info.state -in @('downloading','ready')){'Visible'}else{'Collapsed'}
-    $d.Height=if($hasNotes){470}else{330}
+    $d.Height=470
     $progress=$d.FindName('UpdateProgress');$progress.Visibility=if($info.state -in @('checking','downloading')){'Visible'}else{'Collapsed'}
     $progress.IsIndeterminate=$info.state -eq 'checking';$progress.Value=[double]$info.progress
     $primary=$d.FindName('UpdatePrimary');$primary.Visibility='Visible';$primary.IsEnabled=$true
@@ -74,14 +74,14 @@ function Show-YapLoqUpdates{
     if($script:updateDialog){$script:updateDialog.Activate();return}
     $d=Load-Xaml (Join-Path $resourceRoot 'assets\Updates.xaml')
     $d.Owner=$window;$d.Resources.MergedDictionaries.Add($window.Resources);Apply-AppFont $d
-    foreach($name in @('UpdateClose','UpdateSavePackage')){$d.FindName($name).Style=$window.FindResource([Windows.Controls.Button])}
+    $d.FindName('UpdateSavePackage').Style=$window.FindResource([Windows.Controls.Button])
     $d.FindName('UpdatePrimary').Style=$window.FindResource('PrimaryButton')
     $d.Icon=$window.Icon
     $brandPath=Join-Path $resourceRoot 'assets\YapLoq-logo.png'
     if(Test-Path -LiteralPath $brandPath){$brand=[Windows.Media.Imaging.BitmapImage]::new();$brand.BeginInit();$brand.CacheOption='OnLoad';$brand.UriSource=[Uri]::new($brandPath);$brand.EndInit();$brand.Freeze();$d.FindName('UpdateBrandLogo').Source=$brand}
     $script:updateDialog=$d;$script:updateMonitoring=$true
     $d.FindName('UpdateTitleDragRegion').Add_MouseLeftButtonDown({$d.DragMove()})
-    $d.FindName('UpdateClose').Add_Click({$d.Close()})
+    $d.FindName('UpdateClose').Add_Click({if($script:updateDialog){$script:updateDialog.Close()}})
     $d.FindName('UpdatePrimary').Add_Click({Invoke-YapLoqUpdatePrimary})
     $d.FindName('UpdateSavePackage').Add_Click({
         $picker=[Microsoft.Win32.SaveFileDialog]::new();$picker.Filter='YapLoq update package (*.zip)|*.zip';$picker.FileName='YapLoq-update.zip'
